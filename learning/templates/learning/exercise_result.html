@@ -1,0 +1,91 @@
+{% extends 'learning/base.html' %}
+
+{% block title %}答题结果 - {{ answer_log.exercise.title }}{% endblock %}
+
+{% block content %}
+<style>
+    .result-container {
+        max-width: 800px;
+        margin: 20px auto;
+        padding: 20px;
+    }
+
+    .result-header {
+        padding: 2rem;
+        border-radius: 10px 10px 0 0;
+        color: white;
+    }
+
+    .correct {
+        background-color: #28a745;
+    }
+
+    .incorrect {
+        background-color: #dc3545;
+    }
+</style>
+
+<div class="result-container">
+    <div class="card">
+        <div class="result-header {% if answer_log.is_correct %}correct{% else %}incorrect{% endif %}">
+            <div class="text-center">
+                {% if answer_log.is_correct %}
+                <i class="fas fa-check-circle fa-3x mb-3"></i>
+                <h3>回答正确！</h3>
+                {% else %}
+                <i class="fas fa-times-circle fa-3x mb-3"></i>
+                <h3>回答错误</h3>
+                {% endif %}
+                <p class="mb-0">耗时: {{ answer_log.time_spent }}秒</p>
+            </div>
+        </div>
+
+        <div class="card-body">
+            <!-- 题目信息 -->
+            <div class="mb-4">
+                <h5>题目：{{ answer_log.exercise.title }}</h5>
+                <p class="text-muted">{{ answer_log.exercise.content }}</p>
+            </div>
+
+            <!-- 答案信息 -->
+            <div class="mb-4">
+                <h5>答题结果</h5>
+                {% if answer_log.exercise.question_type in ['single', 'multiple'] %}
+                    <p>您选择了：
+                    {% for choice in answer_log.selected_choices.all %}
+                        <span class="badge bg-secondary">{{ choice.content }}</span>
+                    {% empty %}
+                        <span class="text-muted">未选择</span>
+                    {% endfor %}
+                    </p>
+
+                    <p>正确答案：
+                    {% for choice in answer_log.exercise.choices.all %}
+                        {% if choice.is_correct %}
+                        <span class="badge bg-success">{{ choice.content }}</span>
+                        {% endif %}
+                    {% endfor %}
+                    </p>
+                {% else %}
+                    <p>您的答案：{{ answer_log.text_answer|default:"未填写" }}</p>
+                {% endif %}
+            </div>
+
+            <!-- 操作按钮 -->
+            <div class="d-flex justify-content-between">
+                <a href="{% url 'exercise_list' answer_log.exercise.subject.id %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-list me-1"></i>返回列表
+                </a>
+                <div>
+                    <a href="{% url 'take_exercise' answer_log.exercise.id %}" class="btn btn-primary me-2">
+                        <i class="fas fa-redo me-1"></i>重新练习
+                    </a>
+                    <a href="{% url 'exercise_list' answer_log.exercise.subject.id %}" class="btn btn-success">
+                        继续学习
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

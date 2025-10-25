@@ -1,0 +1,272 @@
+{% extends 'learning/base.html' %}
+
+{% block title %}答题 - {{ exercise.title }}{% endblock %}
+
+{% block content %}
+<style>
+    /* 重置容器样式 */
+    .container.mt-4 {
+        margin: 0 !important;
+        padding: 0 !important;
+        max-width: 100% !important;
+        width: 100% !important;
+    }
+
+    /* 答题页面布局 */
+    .exercise-container {
+        max-width: 800px;
+        margin: 20px auto;
+        padding: 0 20px;
+    }
+
+    /* 答题卡片 */
+    .question-card {
+        border: none;
+        border-radius: 15px;
+        box-shadow: 0 5px 25px rgba(0,0,0,0.1);
+        margin-bottom: 30px;
+    }
+
+    .question-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 15px 15px 0 0 !important;
+        padding: 1.5rem;
+    }
+
+    .question-body {
+        padding: 2rem;
+    }
+
+    /* 选项样式 */
+    .choice-item {
+        border: 2px solid #e9ecef;
+        border-radius: 10px;
+        padding: 1rem 1.5rem;
+        margin-bottom: 1rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .choice-item:hover {
+        border-color: #667eea;
+        background-color: #f8f9ff;
+    }
+
+    .choice-item.selected {
+        border-color: #28a745;
+        background-color: #d4edda;
+    }
+
+    .choice-input {
+        margin-right: 1rem;
+    }
+
+    /* 计时器 */
+    .timer {
+        font-size: 1.2rem;
+        font-weight: bold;
+        color: #dc3545;
+    }
+
+    /* 按钮样式 */
+    .btn-submit {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        padding: 0.75rem 2rem;
+        font-size: 1.1rem;
+    }
+
+    /* 移动设备响应式 */
+    @media (max-width: 768px) {
+        .exercise-container {
+            padding: 0 15px;
+            margin: 10px auto;
+        }
+
+        .question-body {
+            padding: 1rem;
+        }
+
+        .choice-item {
+            padding: 0.75rem 1rem;
+        }
+    }
+</style>
+
+<div class="exercise-container">
+    <!-- 答题卡片 -->
+    <div class="card question-card">
+        <div class="question-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h4 class="mb-1">{{ exercise.title }}</h4>
+                    <p class="mb-0 opacity-75">{{ exercise.subject.name }}</p>
+                </div>
+                <div class="text-end">
+                    <div class="timer">
+                        <i class="fas fa-clock me-1"></i>
+                        <span id="timer">00:00</span>
+                    </div>
+                    <small class="opacity-75">
+                        {% if exercise.difficulty == 'easy' %}简单
+                        {% elif exercise.difficulty == 'medium' %}中等
+                        {% else %}困难
+                        {% endif %}
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <div class="question-body">
+            <!-- 题目内容 -->
+            <div class="mb-4">
+                <h5 class="text-muted mb-3">题目描述</h5>
+                <div class="question-content p-3 bg-light rounded">
+                    {{ exercise.content|linebreaks }}
+                </div>
+            </div>
+
+            <!-- 答题区域 -->
+            <form method="post" id="answer-form">
+                {% csrf_token %}
+                <input type="hidden" name="time_spent" id="time-spent" value="0">
+
+                <h5 class="text-muted mb-3">请选择答案：</h5>
+
+                {% if exercise.question_type == 'single' %}
+                <!-- 单选题 -->
+                <div class="choices-container">
+                    {% for choice in exercise.choices.all %}
+                    <div class="choice-item" onclick="selectSingleChoice({{ choice.id }})">
+                        <div class="form-check">
+                            <input class="form-check-input choice-input"
+                                   type="radio"
+                                   name="choices"
+                                   id="choice_{{ choice.id }}"
+                                   value="{{ choice.id }}">
+                            <label class="form-check-label w-100" for="choice_{{ choice.id }}">
+                                {{ choice.content }}
+                            </label>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                {% elif exercise.question_type == 'multiple' %}
+                <!-- 多选题 -->
+                <div class="choices-container">
+                    {% for choice in exercise.choices.all %}
+                    <div class="choice-item" onclick="toggleMultipleChoice({{ choice.id }})">
+                        <div class="form-check">
+                            <input class="form-check-input choice-input"
+                                   type="checkbox"
+                                   name="choices"
+                                   id="choice_{{ choice.id }}"
+                                   value="{{ choice.id }}">
+                            <label class="form-check-label w-100" for="choice_{{ choice.id }}">
+                                {{ choice.content }}
+                            </label>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                {% else %}
+                <!-- 简答题 -->
+                <div class="form-group">
+                    <textarea class="form-control" name="text_answer" rows="6"
+                              placeholder="请输入您的答案..."></textarea>
+                </div>
+                {% endif %}
+
+                <!-- 操作按钮 -->
+                <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
+                    <a href="{% url 'exercise_list' exercise.subject.id %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-1"></i>返回列表
+                    </a>
+                    <button type="submit" class="btn btn-submit text-white" id="submit-btn">
+                        <i class="fas fa-paper-plane me-1"></i>提交答案
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 知识点提示 -->
+    <div class="card">
+        <div class="card-body">
+            <h6 class="card-title"><i class="fas fa-brain me-2"></i>涉及知识点</h6>
+            <div class="d-flex flex-wrap gap-2">
+                {% for q_matrix in exercise.qmatrix_set.all %}
+                <span class="badge bg-info">{{ q_matrix.knowledge_point.name }}</span>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// 计时器
+let startTime = new Date();
+let timerInterval;
+
+function updateTimer() {
+    const now = new Date();
+    const diff = Math.floor((now - startTime) / 1000);
+    const minutes = Math.floor(diff / 60).toString().padStart(2, '0');
+    const seconds = (diff % 60).toString().padStart(2, '0');
+    document.getElementById('timer').textContent = `${minutes}:${seconds}`;
+    document.getElementById('time-spent').value = diff;
+}
+
+// 开始计时
+timerInterval = setInterval(updateTimer, 1000);
+
+// 单选题选择
+function selectSingleChoice(choiceId) {
+    // 取消所有选择
+    document.querySelectorAll('.choice-item').forEach(item => {
+        item.classList.remove('selected');
+    });
+
+    // 选择当前项
+    const choiceElement = document.querySelector(`.choice-item[onclick="selectSingleChoice(${choiceId})"]`);
+    const radioInput = document.getElementById(`choice_${choiceId}`);
+
+    choiceElement.classList.add('selected');
+    radioInput.checked = true;
+}
+
+// 多选题选择
+function toggleMultipleChoice(choiceId) {
+    const choiceElement = document.querySelector(`.choice-item[onclick="toggleMultipleChoice(${choiceId})"]`);
+    const checkboxInput = document.getElementById(`choice_${choiceId}`);
+
+    checkboxInput.checked = !checkboxInput.checked;
+
+    if (checkboxInput.checked) {
+        choiceElement.classList.add('selected');
+    } else {
+        choiceElement.classList.remove('selected');
+    }
+}
+
+// 表单提交
+document.getElementById('answer-form').addEventListener('submit', function(e) {
+    const submitBtn = document.getElementById('submit-btn');
+
+    // 显示加载状态
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>提交中...';
+
+    // 停止计时器
+    clearInterval(timerInterval);
+});
+
+// 页面卸载时停止计时器
+window.addEventListener('beforeunload', function() {
+    clearInterval(timerInterval);
+});
+</script>
+{% endblock %}

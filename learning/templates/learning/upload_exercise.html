@@ -1,0 +1,15 @@
+{% extends 'learning/base.html' %}
+
+{% block title %}上传习题 - 在线学习诊断系统{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">上传习题</h1>
+</div>
+
+<form method="post">
+    {% csrf_token %}  <!-- 添加这行 -->
+
+    <!-- 表单内容 -->
+</form>
+{% endblock %}

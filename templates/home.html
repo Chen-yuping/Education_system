@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>学堂在线 - 在线学习诊断系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #1e88e5;
+            --secondary-color: #f5f5f5;
+            --accent-color: #ff6f00;
+        }
+
+        body {
+            font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+            background-color: #f8f9fa;
+        }
+
+        .navbar-brand {
+            font-weight: bold;
+            font-size: 1.5rem;
+            color: var(--primary-color) !important;
+        }
+
+        .hero-section {
+            background: linear-gradient(135deg, var(--primary-color) 0%, #0d47a1 100%);
+            color: white;
+            padding: 80px 0;
+        }
+
+        .countdown {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            padding: 15px;
+            display: inline-block;
+            margin-top: 20px;
+        }
+
+        .course-card {
+            border-radius: 8px;
+            overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border: none;
+            margin-bottom: 20px;
+        }
+
+        .course-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+
+        .course-card img {
+            height: 160px;
+            object-fit: cover;
+        }
+
+        .university-logo {
+            height: 60px;
+            margin: 10px 20px;
+            filter: grayscale(100%);
+            transition: filter 0.3s ease;
+        }
+
+        .university-logo:hover {
+            filter: grayscale(0%);
+        }
+
+        .live-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #ff4757;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+
+        .feature-card {
+            border-radius: 8px;
+            padding: 20px;
+            height: 100%;
+            transition: all 0.3s ease;
+        }
+
+        .feature-card:hover {
+            background-color: white;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .section-title {
+            position: relative;
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+        }
+
+        .section-title:after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 50px;
+            height: 3px;
+            background: var(--primary-color);
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .btn-outline-primary {
+            color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .btn-outline-primary:hover {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .nav-link {
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm sticky-top">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'home' %}">
+                <i class="fas fa-graduation-cap"></i>
+                学堂在线
+            </a>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarContent">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{% url 'home' %}">首页</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">全部课程</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">合作院校</a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="moreDropdown" role="button" data-bs-toggle="dropdown">
+                            更多
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#">学习路径</a></li>
+                            <li><a class="dropdown-item" href="#">名师讲堂</a></li>
+                            <li><a class="dropdown-item" href="#">学习社区</a></li>
+                        </ul>
+                    </li>
+                </ul>
+
+                <div class="navbar-nav ms-auto">
+                    <div class="nav-item dropdown me-3">
+                        <a class="nav-link dropdown-toggle" href="#" id="languageDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-globe"></i> 中文
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="#">中文</a></li>
+                            <li><a class="dropdown-item" href="#">English</a></li>
+                        </ul>
+                    </div>
+
+                    {% if user.is_authenticated %}
+                        <div class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-user"></i> {{ user.username }}
+                            </a>
+                            <ul class="dropdown-menu">
+                                {% if user.user_type == 'student' %}
+                                    <li><a class="dropdown-item" href="{% url 'student_dashboard' %}">学习中心</a></li>
+                                {% else %}
+                                    <li><a class="dropdown-item" href="{% url 'teacher_dashboard' %}">教学中心</a></li>
+                                {% endif %}
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="{% url 'logout' %}">退出登录</a></li>
+                            </ul>
+                        </div>
+                    {% else %}
+                        <a class="nav-link" href="{% url 'login' %}">登录</a>
+                        <a class="btn btn-primary ms-2" href="{% url 'register' %}">注册</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要内容 -->
+    <main>
+        <!-- 英雄区域 -->
+        <section class="hero-section">
+            <div class="container">
+                <div class="row align-items-center">
+                    <div class="col-lg-6">
+                        <h1 class="display-4 fw-bold mb-4">科班式培养+工程师能力落地</h1>
+                        <h2 class="mb-4">挑战计算机专业</h2>
+                        <h3 class="fw-bold mb-4">疾风计划开启</h3>
+
+                        <div class="mb-4">
+                            <p><i class="fas fa-user-tie me-2"></i>985教授 | 企业导师 | 专属助教</p>
+                            <p><i class="fas fa-cogs me-2"></i>系统核心 | 修炼内功 | 全额奖励</p>
+                        </div>
+
+                        <div class="countdown">
+                            <p class="mb-0">开课倒计时 <span class="fw-bold">3</span> 天</p>
+                        </div>
+                    </div>
+                    <div class="col-lg-6 text-center">
+                        <!-- 这里可以放一个图片或插图 -->
+                        <div style="background: rgba(255,255,255,0.1); border-radius: 10px; padding: 30px;">
+                            <i class="fas fa-laptop-code" style="font-size: 8rem; opacity: 0.8;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 热门直播 -->
+        <section class="py-5">
+            <div class="container">
+                <h2 class="section-title">热门直播</h2>
+
+                <div class="row">
+                    <div class="col-md-6 mb-4">
+                        <div class="card course-card">
+                            <div class="position-relative">
+                                <div class="live-badge">直播回放</div>
+                                <img src="https://via.placeholder.com/400x200/4CAF50/FFFFFF?text=谦逊领导力" class="card-img-top" alt="谦逊领导力">
+                            </div>
+                            <div class="card-body">
+                                <h5 class="card-title">谦逊领导力2.0</h5>
+                                <p class="card-text">如何创建积极的人际关系和更好的组织</p>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <a href="#" class="btn btn-outline-primary">观看回放</a>
+                                    <small class="text-muted">2小时前</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6 mb-4">
+                        <div class="card course-card">
+                            <div class="position-relative">
+                                <div class="live-badge">直播回放</div>
+                                <img src="https://via.placeholder.com/400x200/2196F3/FFFFFF?text=财务分析" class="card-img-top" alt="财务分析">
+                            </div>
+                            <div class="card-body">
+                                <h5 class="card-title">财务的昨天、今天和明天</h5>
+                                <p class="card-text">深入解析财务发展趋势与未来展望</p>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <a href="#" class="btn btn-outline-primary">观看回放</a>
+                                    <small class="text-muted">1天前</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 合作院校 -->
+        <section class="py-5 bg-light">
+            <div class="container">
+                <h2 class="section-title">合作院校</h2>
+
+                <div class="row justify-content-center text-center">
+                    <div class="col-6 col-md-3 mb-4">
+                        <div class="bg-white p-3 rounded shadow-sm">
+                            <div class="fw-bold mb-2">清华大学</div>
+                            <div class="text-muted small">TSINGHUA UNIVERSITY</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3 mb-4">
+                        <div class="bg-white p-3 rounded shadow-sm">
+                            <div class="fw-bold mb-2">北京大学</div>
+                            <div class="text-muted small">PEKING UNIVERSITY</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3 mb-4">
+                        <div class="bg-white p-3 rounded shadow-sm">
+                            <div class="fw-bold mb-2">交通大学</div>
+                            <div class="text-muted small">JIAOTONG UNIVERSITY</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-md-3 mb-4">
+                        <div class="bg-white p-3 rounded shadow-sm">
+                            <div class="fw-bold mb-2">康奈尔大学</div>
+                            <div class="text-muted small">CORNELL UNIVERSITY</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-center mt-4">
+                    <a href="#" class="btn btn-outline-primary">查看更多合作院校</a>
+                </div>
+            </div>
+        </section>
+
+        <!-- AI编程课程 -->
+        <section class="py-5">
+            <div class="container">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <h2 class="section-title">零代码！让AI帮你写小游戏/网页/小程序</h2>
+                        <p class="mb-4">最新用户：<strong>腾讯P/E13930778</strong></p>
+                        <a href="#" class="btn btn-primary">观看回放</a>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card course-card">
+                            <img src="https://via.placeholder.com/400x200/9C27B0/FFFFFF?text=AI编程" class="card-img-top" alt="AI编程">
+                            <div class="card-body">
+                                <h5 class="card-title">零代码！让AI帮你写小游戏/网页/小程序</h5>
+                                <p class="card-text">无需编程基础，利用AI工具快速开发应用</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 热门课程 -->
+        <section class="py-5 bg-light">
+            <div class="container">
+                <h2 class="section-title">热门课程</h2>
+
+                <div class="row">
+                    {% for subject in popular_subjects %}
+                    <div class="col-md-4 mb-4">
+                        <div class="card course-card">
+                            <img src="https://via.placeholder.com/400x200/3F51B5/FFFFFF?text={{ subject.name }}" class="card-img-top" alt="{{ subject.name }}">
+                            <div class="card-body">
+                                <h5 class="card-title">{{ subject.name }}</h5>
+                                <p class="card-text">{{ subject.description|default:"暂无课程描述"|truncatewords:15 }}</p>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <a href="#" class="btn btn-sm btn-outline-primary">查看课程</a>
+                                    <small class="text-muted">{% if forloop.counter < 4 %}热门{% else %}推荐{% endif %}</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="col-12 text-center py-4">
+                        <p class="text-muted">暂无课程数据</p>
+                        {% if user.is_authenticated and user.user_type == 'teacher' %}
+                        <a href="{% url 'upload_exercise' %}" class="btn btn-primary">创建课程</a>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="text-center mt-4">
+                    <a href="#" class="btn btn-outline-primary">浏览全部课程</a>
+                </div>
+            </div>
+        </section>
+
+        <!-- 特色功能 -->
+        <section class="py-5">
+            <div class="container">
+                <h2 class="section-title">平台特色</h2>
+
+                <div class="row">
+                    <div class="col-md-4 mb-4">
+                        <div class="feature-card text-center">
+                            <div class="mb-3">
+                                <i class="fas fa-brain fa-3x text-primary"></i>
+                            </div>
+                            <h5>智能学习诊断</h5>
+                            <p class="text-muted">基于知识追踪算法，精准诊断学习薄弱环节，提供个性化学习路径</p>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4 mb-4">
+                        <div class="feature-card text-center">
+                            <div class="mb-3">
+                                <i class="fas fa-chart-line fa-3x text-primary"></i>
+                            </div>
+                            <h5>学习进度可视化</h5>
+                            <p class="text-muted">清晰展示学习进度和知识点掌握情况，帮助师生了解学习状况</p>
+                        </div>
+                    </div>
+
+                    <div class="col-md-4 mb-4">
+                        <div class="feature-card text-center">
+                            <div class="mb-3">
+                                <i class="fas fa-graduation-cap fa-3x text-primary"></i>
+                            </div>
+                            <h5>名师优质课程</h5>
+                            <p class="text-muted">汇聚各领域名师，提供高质量课程内容，助力学习成长</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="bg-dark text-white py-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-4 mb-4">
+                    <h5 class="mb-3">学堂在线</h5>
+                    <p>致力于提供优质的在线学习体验，通过智能诊断和个性化推荐，帮助每位学习者实现自我提升。</p>
+                </div>
+
+                <div class="col-md-2 mb-4">
+                    <h6 class="mb-3">快速链接</h6>
+                    <ul class="list-unstyled">
+                        <li><a href="#" class="text-light text-decoration-none">首页</a></li>
+                        <li><a href="#" class="text-light text-decoration-none">课程</a></li>
+                        <li><a href="#" class="text-light text-decoration-none">院校</a></li>
+                        <li><a href="#" class="text-light text-decoration-none">关于我们</a></li>
+                    </ul>
+                </div>
+
+                <div class="col-md-3 mb-4">
+                    <h6 class="mb-3">联系我们</h6>
+                    <ul class="list-unstyled">
+                        <li><i class="fas fa-envelope me-2"></i> contact@xuetangx.com</li>
+                        <li><i class="fas fa-phone me-2"></i> 400-123-4567</li>
+                        <li><i class="fas fa-map-marker-alt me-2"></i> 北京市海淀区清华大学</li>
+                    </ul>
+                </div>
+
+                <div class="col-md-3 mb-4">
+                    <h6 class="mb-3">关注我们</h6>
+                    <div class="d-flex gap-3">
+                        <a href="#" class="text-light"><i class="fab fa-weixin fa-2x"></i></a>
+                        <a href="#" class="text-light"><i class="fab fa-weibo fa-2x"></i></a>
+                        <a href="#" class="text-light"><i class="fab fa-qq fa-2x"></i></a>
+                    </div>
+                </div>
+            </div>
+
+            <hr class="my-4">
+
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <p class="mb-0">&copy; 2023 学堂在线. 保留所有权利.</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <a href="#" class="text-light text-decoration-none me-3">隐私政策</a>
+                    <a href="#" class="text-light text-decoration-none">使用条款</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

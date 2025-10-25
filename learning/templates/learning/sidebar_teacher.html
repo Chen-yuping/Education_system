@@ -1,0 +1,34 @@
+<div class="container-fluid">
+    <div class="row">
+        <nav class="col-md-2 d-none d-md-block bg-light sidebar">
+            <div class="sidebar-sticky">
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'teacher_dashboard' %}">
+                            <i class="fas fa-tachometer-alt"></i> 教师面板
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'upload_exercise' %}">
+                            <i class="fas fa-upload"></i> 上传习题
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'upload_knowledge' %}">
+                            <i class="fas fa-brain"></i> 上传知识点
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'q_matrix_management' %}">
+                            <i class="fas fa-project-diagram"></i> Q矩阵管理
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </nav>
+
+        <main role="main" class="col-md-9 ml-sm-auto col-lg-10 px-4">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</div>
