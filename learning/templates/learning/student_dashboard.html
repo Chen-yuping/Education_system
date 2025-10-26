@@ -120,8 +120,7 @@
             <ul class="nav flex-column">
                 {% for subject in subjects %}
                 <li class="nav-item">
-                    <!-- 修改这里：添加 subject_id= -->
-                    <a class="nav-link" href="{% url 'exercise_list' subject_id=subject.id %}">
+                    <a class="nav-link" href="{% url 'exercise_list' subject.id %}">
                         <i class="fas fa-book"></i> {{ subject.name }}
                     </a>
                 </li>
