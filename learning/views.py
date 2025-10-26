@@ -42,7 +42,8 @@ def student_dashboard(request):
     return render(request, 'learning/student_dashboard.html', {
         'subjects': subjects,
         'recent_logs': recent_logs,
-        'avg_mastery': round(avg_mastery * 100, 1)
+        'avg_mastery': round(avg_mastery * 100, 1),
+        'first_subject': subjects.first()
     })
 
 
