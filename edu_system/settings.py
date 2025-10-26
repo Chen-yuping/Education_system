@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'accounts',
     'learning',
+    'webhook',
 ]
 
 MIDDLEWARE = [
