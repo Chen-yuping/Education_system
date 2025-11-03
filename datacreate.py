@@ -3,7 +3,7 @@ import django
 import random
 from datetime import datetime, timedelta
 
-# 设置Django环境
+# 设置了Django环境
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'your_project.settings')
 django.setup()
 
