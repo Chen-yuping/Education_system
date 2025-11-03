@@ -4,7 +4,7 @@ import random
 from datetime import datetime, timedelta
 
 # 设置了Django环境
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'your_project.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'edu_system.settings')
 django.setup()
 
 from django.contrib.auth import get_user_model
