@@ -9,7 +9,7 @@ django.setup()
 
 from django.contrib.auth import get_user_model
 from accounts.models import User, StudentProfile, TeacherProfile
-from your_app.models import (
+from learning.models import (
     Subject, KnowledgePoint, Exercise, Choice,
     QMatrix, AnswerLog, StudentDiagnosis
 )
