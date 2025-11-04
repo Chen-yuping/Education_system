@@ -50,7 +50,7 @@
             <!-- 答案信息 -->
             <div class="mb-4">
                 <h5>答题结果</h5>
-                {% if answer_log.exercise.question_type in ['single', 'multiple'] %}
+                {% if user_answer.exercise.question_type == 'single' or user_answer.exercise.question_type == 'multiple' %}
                     <p>您选择了：
                     {% for choice in answer_log.selected_choices.all %}
                         <span class="badge bg-secondary">{{ choice.content }}</span>
