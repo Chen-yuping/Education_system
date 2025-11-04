@@ -9,7 +9,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('accounts/', include('accounts.urls')),
     path('learning/', include('learning.urls')),
-    path('webhook/', include('webhook.urls')),
+    # path('webhook/', include('webhook.urls')),
 ]
 
 if settings.DEBUG:
