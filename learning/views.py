@@ -167,13 +167,24 @@ def take_exercise(request, exercise_id):
 def exercise_result(request, log_id):
     """答题结果页面"""
     answer_log = get_object_or_404(AnswerLog, id=log_id, student=request.user)
-
+    current_exercise = answer_log.exercise
+    current_subject = current_exercise.subject
+    current_title = current_exercise.title
     # 获取用户选择的选项ID列表
     selected_choice_ids = list(answer_log.selected_choices.values_list('id', flat=True))
 
+    # 查找同科目中下一题（按ID顺序，未完成的优先）
+    # 1. 先找同科目中ID大于当前题且未完成的
+    next_exercise = Exercise.objects.filter(
+        subject=current_subject,
+        title=current_title,
+        id__gt=current_exercise.id  # ID比当前题大（保证顺序）
+    ).first()
+
     return render(request, 'learning/exercise_result.html', {
         'answer_log': answer_log,
-        'selected_choice_ids': selected_choice_ids
+        'selected_choice_ids': selected_choice_ids,
+        'next_exercise': next_exercise
     })
 
 
