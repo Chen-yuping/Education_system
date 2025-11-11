@@ -238,7 +238,7 @@
                     {% for subject in popular_subjects %}
                     <div class="col-md-4 mb-4">
                         <div class="card course-card">
-                            <img src="{% static 'images/R-C.jpg' %}" class="card-img-top" alt="{{ subject.name }}">
+                           <img src="{% static 'images/subject/' %}{{ subject.id }}.jpg?v={{ timestamp }}" class="card-img-top" alt="{{ subject.name }}">
                             <div class="card-body">
                                 <h5 class="card-title">{{ subject.name }}</h5>
                                 <p class="card-text">{{ subject.description|default:"暂无课程描述"|truncatewords:15 }}</p>
