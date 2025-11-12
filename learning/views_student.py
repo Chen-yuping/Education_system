@@ -51,7 +51,6 @@ def student_dashboard(request):
 @user_passes_test(is_student)
 def student_subject(request):
     subjects = Subject.objects.all()
-    subjects = Subject.objects.all()
     recent_logs = AnswerLog.objects.filter(student=request.user).order_by('-submitted_at')[:5]
 
     # 计算总体掌握情况
