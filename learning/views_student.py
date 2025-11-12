@@ -45,6 +45,18 @@ def student_dashboard(request):
         'avg_mastery': round(avg_mastery * 100, 1),
         'first_subject': subjects.first()
     })
+@login_required
+@user_passes_test(is_teacher)
+def teacher_dashboard(request):
+    subjects = Subject.objects.all()
+    total_exercises = Exercise.objects.filter(created_by=request.user).count()
+    total_knowledge_points = KnowledgePoint.objects.count()
+
+    return render(request, 'teacher/teacher_dashboard.html', {
+        'subjects': subjects,
+        'total_exercises': total_exercises,
+        'total_knowledge_points': total_knowledge_points,
+    })
 
 #课程栏
 @login_required
