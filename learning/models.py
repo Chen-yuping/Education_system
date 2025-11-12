@@ -31,27 +31,14 @@ class KnowledgePoint(models.Model):
 
 
 class Exercise(models.Model):
-    DIFFICULTY_CHOICES = [
-        ('easy', '简单'),
-        ('medium', '中等'),
-        ('hard', '困难'),
-    ]
-
-    QUESTION_TYPES = [
-        ('single', '单选题'),
-        ('multiple', '多选题'),
-        ('text', '简答题'),
-    ]
 
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, verbose_name="所属科目")
+    problemsets = models.CharField(max_length=200,default="", verbose_name="习题集ID")
     title = models.CharField(max_length=200, verbose_name="习题标题")
     content = models.TextField(verbose_name="习题内容")
-    question_type = models.CharField(max_length=10, choices=QUESTION_TYPES, default='single', verbose_name="题型")
-    difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES, default='medium', verbose_name="难度")
-    created_by = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="创建者")
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
-    updated_at = models.DateTimeField(auto_now=True, verbose_name="更新时间")
-    is_active = models.BooleanField(default=True, verbose_name="是否激活")
+    question_type = models.CharField(max_length=10, default='single', verbose_name="题型")
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="创建者",default=1)
+
 
     class Meta:
         verbose_name = "习题"

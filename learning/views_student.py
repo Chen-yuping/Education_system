@@ -46,6 +46,27 @@ def student_dashboard(request):
         'first_subject': subjects.first()
     })
 
+#课程栏
+@login_required
+@user_passes_test(is_student)
+def student_subject(request):
+    subjects = Subject.objects.all()
+    subjects = Subject.objects.all()
+    recent_logs = AnswerLog.objects.filter(student=request.user).order_by('-submitted_at')[:5]
+
+    # 计算总体掌握情况
+    total_diagnosis = StudentDiagnosis.objects.filter(student=request.user)
+    if total_diagnosis.exists():
+        avg_mastery = total_diagnosis.aggregate(avg=Avg('mastery_level'))['avg']
+    else:
+        avg_mastery = 0
+
+    return render(request, 'learning/subject.html', {
+        'subjects': subjects,
+        'recent_logs': recent_logs,
+        'avg_mastery': round(avg_mastery * 100, 1),
+        'first_subject': subjects.first()
+    })
 
 @login_required
 @user_passes_test(is_teacher)
@@ -66,7 +87,7 @@ def teacher_dashboard(request):
 def exercise_list(request, subject_id):
     """习题列表页面"""
     subject = get_object_or_404(Subject, id=subject_id)
-    # exercises = Exercise.objects.filter(subject=subject, is_active=True)
+    # exercises = Exercise.objects.filter(subject=subject, )
     exercises = Exercise.objects.filter(subject_id=subject_id).order_by('title', 'id')
     subjects = Subject.objects.all()  # 所有科目用于侧边栏
 
@@ -105,7 +126,6 @@ def exercise_list(request, subject_id):
             'title': title,
             'exercises': exercises_list,
             'exercise_count': len(exercises_list),
-            'difficulty': exercises_list[0].difficulty if exercises_list else 'medium',
             'completed': all(ex.completed for ex in exercises_list)  # 假设有completed字段
         })
 
@@ -124,7 +144,7 @@ def exercise_list(request, subject_id):
 @user_passes_test(is_student)
 def take_exercise(request, exercise_id):
     """答题页面"""
-    exercise = get_object_or_404(Exercise, id=exercise_id, is_active=True)
+    exercise = get_object_or_404(Exercise, id=exercise_id)
 
     if request.method == 'POST':
         # 处理答题提交

@@ -4,7 +4,7 @@ from .models import Exercise, KnowledgePoint, QMatrix, Subject
 class ExerciseForm(forms.ModelForm):
     class Meta:
         model = Exercise
-        fields = ['subject', 'title', 'content', 'question_type', 'difficulty']
+        fields = ['subject', 'title', 'content', 'question_type']
         widgets = {
             'content': forms.Textarea(attrs={'rows': 4}),
         }

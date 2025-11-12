@@ -115,34 +115,12 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <div class="d-flex justify-content-between align-items-center nav-link" style="cursor: pointer;">
-                        <span>
-                            <i class="fas fa-chart-line"></i> 我的课程
-                        </span>
-                        <a href="#" class="text-muted" data-bs-toggle="collapse" data-bs-target="#subjectCollapse">
-                            <i class="fas fa-chevron-down"></i>
-                        </a>
-                    </div>
+                    <a class="nav-link" href="{% url 'student_subject' %}">
+                        <i class="fas fa-chart-line"></i> 我的课程
+                    </a>
                 </li>
+
             </ul>
-            <!--科目显示-->
-            <div class="collapse" id="subjectCollapse">
-                <ul class="nav flex-column">
-                    {% for subject in subjects %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'exercise_list' subject.id %}">
-                            <i class="fas fa-book"></i> {{ subject.name }}
-                        </a>
-                    </li>
-                    {% empty %}
-                    <li class="nav-item">
-                        <a class="nav-link text-muted" href="#">
-                            <i class="fas fa-book"></i> 暂无科目
-                        </a>
-                    </li>
-                    {% endfor %}
-                </ul>
-            </div>
         </div>
     </nav>
 
@@ -322,56 +300,6 @@
             </div>
         </div>
 
-        <!-- 科目学习 -->
-        <div class="row">
-            <div class="col-12">
-                <div class="card shadow">
-                    <div class="card-header py-3">
-                        <h6 class="m-0 font-weight-bold text-primary">科目学习</h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            {% for subject in subjects %}
-                            <div class="col-xl-4 col-md-6 mb-4">
-                                <div class="card border-left-primary h-100">
-                                    <div class="card-body">
-                                        <div class="row no-gutters align-items-center">
-                                            <div class="col mr-2">
-                                                <div class="h5 font-weight-bold text-primary mb-1">{{ subject.name }}</div>
-                                                <div class="text-xs text-muted mb-2">
-                                                    {{ subject.description|default:"暂无课程描述"|truncatewords:8 }}
-                                                </div>
-                                            </div>
-                                            <div class="col-auto">
-                                                <i class="fas fa-book fa-2x text-gray-300"></i>
-                                            </div>
-                                        </div>
-                                        <div class="mt-3">
-                                            <!-- 修改这里：添加 subject_id= -->
-                                            <a href="{% url 'exercise_list' subject_id=subject.id %}" class="btn btn-primary btn-sm">
-                                                <i class="fas fa-play me-1"></i>开始学习
-                                            </a>
-                                            <!-- 修改这里：如果 knowledge_points 也需要参数的话 -->
-                                            <a href="{% url 'knowledge_points' subject_id=subject.id %}" class="btn btn-outline-secondary btn-sm">
-                                                <i class="fas fa-brain me-1"></i>知识点
-                                            </a>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            {% empty %}
-                            <div class="col-12">
-                                <div class="text-center py-4">
-                                    <i class="fas fa-book-open fa-3x text-gray-300 mb-3"></i>
-                                    <p class="text-muted">目前没有可用的学习科目。</p>
-                                </div>
-                            </div>
-                            {% endfor %}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
     </main>
 </div>
 

@@ -1,0 +1,215 @@
+{% extends 'learning/base.html' %}
+
+{% block title %}学习面板 - 在线学习诊断系统{% endblock %}
+
+{% block content %}
+<style>
+    /* 重置容器样式 */
+    .container.mt-4 {
+        margin: 0 !important;
+        padding: 0 !important;
+        max-width: 100% !important;
+        width: 100% !important;
+    }
+
+    /* 学生页面布局样式 - 与教师页面保持一致 */
+    .student-container {
+        display: flex;
+        min-height: calc(100vh - 80px); /* 减去导航栏高度 */
+        margin-top: 20px; /* 与导航栏的间距 */
+    }
+
+    /* 侧边栏样式 - 与教师页面保持一致 */
+    .student-sidebar {
+        width: 280px;
+        background-color: #f8f9fa;
+        border-right: 1px solid #dee2e6;
+        flex-shrink: 0;
+        padding: 0 10px 0;
+    }
+
+    /* 主内容区域 - 与教师页面保持一致 */
+    .student-main-content {
+        flex: 1;
+        padding: 20px;
+        min-height: 100%;
+        background-color: #ffffff;
+    }
+
+    /* 侧边栏导航链接样式 - 与教师页面保持一致 */
+    .sidebar-nav .nav-link {
+        padding: 12px 20px;
+        color: #333;
+        border-radius: 0;
+        border-left: 3px solid transparent;
+        transition: all 0.2s ease;
+    }
+
+    .sidebar-nav .nav-link:hover {
+        background-color: #e9ecef;
+        color: #007bff;
+        border-left-color: #007bff;
+    }
+
+    .sidebar-nav .nav-link.active {
+        background-color: #007bff;
+        color: white;
+        border-left-color: #007bff;
+    }
+
+    .sidebar-nav .nav-link i {
+        width: 20px;
+        text-align: center;
+        margin-right: 10px;
+    }
+
+    /* 侧边栏标题 - 与教师页面保持一致 */
+    .sidebar-heading {
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        color: #6c757d;
+        margin: 25px 0 10px 20px;
+        font-weight: 600;
+    }
+
+    /* 学生特定样式 */
+    .student-stats .card {
+        border-left-width: 4px;
+    }
+
+    .student-stats .card-body {
+        padding: 1.25rem;
+    }
+
+    /* 移动设备响应式 - 与教师页面保持一致 */
+    @media (max-width: 768px) {
+        .student-container {
+            flex-direction: column;
+        }
+
+        .student-sidebar {
+            width: 100%;
+            border-right: none;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .student-main-content {
+            padding: 20px;
+        }
+    }
+</style>
+
+<div class="student-container">
+    <!-- 左侧导航栏 -->
+    <nav class="student-sidebar">
+        <div class="sidebar-nav">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link " href="{% url 'student_dashboard' %}">
+                        <i class="fas fa-tachometer-alt"></i> 学习面板
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'student_diagnosis' %}">
+                        <i class="fas fa-chart-line"></i> 学习诊断
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="{% url 'student_subject' %}">
+                        <i class="fas fa-chart-line"></i> 我的课程
+                    </a>
+                </li>
+
+            </ul>
+        </div>
+    </nav>
+
+    <!-- 右侧主内容区域 -->
+    <main class="student-main-content">
+
+        <!-- 科目学习 -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card shadow">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-primary">科目学习</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            {% for subject in subjects %}
+                            <div class="col-xl-4 col-md-6 mb-4">
+                                <div class="card border-left-primary h-100">
+                                    <div class="card-body">
+                                        <div class="row no-gutters align-items-center">
+                                            <div class="col mr-2">
+                                                <div class="h5 font-weight-bold text-primary mb-1">{{ subject.name }}</div>
+                                                <div class="text-xs text-muted mb-2">
+                                                    {{ subject.description|default:"暂无课程描述"|truncatewords:8 }}
+                                                </div>
+                                            </div>
+                                            <div class="col-auto">
+                                                <i class="fas fa-book fa-2x text-gray-300"></i>
+                                            </div>
+                                        </div>
+                                        <div class="mt-3">
+                                            <!-- 修改这里：添加 subject_id= -->
+                                            <a href="{% url 'exercise_list' subject_id=subject.id %}" class="btn btn-primary btn-sm">
+                                                <i class="fas fa-play me-1"></i>开始学习
+                                            </a>
+                                            <!-- 修改这里：如果 knowledge_points 也需要参数的话 -->
+                                            <a href="{% url 'knowledge_points' subject_id=subject.id %}" class="btn btn-outline-secondary btn-sm">
+                                                <i class="fas fa-brain me-1"></i>知识点
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <div class="col-12">
+                                <div class="text-center py-4">
+                                    <i class="fas fa-book-open fa-3x text-gray-300 mb-3"></i>
+                                    <p class="text-muted">目前没有可用的学习科目。</p>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+// 移动设备侧边栏切换 - 与教师页面保持一致
+document.addEventListener('DOMContentLoaded', function() {
+    // 在移动设备上添加侧边栏切换功能
+    if (window.innerWidth < 768) {
+        const sidebar = document.querySelector('.student-sidebar');
+        const mainContent = document.querySelector('.student-main-content');
+
+        // 创建切换按钮
+        const toggleBtn = document.createElement('button');
+        toggleBtn.className = 'btn btn-primary btn-sm';
+        toggleBtn.innerHTML = '<i class="fas fa-bars"></i>';
+        toggleBtn.style.position = 'fixed';
+        toggleBtn.style.top = '80px';
+        toggleBtn.style.right = '20px';
+        toggleBtn.style.zIndex = '1000';
+
+        // 切换侧边栏显示
+        let sidebarVisible = false;
+        toggleBtn.addEventListener('click', function() {
+            sidebarVisible = !sidebarVisible;
+            sidebar.style.display = sidebarVisible ? 'block' : 'none';
+        });
+
+        // 添加到页面
+        document.body.appendChild(toggleBtn);
+
+        // 默认在移动设备上隐藏侧边栏
+        sidebar.style.display = 'none';
+    }
+});
+</script>
+{% endblock %}

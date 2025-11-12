@@ -135,7 +135,7 @@
         <div class="sidebar-nav">
             <ul class="nav flex-column">
                 <li class="nav-item">
-                    <a class="nav-link" href="{% url 'student_dashboard' %}">
+                    <a class="nav-link " href="{% url 'student_dashboard' %}">
                         <i class="fas fa-tachometer-alt"></i> 学习面板
                     </a>
                 </li>
@@ -144,18 +144,12 @@
                         <i class="fas fa-chart-line"></i> 学习诊断
                     </a>
                 </li>
-            </ul>
-
-            <h6 class="sidebar-heading">科目学习</h6>
-            <ul class="nav flex-column">
-                {% for sub in subjects %}
                 <li class="nav-item">
-                    <a class="nav-link {% if sub.id == subject.id %}active{% endif %}"
-                       href="{% url 'exercise_list' sub.id %}">
-                        <i class="fas fa-book"></i> {{ sub.name }}
+                    <a class="nav-link active" href="{% url 'student_subject' %}">
+                        <i class="fas fa-chart-line"></i> 我的课程
                     </a>
                 </li>
-                {% endfor %}
+
             </ul>
         </div>
     </nav>

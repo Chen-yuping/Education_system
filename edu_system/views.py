@@ -8,7 +8,7 @@ def home(request):
     """学堂在线风格主页"""
     # 获取热门科目和课程
     popular_subjects = Subject.objects.all()[:6]
-    featured_exercises = Exercise.objects.filter(is_active=True)[:4]
+    featured_exercises = Exercise.objects.filter()[:4]
 
     context = {
         'popular_subjects': popular_subjects,
