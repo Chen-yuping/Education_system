@@ -114,24 +114,35 @@
                         <i class="fas fa-chart-line"></i> 学习诊断
                     </a>
                 </li>
-            </ul>
-
-            <h6 class="sidebar-heading">科目学习</h6>
-            <ul class="nav flex-column">
-                {% for subject in subjects %}
                 <li class="nav-item">
-                    <a class="nav-link" href="{% url 'exercise_list' subject.id %}">
-                        <i class="fas fa-book"></i> {{ subject.name }}
-                    </a>
+                    <div class="d-flex justify-content-between align-items-center nav-link" style="cursor: pointer;">
+                        <span>
+                            <i class="fas fa-chart-line"></i> 我的课程
+                        </span>
+                        <a href="#" class="text-muted" data-bs-toggle="collapse" data-bs-target="#subjectCollapse">
+                            <i class="fas fa-chevron-down"></i>
+                        </a>
+                    </div>
                 </li>
-                {% empty %}
-                <li class="nav-item">
-                    <a class="nav-link text-muted" href="#">
-                        <i class="fas fa-book"></i> 暂无科目
-                    </a>
-                </li>
-                {% endfor %}
             </ul>
+            <!--科目显示-->
+            <div class="collapse" id="subjectCollapse">
+                <ul class="nav flex-column">
+                    {% for subject in subjects %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'exercise_list' subject.id %}">
+                            <i class="fas fa-book"></i> {{ subject.name }}
+                        </a>
+                    </li>
+                    {% empty %}
+                    <li class="nav-item">
+                        <a class="nav-link text-muted" href="#">
+                            <i class="fas fa-book"></i> 暂无科目
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
         </div>
     </nav>
 
