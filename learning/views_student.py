@@ -74,7 +74,7 @@ def teacher_dashboard(request):
     total_exercises = Exercise.objects.filter(created_by=request.user).count()
     total_knowledge_points = KnowledgePoint.objects.count()
 
-    return render(request, 'learning/teacher_dashboard.html', {
+    return render(request, 'teacher/teacher_dashboard.html', {
         'subjects': subjects,
         'total_exercises': total_exercises,
         'total_knowledge_points': total_knowledge_points,
