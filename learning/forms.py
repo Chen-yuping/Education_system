@@ -12,7 +12,7 @@ class ExerciseForm(forms.ModelForm):
 class KnowledgePointForm(forms.ModelForm):
     class Meta:
         model = KnowledgePoint
-        fields = ['subject', 'name', 'description', 'level', 'parent']
+        fields = ['subject', 'name', 'parent']
 
 class QMatrixForm(forms.ModelForm):
     class Meta:

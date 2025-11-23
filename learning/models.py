@@ -17,8 +17,6 @@ class Subject(models.Model):
 class KnowledgePoint(models.Model):
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, verbose_name="所属科目")
     name = models.CharField(max_length=200, verbose_name="知识点名称")
-    description = models.TextField(blank=True, verbose_name="知识点描述")
-    level = models.IntegerField(default=1, verbose_name="难度等级")
     parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True,
                                related_name='children', verbose_name="父知识点")
 

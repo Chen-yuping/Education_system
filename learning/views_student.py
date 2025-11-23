@@ -98,8 +98,7 @@ def teacher_dashboard(request):
 def exercise_list(request, subject_id):
     """习题列表页面"""
     subject = get_object_or_404(Subject, id=subject_id)
-    # exercises = Exercise.objects.filter(subject=subject, )
-    exercises = Exercise.objects.filter(subject_id=subject_id).order_by('title', 'id')
+    exercises = Exercise.objects.filter(subject_id=subject_id).order_by('problemsets', 'id')
     subjects = Subject.objects.all()  # 所有科目用于侧边栏
 
     # 获取学生的学习进度

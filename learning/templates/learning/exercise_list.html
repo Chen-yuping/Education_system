@@ -1,8 +1,10 @@
 {% extends 'learning/base.html' %}
 
-{% block title %}数学习题 - 在线学习诊断系统{% endblock %}
+{% block title %}习题列表 - 在线学习诊断系统{% endblock %}
 
 {% block content %}
+<!-- 课程页面显示 -->
+
 <style>
     /* 重置容器样式 */
     .container.mt-4 {
@@ -204,12 +206,6 @@
                 <div class="card exercise-card">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h6 class="mb-0"> {{ exercise_set.title }}</h6>
-                        <span class="badge difficulty-badge badge-{{ exercise.difficulty }}">
-                            {% if exercise.difficulty == 'easy' %}简单
-                            {% elif exercise.difficulty == 'medium' %}中等
-                            {% else %}困难
-                            {% endif %}
-                        </span>
                     </div>
                     <div class="card-body">
                         <p class="card-text">包含 {{ exercise_set.exercise_count }} 道题目</p>
