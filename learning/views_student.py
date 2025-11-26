@@ -8,14 +8,12 @@ from itertools import groupby
 from .models import *
 from .forms import ExerciseForm, KnowledgePointForm, QMatrixForm
 
-
+#登录用户判断
 def is_teacher(user):
     return user.user_type == 'teacher'
 
-
 def is_student(user):
     return user.user_type == 'student'
-
 
 @login_required
 def dashboard(request):
@@ -23,7 +21,6 @@ def dashboard(request):
         return redirect('teacher_dashboard')
     else:
         return redirect('student_dashboard')
-
 
 @login_required
 @user_passes_test(is_student)
@@ -46,6 +43,7 @@ def student_dashboard(request):
         'first_subject': subjects.first()
     })
 @login_required
+
 @user_passes_test(is_teacher)
 def teacher_dashboard(request):
     subjects = Subject.objects.all()
@@ -58,7 +56,7 @@ def teacher_dashboard(request):
         'total_knowledge_points': total_knowledge_points,
     })
 
-#课程栏
+#所有课程页面显示
 @login_required
 @user_passes_test(is_student)
 def student_subject(request):
@@ -92,11 +90,10 @@ def teacher_dashboard(request):
         'total_knowledge_points': total_knowledge_points,
     })
 
-
+#"""单个课程列表页面"""
 @login_required
 @user_passes_test(is_student)
 def exercise_list(request, subject_id):
-    """习题列表页面"""
     subject = get_object_or_404(Subject, id=subject_id)
     exercises = Exercise.objects.filter(subject_id=subject_id).order_by('problemsets', 'id')
     subjects = Subject.objects.all()  # 所有科目用于侧边栏
@@ -149,11 +146,10 @@ def exercise_list(request, subject_id):
 
     })
 
-
+#"""答题页面，做题页面"""
 @login_required
 @user_passes_test(is_student)
 def take_exercise(request, exercise_id):
-    """答题页面"""
     exercise = get_object_or_404(Exercise, id=exercise_id)
 
     if request.method == 'POST':
@@ -170,8 +166,8 @@ def take_exercise(request, exercise_id):
             time_spent=time_spent
         )
 
-        # 处理选择题
-        if exercise.question_type in ['single', 'multiple']:
+        # 处理选择题（单选题和多选题）
+        if exercise.question_type in ['1', '2']:
             selected_choices = Choice.objects.filter(id__in=selected_choice_ids)
             answer_log.selected_choices.set(selected_choices)
 
@@ -191,11 +187,10 @@ def take_exercise(request, exercise_id):
         'exercise': exercise
     })
 
-
+"""答题结果页面"""
 @login_required
 @user_passes_test(is_student)
 def exercise_result(request, log_id):
-    """答题结果页面"""
     answer_log = get_object_or_404(AnswerLog, id=log_id, student=request.user)
     current_exercise = answer_log.exercise
     current_subject = current_exercise.subject
@@ -218,11 +213,11 @@ def exercise_result(request, log_id):
     })
 
 
-
+# 获取学生的知识点掌握情况
 @login_required
 @user_passes_test(is_student)
 def student_diagnosis(request):
-    # 获取学生的知识点掌握情况
+
     diagnoses = StudentDiagnosis.objects.filter(student=request.user).select_related('knowledge_point')
 
     # 按科目分组
