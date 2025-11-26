@@ -1,7 +1,9 @@
 from django.urls import path
 from . import views_student,views_teacher
+from django.urls import path, include
 
 urlpatterns = [
+    path('diagnosis/', include('learning.diagnosis.urls')),
     path('dashboard/', views_student.dashboard, name='dashboard'),
     path('student/dashboard/', views_student.student_dashboard, name='student_dashboard'),
     path('teacher/dashboard/', views_teacher.teacher_dashboard, name='teacher_dashboard'),
@@ -11,7 +13,7 @@ urlpatterns = [
     path('exercise/<int:exercise_id>/take/', views_student.take_exercise, name='take_exercise'),
     path('exercise/result/<int:log_id>/', views_student.exercise_result, name='exercise_result'),
 
-    path('diagnosis/', views_student.student_diagnosis, name='student_diagnosis'),
+    path('diagnosis/', include('learning.diagnosis.urls')),
     path('subject/<int:subject_id>/knowledge/', views_student.knowledge_points, name='knowledge_points'),
 
     path('teacher/upload/exercise/', views_teacher.upload_exercise, name='upload_exercise'),

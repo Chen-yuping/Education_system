@@ -22,6 +22,7 @@ def dashboard(request):
     else:
         return redirect('student_dashboard')
 
+#学生学习面板
 @login_required
 @user_passes_test(is_student)
 def student_dashboard(request):
@@ -41,19 +42,6 @@ def student_dashboard(request):
         'recent_logs': recent_logs,
         'avg_mastery': round(avg_mastery * 100, 1),
         'first_subject': subjects.first()
-    })
-@login_required
-
-@user_passes_test(is_teacher)
-def teacher_dashboard(request):
-    subjects = Subject.objects.all()
-    total_exercises = Exercise.objects.filter(created_by=request.user).count()
-    total_knowledge_points = KnowledgePoint.objects.count()
-
-    return render(request, 'teacher/teacher_dashboard.html', {
-        'subjects': subjects,
-        'total_exercises': total_exercises,
-        'total_knowledge_points': total_knowledge_points,
     })
 
 #所有课程页面显示
@@ -75,19 +63,6 @@ def student_subject(request):
         'recent_logs': recent_logs,
         'avg_mastery': round(avg_mastery * 100, 1),
         'first_subject': subjects.first()
-    })
-
-@login_required
-@user_passes_test(is_teacher)
-def teacher_dashboard(request):
-    subjects = Subject.objects.all()
-    total_exercises = Exercise.objects.filter(created_by=request.user).count()
-    total_knowledge_points = KnowledgePoint.objects.count()
-
-    return render(request, 'teacher/teacher_dashboard.html', {
-        'subjects': subjects,
-        'total_exercises': total_exercises,
-        'total_knowledge_points': total_knowledge_points,
     })
 
 #"""单个课程列表页面"""
@@ -187,7 +162,7 @@ def take_exercise(request, exercise_id):
         'exercise': exercise
     })
 
-"""答题结果页面"""
+#"""答题结果页面"""
 @login_required
 @user_passes_test(is_student)
 def exercise_result(request, log_id):
@@ -211,31 +186,6 @@ def exercise_result(request, log_id):
         'selected_choice_ids': selected_choice_ids,
         'next_exercise': next_exercise
     })
-
-
-# 获取学生的知识点掌握情况
-@login_required
-@user_passes_test(is_student)
-def student_diagnosis(request):
-
-    diagnoses = StudentDiagnosis.objects.filter(student=request.user).select_related('knowledge_point')
-
-    # 按科目分组
-    subjects = {}
-    for diagnosis in diagnoses:
-        subject_name = diagnosis.knowledge_point.subject.name
-        if subject_name not in subjects:
-            subjects[subject_name] = []
-        subjects[subject_name].append(diagnosis)
-
-    # 计算推荐学习路径
-    weak_points = diagnoses.filter(mastery_level__lt=0.6).order_by('mastery_level')[:5]
-
-    return render(request, 'learning/student_diagnosis.html', {
-        'subjects': subjects,
-        'weak_points': weak_points
-    })
-
 
 @login_required
 @user_passes_test(is_student)
