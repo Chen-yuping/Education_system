@@ -7,7 +7,7 @@ import json
 from itertools import groupby
 from .models import *
 from .forms import ExerciseForm, KnowledgePointForm, QMatrixForm
-
+from .diagnosis.updata import knowledge_mastery_diagnoses
 #登录用户判断
 def is_teacher(user):
     return user.user_type == 'teacher'
@@ -37,7 +37,7 @@ def student_dashboard(request):
     else:
         avg_mastery = 0
 
-    return render(request, 'learning/student_dashboard.html', {
+    return render(request, 'student/student_dashboard.html', {
         'subjects': subjects,
         'recent_logs': recent_logs,
         'avg_mastery': round(avg_mastery * 100, 1),
@@ -58,7 +58,7 @@ def student_subject(request):
     else:
         avg_mastery = 0
 
-    return render(request, 'learning/subject.html', {
+    return render(request, 'student/subject.html', {
         'subjects': subjects,
         'recent_logs': recent_logs,
         'avg_mastery': round(avg_mastery * 100, 1),
@@ -111,7 +111,7 @@ def exercise_list(request, subject_id):
             'completed': all(ex.completed for ex in exercises_list)  # 假设有completed字段
         })
 
-    return render(request, 'learning/exercise_list.html', {
+    return render(request, 'student/exercise_list.html', {
         'subject': subject,
         'subjects': subjects,
         'exercises': exercises,
@@ -158,7 +158,7 @@ def take_exercise(request, exercise_id):
 
         return redirect('exercise_result', log_id=answer_log.id)
 
-    return render(request, 'learning/take_exercise.html', {
+    return render(request, 'student/take_exercise.html', {
         'exercise': exercise
     })
 
@@ -181,10 +181,38 @@ def exercise_result(request, log_id):
         id__gt=current_exercise.id  # ID比当前题大（保证顺序）
     ).first()
 
-    return render(request, 'learning/exercise_result.html', {
+    return render(request, 'student/exercise_result.html', {
         'answer_log': answer_log,
         'selected_choice_ids': selected_choice_ids,
         'next_exercise': next_exercise
+    })
+
+# 获取学生的知识点掌握情况，学习诊断页面
+@login_required
+@user_passes_test(is_student)
+def student_diagnosis(request):
+
+    diagnoses = StudentDiagnosis.objects.filter(student=request.user).select_related('knowledge_point')
+    answerlog = AnswerLog.objects.filter(student=request.user)
+
+    knowledge_mastery_diagnoses(request.user, answerlog)
+
+    # 按科目分组
+    subjects = {}
+    for diagnosis in diagnoses:
+        subject_name = diagnosis.knowledge_point.subject.name
+        if subject_name not in subjects:
+            subjects[subject_name] = []
+        subjects[subject_name].append(diagnosis)
+
+    # 计算推荐学习路径
+    weak_points = diagnoses.filter(mastery_level__lt=0.6).order_by('mastery_level')[:5]
+    # 更新知识点掌握情况
+
+
+    return render(request, 'student/student_diagnosis.html', {
+        'subjects': subjects,
+        'weak_points': weak_points
     })
 
 @login_required
@@ -204,7 +232,7 @@ def knowledge_points(request, subject_id):
     for kp in knowledge_points:
         kp.mastery_level = mastery_dict.get(kp.id, 0)
 
-    return render(request, 'learning/knowledge_points.html', {
+    return render(request, 'student/knowledge_points.html', {
         'subject': subject,
         'knowledge_points': knowledge_points
     })
@@ -235,7 +263,7 @@ def upload_exercise(request):
     else:
         form = ExerciseForm()
 
-    return render(request, 'learning/upload_exercise.html', {
+    return render(request, 'student/upload_exercise.html', {
         'form': form
     })
 
@@ -252,7 +280,7 @@ def upload_knowledge(request):
     else:
         form = KnowledgePointForm()
 
-    return render(request, 'learning/upload_knowledge.html', {
+    return render(request, 'teacher/upload_knowledge.html', {
         'form': form
     })
 
@@ -271,17 +299,19 @@ def q_matrix_management(request):
 
     q_matrix = QMatrix.objects.all().select_related('exercise', 'knowledge_point')
 
-    return render(request, 'learning/q_matrix.html', {
+    return render(request, 'teacher/q_matrix.html', {
         'form': form,
         'q_matrix': q_matrix
     })
 
-
+#当学生完成一道题目后，更新该题目涉及的所有知识点的掌握情况
 def update_knowledge_mastery(student, exercise, is_correct):
-    """更新学生对知识点的掌握程度"""
+
     related_kps = QMatrix.objects.filter(exercise=exercise).select_related('knowledge_point')
 
+    #对题目涉及的每个知识点都进行单独处理。
     for q_item in related_kps:
+        #获取或创建学习诊断记录
         diagnosis, created = StudentDiagnosis.objects.get_or_create(
             student=student,
             knowledge_point=q_item.knowledge_point
@@ -291,4 +321,12 @@ def update_knowledge_mastery(student, exercise, is_correct):
         if is_correct:
             diagnosis.correct_count += 1
 
-        diagnosis.calculate_mastery()
+        #计算掌握程度
+        calculate_mastery(diagnosis)
+#计算掌握程度公式
+def calculate_mastery(self):
+    if self.practice_count > 0:
+        self.mastery_level = self.correct_count / self.practice_count
+    else:
+        self.mastery_level = 0.0
+    self.save()

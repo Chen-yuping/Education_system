@@ -105,12 +105,5 @@ class StudentDiagnosis(models.Model):
         verbose_name_plural = "学生诊断"
         unique_together = ['student', 'knowledge_point']
 
-    def calculate_mastery(self):
-        if self.practice_count > 0:
-            self.mastery_level = self.correct_count / self.practice_count
-        else:
-            self.mastery_level = 0.0
-        self.save()
-
     def __str__(self):
         return f"{self.student.username} - {self.knowledge_point.name}"

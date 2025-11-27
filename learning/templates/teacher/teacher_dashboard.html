@@ -1,4 +1,4 @@
-{% extends 'learning/base.html' %}
+{% extends 'teacher/base.html' %}
 
 {% block title %}教师面板 - 在线学习诊断系统{% endblock %}
 
@@ -70,6 +70,10 @@
         color: #6c757d;
         margin: 25px 0 10px 20px;
         font-weight: 600;
+         display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
     }
 
     /* 教师特定样式 */
@@ -80,7 +84,28 @@
     .teacher-stats .card-body {
         padding: 1.25rem;
     }
+    .collapse-btn {
+        background: none;
+        border: none;
+        color: #6c757d;
+        cursor: pointer;
+        padding: 0.25rem;
+        transition: transform 0.3s ease;
+        font-size: 0.7rem;
+    }
 
+    .collapse-btn.collapsed {
+        transform: rotate(-90deg);
+    }
+
+    .nav-collapse {
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+    }
+
+    .nav-collapse.collapsed {
+        max-height: 0 !important;
+    }
     /* 移动设备响应式 */
     @media (max-width: 768px) {
         .teacher-container {
@@ -97,15 +122,17 @@
             padding: 20px;
         }
     }
+
 </style>
 
 <div class="teacher-container">
     <!-- 左侧导航栏 -->
     <nav class="teacher-sidebar">
         <div class="sidebar-nav">
+            <!--  左侧的上半部分          -->
             <ul class="nav flex-column">
                 <li class="nav-item">
-                    <a class="nav-link active" href="{% url 'teacher_dashboard' %}">
+                    <a class="nav-link `active" href="{% url 'teacher_dashboard' %}">
                         <i class="fas fa-tachometer-alt"></i> 教师面板
                     </a>
                 </li>
@@ -125,37 +152,51 @@
                     </a>
                 </li>
             </ul>
-
-            <h6 class="sidebar-heading">科目管理</h6>
-            <ul class="nav flex-column">
-                {% for subject in subjects %}
-                <li class="nav-item">
-                    <a class="nav-link" href="{% url 'exercise_list' subject.id %}">
-                        <i class="fas fa-book"></i> {{ subject.name }}
-                    </a>
-                </li>
-                {% empty %}
-                <li class="nav-item">
-                    <a class="nav-link text-muted" href="#">
-                        <i class="fas fa-book"></i> 暂无科目
-                    </a>
-                </li>
-                {% endfor %}
-            </ul>
-
-            <h6 class="sidebar-heading">学生管理</h6>
-            <ul class="nav flex-column">
-                <li class="nav-item">
-                    <a class="nav-link" href="#">
-                        <i class="fas fa-users"></i> 学生列表
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="#">
-                        <i class="fas fa-chart-bar"></i> 学习统计
-                    </a>
-                </li>
-            </ul>
+            <!--  左侧的下半部分(科目管理        -->
+            <h6 class="sidebar-heading">
+                <span>科目管理</span>
+                <button class="collapse-btn" type="button">
+                    <i class="fas fa-chevron-down"></i>
+                </button>
+            </h6>
+            <div class="nav-collapse">
+                <ul class="nav flex-column">
+                    {% for subject in subjects %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'exercise_list' subject.id %}">
+                            <i class="fas fa-book"></i> {{ subject.name }}
+                        </a>
+                    </li>
+                    {% empty %}
+                    <li class="nav-item">
+                        <a class="nav-link text-muted" href="#">
+                            <i class="fas fa-book"></i> 暂无科目
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <!--  左侧的下半部分(学生管理）        -->
+            <h6 class="sidebar-heading">
+                <span>学生管理</span>
+                <button class="collapse-btn" type="button">
+                    <i class="fas fa-chevron-down"></i>
+                </button>
+            </h6>
+            <div class="nav-collapse">
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">
+                            <i class="fas fa-users"></i> 学生列表
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">
+                            <i class="fas fa-chart-bar"></i> 学习统计
+                        </a>
+                    </li>
+                </ul>
+            </div>
         </div>
     </nav>
 
@@ -164,12 +205,6 @@
         <!-- 页面标题 -->
         <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3 mb-3 border-bottom">
             <h1 class="h2">教师面板</h1>
-            <div class="btn-toolbar mb-2 mb-md-0">
-                <div class="btn-group me-2">
-                    <button type="button" class="btn btn-sm btn-outline-success">今日数据</button>
-                    <button type="button" class="btn btn-sm btn-outline-success">本周统计</button>
-                </div>
-            </div>
         </div>
 
         <!-- 统计卡片 -->
@@ -247,9 +282,10 @@
             </div>
         </div>
 
+        <!-- 快速操作 -->
         <div class="row">
             <!-- 快速操作 -->
-            <div class="col-xl-6 col-lg-6">
+            <div class="col-12">
                 <div class="card shadow mb-4">
                     <div class="card-header py-3">
                         <h6 class="m-0 font-weight-bold text-primary">快速操作</h6>
@@ -280,33 +316,6 @@
                                     管理后台
                                 </a>
                             </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 最近活动 -->
-            <div class="col-xl-6 col-lg-6">
-                <div class="card shadow mb-4">
-                    <div class="card-header py-3">
-                        <h6 class="m-0 font-weight-bold text-primary">最近活动</h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="list-group list-group-flush">
-                            {% for activity in recent_activities %}
-                            <div class="list-group-item d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="mb-1">{{ activity.title }}</h6>
-                                    <small class="text-muted">{{ activity.description }}</small>
-                                </div>
-                                <small class="text-muted">{{ activity.time }}</small>
-                            </div>
-                            {% empty %}
-                            <div class="text-center py-4">
-                                <i class="fas fa-clock fa-3x text-gray-300 mb-3"></i>
-                                <p class="text-muted">暂无最近活动</p>
-                            </div>
-                            {% endfor %}
                         </div>
                     </div>
                 </div>
@@ -395,6 +404,31 @@ document.addEventListener('DOMContentLoaded', function() {
         // 默认在移动设备上隐藏侧边栏
         sidebar.style.display = 'none';
     }
+
+    // 为所有折叠按钮添加功能
+    const collapseBtns = document.querySelectorAll('.collapse-btn');
+
+    collapseBtns.forEach(btn => {
+        const heading = btn.closest('.sidebar-heading');
+        const navCollapse = heading.nextElementSibling;
+
+        // 默认不展开
+        btn.classList.add('collapsed');
+        navCollapse.classList.add('collapsed');
+
+        btn.addEventListener('click', function() {
+            this.classList.toggle('collapsed');
+            navCollapse.classList.toggle('collapsed');
+        });
+
+        // 点击标题也可以切换
+        heading.addEventListener('click', function(e) {
+            if (e.target !== btn) {
+                btn.classList.toggle('collapsed');
+                navCollapse.classList.toggle('collapsed');
+            }
+        });
+    });
 });
 </script>
 {% endblock %}

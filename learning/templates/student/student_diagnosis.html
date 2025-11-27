@@ -1,0 +1,216 @@
+{% extends 'student/base.html' %}
+
+{% block title %}学习诊断 - 在线学习诊断系统{% endblock %}
+
+{% block content %}
+<style>
+    /* 重置容器样式 */
+    .container.mt-4 {
+        margin: 0 !important;
+        padding: 0 !important;
+        max-width: 100% !important;
+        width: 100% !important;
+    }
+
+    /* 学生页面布局样式 - 与教师页面保持一致 */
+    .student-container {
+        display: flex;
+        min-height: calc(100vh - 80px); /* 减去导航栏高度 */
+        margin-top: 20px; /* 与导航栏的间距 */
+    }
+
+    /* 侧边栏样式 - 与教师页面保持一致 */
+    .student-sidebar {
+        width: 280px;
+        background-color: #f8f9fa;
+        border-right: 1px solid #dee2e6;
+        flex-shrink: 0;
+        padding: 0 10px 0;
+    }
+
+    /* 主内容区域 - 与教师页面保持一致 */
+    .student-main-content {
+        flex: 1;
+        padding: 20px;
+        min-height: 100%;
+        background-color: #ffffff;
+    }
+
+    /* 侧边栏导航链接样式 - 与教师页面保持一致 */
+    .sidebar-nav .nav-link {
+        padding: 12px 20px;
+        color: #333;
+        border-radius: 0;
+        border-left: 3px solid transparent;
+        transition: all 0.2s ease;
+    }
+
+    .sidebar-nav .nav-link:hover {
+        background-color: #e9ecef;
+        color: #007bff;
+        border-left-color: #007bff;
+    }
+
+    .sidebar-nav .nav-link.active {
+        background-color: #007bff;
+        color: white;
+        border-left-color: #007bff;
+    }
+
+    .sidebar-nav .nav-link i {
+        width: 20px;
+        text-align: center;
+        margin-right: 10px;
+    }
+
+    /* 侧边栏标题 - 与教师页面保持一致 */
+    .sidebar-heading {
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        color: #6c757d;
+        margin: 25px 0 10px 20px;
+        font-weight: 600;
+    }
+
+    /* 学生特定样式 */
+    .student-stats .card {
+        border-left-width: 4px;
+    }
+
+    .student-stats .card-body {
+        padding: 1.25rem;
+    }
+
+    /* 移动设备响应式 - 与教师页面保持一致 */
+    @media (max-width: 768px) {
+        .student-container {
+            flex-direction: column;
+        }
+
+        .student-sidebar {
+            width: 100%;
+            border-right: none;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .student-main-content {
+            padding: 20px;
+        }
+    }
+</style>
+
+<div class="student-container">
+    <!-- 左侧导航栏 -->
+    <nav class="student-sidebar">
+        <div class="sidebar-nav">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link " href="{% url 'student_dashboard' %}">
+                        <i class="fas fa-tachometer-alt"></i> 学习面板
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="{% url 'student_diagnosis' %}">
+                        <i class="fas fa-chart-line"></i> 学习诊断
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link " href="{% url 'student_subject' %}">
+                        <i class="fas fa-chart-line"></i> 我的课程
+                    </a>
+                </li>
+
+            </ul>
+        </div>
+    </nav>
+
+    <!-- 右侧主内容区域 -->
+    <main class="student-main-content">
+        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+            <h1 class="h2">学习诊断报告</h1>
+        </div>
+        <!--需要重点加强的知识点-->
+        {% if weak_points %}
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card border-warning">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0"><i class="fas fa-exclamation-triangle"></i> 需要重点加强的知识点</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            {% for point in weak_points %}
+                            <div class="col-md-6 mb-2">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span>{{ point.knowledge_point.name }}</span>
+                                    <span class="badge bg-danger">{{ point.mastery_level|floatformat:2 }}</span>
+                                </div>
+                                <div class="progress" style="height: 8px;">
+                                    <div class="progress-bar bg-danger" role="progressbar"
+                                         style="width: {{ point.mastery_level|floatformat:2 }}%"></div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!--所有做过的知识点掌握情况-->
+        {% for subject_name, diagnoses in subjects.items %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">{{ subject_name }} - 知识点掌握情况</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>知识点</th>
+                                <th>掌握程度</th>
+                                <th>练习次数</th>
+                                <th>正确次数</th>
+                                <th>最后练习</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for diagnosis in diagnoses %}
+                            <tr>
+                                <td>{{ diagnosis.knowledge_point.name }}</td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="progress flex-grow-1 me-2" style="height: 10px;">
+                                            <div class="progress-bar
+                                                {% if diagnosis.mastery_level >= 0.8 %}bg-success
+                                                {% elif diagnosis.mastery_level >= 0.6 %}bg-warning
+                                                {% else %}bg-danger{% endif %}"
+                                                 role="progressbar"
+                                                 style="width: {{ diagnosis.mastery_level|floatformat:2 }}%">
+                                            </div>
+                                        </div>
+                                        <span>{{ diagnosis.mastery_level|floatformat:2 }}</span>
+                                    </div>
+                                </td>
+                                <td>{{ diagnosis.practice_count }}</td>
+                                <td>{{ diagnosis.correct_count }}</td>
+                                <td>{{ diagnosis.last_practiced|date:"m-d H:i" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        {% empty %}
+        <div class="alert alert-info">
+            <h4 class="alert-heading">暂无诊断数据</h4>
+            <p>开始做题后，系统会根据您的答题情况生成学习诊断报告。</p>
+        </div>
+        {% endfor %}
+        {% endblock %}
+    </main>
+</div>
