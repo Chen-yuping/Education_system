@@ -21,7 +21,7 @@ def dashboard(request):
 @user_passes_test(is_teacher)
 def teacher_dashboard(request):
     subjects = Subject.objects.all()
-    total_exercises = Exercise.objects.filter(created_by=request.user).count()
+    total_exercises = Exercise.objects.filter(creator=request.user).count()
     total_knowledge_points = KnowledgePoint.objects.count()
 
     return render(request, 'teacher/teacher_dashboard.html', {
@@ -38,7 +38,7 @@ def upload_exercise(request):
         form = ExerciseForm(request.POST)
         if form.is_valid():
             exercise = form.save(commit=False)
-            exercise.created_by = request.user
+            exercise.creator = request.user
             exercise.save()
 
             # 处理选项

@@ -245,7 +245,7 @@ def upload_exercise(request):
         form = ExerciseForm(request.POST)
         if form.is_valid():
             exercise = form.save(commit=False)
-            exercise.created_by = request.user
+            exercise.creator = request.user
             exercise.save()
 
             # 处理选项
