@@ -27,9 +27,8 @@ def dashboard(request):
 @user_passes_test(is_student)
 def student_dashboard(request):
     subjects = Subject.objects.all()
-    subjects = Subject.objects.all()
     recent_logs = AnswerLog.objects.filter(student=request.user).order_by('-submitted_at')[:5]
-
+    total_answers = AnswerLog.objects.filter(student=request.user).count()
     # 计算总体掌握情况
     total_diagnosis = StudentDiagnosis.objects.filter(student=request.user)
     if total_diagnosis.exists():
@@ -38,6 +37,7 @@ def student_dashboard(request):
         avg_mastery = 0
 
     return render(request, 'student/student_dashboard.html', {
+        'total_answers': total_answers,
         'subjects': subjects,
         'recent_logs': recent_logs,
         'avg_mastery': round(avg_mastery * 100, 1),
