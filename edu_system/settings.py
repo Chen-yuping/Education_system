@@ -10,7 +10,6 @@ DEBUG = True
 # ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
 
 ALLOWED_HOSTS = [
-    '1128czrv84069.vicp.fun',  # 你的新花生壳域名
     'localhost',
     '127.0.0.1',
     '101.201.178.241',  # 添加这一行
@@ -83,9 +82,9 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'edu_diagnosis',      # 数据库名称
-        'USER': 'root',    # MySQL 用户名
-        'PASSWORD': '123456',  # MySQL 密码
-        'HOST': 'localhost',          # 数据库主机，如果是本地就是 localhost
+        'USER': 'edu_diagnosis',    # MySQL 用户名
+        'PASSWORD': 'zbKfBnHZTzdP4CbH',  # MySQL 密码
+        'HOST': '101.201.178.241',          # 数据库主机，如果是本地就是 localhost
         'PORT': '3306',               # MySQL 端口，默认是 3306
         'OPTIONS': {
             'charset': 'utf8mb4',     # 支持 emoji 等特殊字符

@@ -8,7 +8,6 @@ class User(AbstractUser):
         ('teacher', '教师'),
     )
     user_type = models.CharField(max_length=10, choices=USER_TYPE_CHOICES, default='student')
-    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         verbose_name = '用户'

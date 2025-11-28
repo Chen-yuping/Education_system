@@ -35,9 +35,9 @@ class Exercise(models.Model):
     title = models.CharField(max_length=200, verbose_name="习题标题")
     content = models.TextField(verbose_name="习题内容")
     question_type = models.CharField(max_length=10, default='single', verbose_name="题型")
-    created_by = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="创建者",default=1)
-
-
+    creator = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="创建者",default=1)
+    option_text = models.CharField(max_length=1000,verbose_name="选项内容",default=None)
+    answer = models.CharField(max_length=500, verbose_name="答案",default=None)
     class Meta:
         verbose_name = "习题"
         verbose_name_plural = "习题"

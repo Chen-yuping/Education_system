@@ -8,17 +8,15 @@ from itertools import groupby
 from .models import *
 from .forms import ExerciseForm, KnowledgePointForm, QMatrixForm
 
-
+#教师登录
 def is_teacher(user):
     return user.user_type == 'teacher'
-
 @login_required
 def dashboard(request):
     if request.user.user_type == 'teacher':
         return redirect('teacher_dashboard')
     else:
         return redirect('student_dashboard')
-
 @login_required
 @user_passes_test(is_teacher)
 def teacher_dashboard(request):
@@ -32,6 +30,7 @@ def teacher_dashboard(request):
         'total_knowledge_points': total_knowledge_points,
     })
 
+#上传习题
 @login_required
 @user_passes_test(is_teacher)
 def upload_exercise(request):
