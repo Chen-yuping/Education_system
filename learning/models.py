@@ -1,7 +1,10 @@
 from django.db import models
 from accounts.models import User
+import os
+import uuid
+from django.core.validators import FileExtensionValidator
 
-
+#对应数据库learning_subject
 class Subject(models.Model):
     name = models.CharField(max_length=100, verbose_name="科目名称")
     description = models.TextField(blank=True, verbose_name="科目描述")
@@ -13,7 +16,7 @@ class Subject(models.Model):
     def __str__(self):
         return self.name
 
-
+#对应数据库learning_knowledgepoint
 class KnowledgePoint(models.Model):
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, verbose_name="所属科目")
     name = models.CharField(max_length=200, verbose_name="知识点名称")
@@ -27,7 +30,7 @@ class KnowledgePoint(models.Model):
     def __str__(self):
         return f"{self.subject.name} - {self.name}"
 
-
+#对应数据库learning_exercise
 class Exercise(models.Model):
 
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, verbose_name="所属科目")
@@ -45,7 +48,7 @@ class Exercise(models.Model):
     def __str__(self):
         return self.title
 
-
+#对应数据库learning_choice
 class Choice(models.Model):
     exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE, related_name='choices', verbose_name="所属习题")
     content = models.CharField(max_length=500, verbose_name="选项内容")
@@ -60,7 +63,7 @@ class Choice(models.Model):
     def __str__(self):
         return f"{self.exercise.title} - 选项 {self.order}"
 
-
+#对应数据库learning_qmatrix
 class QMatrix(models.Model):
     exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE, verbose_name="习题")
     knowledge_point = models.ForeignKey(KnowledgePoint, on_delete=models.CASCADE, verbose_name="知识点")
@@ -74,7 +77,7 @@ class QMatrix(models.Model):
     def __str__(self):
         return f"{self.exercise.title} - {self.knowledge_point.name}"
 
-
+#对应数据库learning_answerlog
 class AnswerLog(models.Model):
     student = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="学生")
     exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE, verbose_name="习题")
@@ -91,7 +94,7 @@ class AnswerLog(models.Model):
     def __str__(self):
         return f"{self.student.username} - {self.exercise.title}"
 
-
+#对应数据库learning_studentdiagnosis
 class StudentDiagnosis(models.Model):
     student = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="学生")
     knowledge_point = models.ForeignKey(KnowledgePoint, on_delete=models.CASCADE, verbose_name="知识点")
@@ -107,3 +110,58 @@ class StudentDiagnosis(models.Model):
 
     def __str__(self):
         return f"{self.student.username} - {self.knowledge_point.name}"
+
+#对应数据库learning_exercisefile
+def exercise_file_upload_path(instance, filename):
+    """生成文件上传路径"""
+    ext = filename.split('.')[-1]
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    return f'exercise_files/{instance.teacher.id}/{filename}'
+
+#对应数据库learning_exercisefile
+class ExerciseFile(models.Model):
+    FILE_STATUS = [
+        ('pending', '待处理'),
+        ('processing', '处理中'),
+        ('completed', '已完成'),
+        ('error', '处理失败'),
+    ]
+
+    FILE_TYPES = [
+        ('txt', '文本文件'),
+        ('pdf', 'PDF文件'),
+        ('doc', 'Word文档'),
+        ('docx', 'Word文档'),
+        ('xls', 'Excel文件'),
+        ('xlsx', 'Excel文件'),
+    ]
+
+    teacher = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="上传教师")
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, verbose_name="所属科目")
+    file = models.FileField(
+        upload_to=exercise_file_upload_path,
+        validators=[FileExtensionValidator(allowed_extensions=['txt', 'pdf', 'doc', 'docx', 'xls', 'xlsx'])],
+        verbose_name="习题文件"
+    )
+    original_filename = models.CharField(max_length=255, verbose_name="原始文件名")
+    file_type = models.CharField(max_length=10, choices=FILE_TYPES, verbose_name="文件类型")
+    status = models.CharField(max_length=20, choices=FILE_STATUS, default='pending', verbose_name="处理状态")
+    uploaded_at = models.DateTimeField(auto_now_add=True, verbose_name="上传时间")
+    processed_at = models.DateTimeField(null=True, blank=True, verbose_name="处理完成时间")
+    exercise_count = models.IntegerField(default=0, verbose_name="生成的习题数量")
+    error_message = models.TextField(blank=True, verbose_name="错误信息")
+
+    class Meta:
+        verbose_name = "习题文件"
+        verbose_name_plural = "习题文件"
+        ordering = ['-uploaded_at']
+
+    def __str__(self):
+        return f"{self.teacher.username} - {self.original_filename}"
+
+    def delete(self, *args, **kwargs):
+        """删除模型实例时同时删除文件"""
+        if self.file:
+            if os.path.isfile(self.file.path):
+                os.remove(self.file.path)
+        super().delete(*args, **kwargs)
