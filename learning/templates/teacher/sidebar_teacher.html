@@ -18,13 +18,13 @@
             <li class="nav-item">
                 <a class="nav-link {% if request.resolver_match.url_name == 'upload_knowledge' %}active{% endif %}"
                    href="{% url 'upload_knowledge' %}">
-                    <i class="fas fa-brain"></i> Q矩阵管理
+                    <i class="fas fa-project-diagram"></i>知识点关系图
                 </a>
             </li>
             <li class="nav-item">
                 <a class="nav-link {% if request.resolver_match.url_name == 'q_matrix_management' %}active{% endif %}"
                    href="{% url 'q_matrix_management' %}">
-                    <i class="fas fa-project-diagram"></i> 知识点关系图
+                    <i class="fas fa-brain"></i> Q矩阵管理
                 </a>
             </li>
         </ul>
