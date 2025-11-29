@@ -22,7 +22,8 @@ class KnowledgePoint(models.Model):
     name = models.CharField(max_length=200, verbose_name="知识点名称")
     parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True,
                                related_name='children', verbose_name="父知识点")
-
+    similar_points = models.ManyToManyField('self', blank=True, symmetrical=True,
+                                            verbose_name="相似知识点")
     class Meta:
         verbose_name = "知识点"
         verbose_name_plural = "知识点"
@@ -117,8 +118,6 @@ def exercise_file_upload_path(instance, filename):
     ext = filename.split('.')[-1]
     filename = f"{uuid.uuid4().hex}.{ext}"
     return f'exercise_files/{instance.teacher.id}/{filename}'
-
-#对应数据库learning_exercisefile
 class ExerciseFile(models.Model):
     FILE_STATUS = [
         ('pending', '待处理'),
