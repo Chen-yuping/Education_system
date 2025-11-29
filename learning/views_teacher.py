@@ -6,17 +6,21 @@ from django.contrib import messages
 import json
 from itertools import groupby
 from .models import *
-from .forms import ExerciseForm, KnowledgePointForm, QMatrixForm,ExerciseFileForm
+from .forms import ExerciseForm, KnowledgePointForm, QMatrixForm
 
-#教师登录
+#教师身份判断
 def is_teacher(user):
     return user.user_type == 'teacher'
+
+#教师控制面板
 @login_required
 def dashboard(request):
     if request.user.user_type == 'teacher':
         return redirect('teacher_dashboard')
     else:
         return redirect('student_dashboard')
+
+#教师面板
 @login_required
 @user_passes_test(is_teacher)
 def teacher_dashboard(request):
@@ -28,31 +32,6 @@ def teacher_dashboard(request):
         'subjects': subjects,
         'total_exercises': total_exercises,
         'total_knowledge_points': total_knowledge_points,
-    })
-
-#上传习题
-@login_required
-@user_passes_test(is_teacher)
-def upload_exercise(request):
-    if request.method == 'POST':
-        form = ExerciseFileForm(request.POST, request.FILES)
-        if form.is_valid():
-            exercise_file = form.save(commit=False)
-            exercise_file.teacher = request.user
-            exercise_file.original_filename = request.FILES['file'].name
-            exercise_file.file_type = request.FILES['file'].name.split('.')[-1].lower()
-            exercise_file.save()
-
-            messages.success(request, '习题上传成功！')
-            return redirect('exercise_file_list')
-    else:
-        form = ExerciseFileForm()
-        # 添加上传历史
-        upload_history = ExerciseFile.objects.filter(teacher=request.user).order_by('-uploaded_at')[:10]
-
-    return render(request, 'teacher/upload_exercise.html', {
-        'form': form,
-        'upload_history': upload_history
     })
 
 

@@ -1,5 +1,5 @@
 from django import forms
-from .models import Exercise, KnowledgePoint, QMatrix, Subject,ExerciseFile
+from ..models import Exercise, KnowledgePoint, QMatrix, Subject,ExerciseFile
 
 class ExerciseForm(forms.ModelForm):
     class Meta:

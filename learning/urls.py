@@ -1,6 +1,8 @@
 from django.urls import path
 from . import views_student,views_teacher
 from django.urls import path, include
+from .exercise_file import views_exercisefile
+from .diagnosis import views_diagnosis
 
 urlpatterns = [
 
@@ -13,10 +15,14 @@ urlpatterns = [
     path('exercise/<int:exercise_id>/take/', views_student.take_exercise, name='take_exercise'),
     path('exercise/result/<int:log_id>/', views_student.exercise_result, name='exercise_result'),
 
-    path('diagnosis/', views_student.student_diagnosis, name='student_diagnosis'),
+    #学生诊断
+    path('diagnosis/', views_diagnosis.student_diagnosis, name='student_diagnosis'),
+
     path('subject/<int:subject_id>/knowledge/', views_student.knowledge_points, name='knowledge_points'),
 
-    path('teacher/upload/exercise/', views_teacher.upload_exercise, name='upload_exercise'),
+    #上传习题页面
+    path('teacher/upload/exercise/', views_exercisefile.upload_exercise, name='upload_exercise'),
+
     path('teacher/upload/knowledge/', views_teacher.upload_knowledge, name='upload_knowledge'),
     path('teacher/qmatrix/', views_teacher.q_matrix_management, name='q_matrix_management'),
 ]

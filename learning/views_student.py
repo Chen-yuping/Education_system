@@ -7,7 +7,7 @@ import json
 from itertools import groupby
 from .models import *
 from .forms import ExerciseForm, KnowledgePointForm, QMatrixForm
-from .diagnosis.updata import knowledge_mastery_diagnoses
+from .diagnosis.views_diagnosis import knowledge_mastery_diagnoses
 #登录用户判断
 def is_teacher(user):
     return user.user_type == 'teacher'

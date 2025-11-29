@@ -1,34 +1,198 @@
-<div class="container-fluid">
-    <div class="row">
-        <nav class="col-md-2 d-none d-md-block bg-light sidebar">
-            <div class="sidebar-sticky">
-                <ul class="nav flex-column">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'teacher_dashboard' %}">
-                            <i class="fas fa-tachometer-alt"></i> 教师面板
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'upload_exercise' %}">
-                            <i class="fas fa-upload"></i> 上传习题
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'upload_knowledge' %}">
-                            <i class="fas fa-brain"></i> 上传知识点
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'q_matrix_management' %}">
-                            <i class="fas fa-project-diagram"></i> Q矩阵管理
-                        </a>
-                    </li>
-                </ul>
-            </div>
-        </nav>
+<!-- 左侧导航栏 -->
+<nav class="teacher-sidebar">
+    <div class="sidebar-nav">
+        <!-- 左侧的上半部分 -->
+        <ul class="nav flex-column">
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'teacher_dashboard' %}active{% endif %}"
+                   href="{% url 'teacher_dashboard' %}">
+                    <i class="fas fa-tachometer-alt"></i> 教师面板
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'upload_exercise' %}active{% endif %}"
+                   href="{% url 'upload_exercise' %}">
+                    <i class="fas fa-upload"></i> 上传习题
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'upload_knowledge' %}active{% endif %}"
+                   href="{% url 'upload_knowledge' %}">
+                    <i class="fas fa-brain"></i> Q矩阵管理
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'q_matrix_management' %}active{% endif %}"
+                   href="{% url 'q_matrix_management' %}">
+                    <i class="fas fa-project-diagram"></i> 知识点关系图
+                </a>
+            </li>
+        </ul>
 
-        <main role="main" class="col-md-9 ml-sm-auto col-lg-10 px-4">
-            {% block content %}{% endblock %}
-        </main>
+        <!-- 科目管理部分 -->
+        <h6 class="sidebar-heading">
+            <span>科目管理</span>
+            <button class="collapse-btn" type="button">
+                <i class="fas fa-chevron-down"></i>
+            </button>
+        </h6>
+        <div class="nav-collapse">
+            <ul class="nav flex-column">
+                {% for subject in subjects %}
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'exercise_list' and subject.id|stringformat:'s' in request.path %}active{% endif %}"
+                       href="{% url 'exercise_list' subject.id %}">
+                        <i class="fas fa-book"></i> {{ subject.name }}
+                    </a>
+                </li>
+                {% empty %}
+                <li class="nav-item">
+                    <a class="nav-link text-muted" href="#">
+                        <i class="fas fa-book"></i> 暂无科目
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <!-- 学生管理部分 -->
+        <h6 class="sidebar-heading">
+            <span>学生管理</span>
+            <button class="collapse-btn" type="button">
+                <i class="fas fa-chevron-down"></i>
+            </button>
+        </h6>
+        <div class="nav-collapse">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'student_list' %}active{% endif %}" href="#">
+                        <i class="fas fa-users"></i> 学生列表
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'learning_statistics' %}active{% endif %}" href="#">
+                        <i class="fas fa-chart-bar"></i> 学习统计
+                    </a>
+                </li>
+            </ul>
+        </div>
     </div>
-</div>
+</nav>
+
+<style>
+    /* 侧边栏标题 */
+    .sidebar-heading {
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        color: #6c757d;
+        margin: 25px 0 10px 20px;
+        font-weight: 600;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+    }
+
+    .collapse-btn {
+        background: none;
+        border: none;
+        color: #6c757d;
+        cursor: pointer;
+        padding: 0.25rem;
+        transition: transform 0.3s ease;
+        font-size: 0.7rem;
+    }
+
+    .collapse-btn.collapsed {
+        transform: rotate(-90deg);
+    }
+
+    .nav-collapse {
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+    }
+
+    .nav-collapse.collapsed {
+        max-height: 0 !important;
+    }
+
+    /* 侧边栏导航链接样式 */
+    .sidebar-nav .nav-link {
+        padding: 12px 20px;
+        color: #333;
+        border-radius: 0;
+        border-left: 3px solid transparent;
+        transition: all 0.2s ease;
+    }
+
+    .sidebar-nav .nav-link:hover {
+        background-color: #e9ecef;
+        color: #007bff;
+        border-left-color: #007bff;
+    }
+
+    .sidebar-nav .nav-link.active {
+        background-color: #007bff;
+        color: white;
+        border-left-color: #007bff;
+    }
+</style>
+
+
+<script>
+// 移动设备侧边栏切换
+document.addEventListener('DOMContentLoaded', function() {
+    // 在移动设备上添加侧边栏切换功能
+    if (window.innerWidth < 768) {
+        const sidebar = document.querySelector('.teacher-sidebar');
+        const mainContent = document.querySelector('.teacher-main-content');
+
+        // 创建切换按钮
+        const toggleBtn = document.createElement('button');
+        toggleBtn.className = 'btn btn-success btn-sm';
+        toggleBtn.innerHTML = '<i class="fas fa-bars"></i>';
+        toggleBtn.style.position = 'fixed';
+        toggleBtn.style.top = '80px';
+        toggleBtn.style.right = '20px';
+        toggleBtn.style.zIndex = '1000';
+
+        // 切换侧边栏显示
+        let sidebarVisible = false;
+        toggleBtn.addEventListener('click', function() {
+            sidebarVisible = !sidebarVisible;
+            sidebar.style.display = sidebarVisible ? 'block' : 'none';
+        });
+
+        // 添加到页面
+        document.body.appendChild(toggleBtn);
+
+        // 默认在移动设备上隐藏侧边栏
+        sidebar.style.display = 'none';
+    }
+
+    // 为所有折叠按钮添加功能
+    const collapseBtns = document.querySelectorAll('.collapse-btn');
+
+    collapseBtns.forEach(btn => {
+        const heading = btn.closest('.sidebar-heading');
+        const navCollapse = heading.nextElementSibling;
+
+        // 默认不展开
+        btn.classList.add('collapsed');
+        navCollapse.classList.add('collapsed');
+
+        btn.addEventListener('click', function() {
+            this.classList.toggle('collapsed');
+            navCollapse.classList.toggle('collapsed');
+        });
+
+        // 点击标题也可以切换
+        heading.addEventListener('click', function(e) {
+            if (e.target !== btn) {
+                btn.classList.toggle('collapsed');
+                navCollapse.classList.toggle('collapsed');
+            }
+        });
+    });
+});
+</script>
