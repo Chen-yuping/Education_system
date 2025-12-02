@@ -1,6 +1,5 @@
 {% load static %}
-
-
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -126,10 +125,48 @@
         .nav-link {
             font-weight: 500;
         }
+
+        /* --- 社交图标基础样式 --- */
+        .social-link {
+            color: rgba(255, 255, 255, 0.7) !important;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer; /* 增加手型光标 */
+        }
+
+        .social-link:hover, .social-link:focus {
+            color: #ffffff !important;
+            transform: translateY(-3px);
+            outline: none; /* 去除点击后的默认边框 */
+        }
+
+        .social-text {
+            font-size: 12px;
+            margin-top: 5px;
+            opacity: 0.9;
+        }
+
+        /* --- 新增：二维码弹出框样式 --- */
+        .popover {
+            max-width: 180px; /* 控制弹出框宽度 */
+            border: none;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        .popover-body {
+            padding: 5px; /* 图片与边框的间距 */
+        }
+        .qr-code-img {
+            width: 100%;
+            height: auto;
+            display: block;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
-    <!-- 导航栏 -->
     <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm sticky-top">
         <div class="container">
             <a class="navbar-brand" href="{% url 'home' %}">
@@ -148,6 +185,9 @@
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="#">全部课程</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">合作院校</a>
                     </li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="moreDropdown" role="button" data-bs-toggle="dropdown">
@@ -196,9 +236,7 @@
         </div>
     </nav>
 
-    <!-- 主要内容 -->
     <main>
-        <!-- 大屏区域 -->
         <section class="hero-section">
             <div class="container">
                 <div class="row align-items-center">
@@ -217,7 +255,6 @@
                         </div>
                     </div>
                     <div class="col-lg-6 text-center">
-                        <!-- 这里可以放一个图片或插图 -->
                         <div style="background: rgba(255,255,255,0.1); border-radius: 10px; padding: 30px;">
                             <i class="fas fa-laptop-code" style="font-size: 8rem; opacity: 0.8;"></i>
                         </div>
@@ -226,16 +263,14 @@
             </div>
         </section>
 
-        <!-- 热门课程 -->
         <section class="py-5 bg-light">
             <div class="container">
                 <h2 class="section-title">热门课程</h2>
-
                 <div class="row">
                     {% for subject in popular_subjects %}
                     <div class="col-md-4 mb-4">
                         <div class="card course-card">
-                           <img src="{% static 'images/subject/' %}{{ subject.id }}.jpg?v={{ timestamp }}" class="card-img-top" alt="{{ subject.name }}">
+                            <img src="{% static 'images/R-C.jpg' %}" class="card-img-top" alt="{{ subject.name }}">
                             <div class="card-body">
                                 <h5 class="card-title">{{ subject.name }}</h5>
                                 <p class="card-text">{{ subject.description|default:"暂无课程描述"|truncatewords:15 }}</p>
@@ -262,11 +297,9 @@
             </div>
         </section>
 
-        <!-- 特色功能 -->
         <section class="py-5">
             <div class="container">
                 <h2 class="section-title">平台特色</h2>
-
                 <div class="row">
                     <div class="col-md-4 mb-4">
                         <div class="feature-card text-center">
@@ -277,7 +310,6 @@
                             <p class="text-muted">基于知识追踪算法，精准诊断学习薄弱环节，提供个性化学习路径</p>
                         </div>
                     </div>
-
                     <div class="col-md-4 mb-4">
                         <div class="feature-card text-center">
                             <div class="mb-3">
@@ -287,7 +319,6 @@
                             <p class="text-muted">清晰展示学习进度和知识点掌握情况，帮助师生了解学习状况</p>
                         </div>
                     </div>
-
                     <div class="col-md-4 mb-4">
                         <div class="feature-card text-center">
                             <div class="mb-3">
@@ -302,13 +333,12 @@
         </section>
     </main>
 
-    <!-- 页脚 -->
     <footer class="bg-dark text-white py-5">
         <div class="container">
             <div class="row">
                 <div class="col-md-4 mb-4">
                     <h5 class="mb-3">aikgedu</h5>
-                    <p style=" padding: 0 50px 0 0; border-radius: 5px;">致力于提供优质的在线学习体验，通过智能诊断和个性化推荐，帮助每位学习者实现自我提升。</p>
+                    <p>致力于提供优质的在线学习体验，通过智能诊断和个性化推荐，帮助每位学习者实现自我提升。</p>
                 </div>
 
                 <div class="col-md-2 mb-4">
@@ -331,10 +361,33 @@
 
                 <div class="col-md-3 mb-4">
                     <h6 class="mb-3">关注我们</h6>
-                    <div class="d-flex gap-3">
-                        <a href="#" class="text-light"><i class="fab fa-weixin fa-2x"></i></a>
-                        <a href="#" class="text-light"><i class="fab fa-weibo fa-2x"></i></a>
-                        <a href="#" class="text-light"><i class="fab fa-qq fa-2x"></i></a>
+                    <div class="d-flex gap-4">
+
+                        <a tabindex="0" class="social-link" role="button"
+   data-bs-toggle="popover"
+   data-bs-trigger="hover focus"
+   data-bs-placement="top"
+   data-bs-html="true"
+   data-bs-content="<img src='{% static 'images/wechat_qr.jpg' %}' class='qr-code-img' alt='微信二维码'>">
+    <i class="fab fa-weixin fa-2x"></i>
+    <span class="social-text">公众号</span>
+</a>
+
+                        <a href="https://weibo.com" target="_blank" class="social-link">
+                            <i class="fab fa-weibo fa-2x"></i>
+                            <span class="social-text">微博</span>
+                        </a>
+
+                        <a tabindex="0" class="social-link" role="button"
+   data-bs-toggle="popover"
+   data-bs-trigger="hover focus"
+   data-bs-placement="top"
+   data-bs-html="true"
+   data-bs-content="<img src='{% static 'images/qq_qr.jpg' %}' class='qr-code-img' alt='QQ二维码'>">
+    <i class="fab fa-qq fa-2x"></i>
+    <span class="social-text">QQ咨询</span>
+</a>
+
                     </div>
                 </div>
             </div>
@@ -354,4 +407,14 @@
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function(){
+            var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
+            var popoverList = popoverTriggerList.map(function (popoverTriggerEl) {
+              return new bootstrap.Popover(popoverTriggerEl);
+            });
+        });
+    </script>
 </body>
+</html>
