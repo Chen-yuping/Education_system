@@ -133,17 +133,4 @@ AUTHENTICATION_BACKENDS = [
 LOGIN_REDIRECT_URL = '/learning/dashboard/'
 LOGOUT_REDIRECT_URL = '/accounts/login/'
 
-# 4. 添加STATICFILES_DIRS（项目级别的static目录）
-import os
-STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'static'),
-]
-
-# 5. 开发环境下自动处理静态文件
-if DEBUG:
-    STATICFILES_DIRS = [
-        os.path.join(BASE_DIR, 'static'),
-    ]
-else:
-    STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
