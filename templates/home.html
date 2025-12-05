@@ -237,31 +237,44 @@
     </nav>
 
     <main>
-        <section class="hero-section">
-            <div class="container">
-                <div class="row align-items-center">
-                    <div class="col-lg-6">
-                        <h1 class="display-4 fw-bold mb-4">智慧教育平台</h1>
-                        <h2 class="mb-4">个性化学习路径+实时教学反馈</h2>
-                        <h3 class="fw-bold mb-4">疾风计划开启</h3>
+       <section class="hero-section py-5 bg-dark text-white">
+    <div class="container">
+        <div class="row align-items-center">
 
-                        <div class="mb-4">
-                            <p><i class="fas fa-user-tie me-2"></i>个性化诊断 | 丰富习题 | 智能推荐</p>
-                            <p><i class="fas fa-cogs me-2"></i>实时监控 | 使用便捷 | 全面掌控</p>
-                        </div>
+            <div class="col-lg-6">
+                <h1 class="display-4 fw-bold mb-3 text-start">智慧教育平台</h1>
 
-                        <div class="countdown">
-                            <p class="mb-0">快加入我们</p>
-                        </div>
-                    </div>
-                    <div class="col-lg-6 text-center">
-                        <div style="background: rgba(255,255,255,0.1); border-radius: 10px; padding: 30px;">
-                            <i class="fas fa-laptop-code" style="font-size: 8rem; opacity: 0.8;"></i>
-                        </div>
-                    </div>
+                <h2 class="h4 mb-4 text-start fw-normal" style="line-height: 1.6;">
+                    个性化学习引擎 + 人工智能为你赋能
+                </h2>
+
+                <div class="mb-5 text-start">
+                    <p class="fs-5 mb-2">
+                        <i class="fas fa-user-tie me-2 text-primary"></i>
+                        <span class="fw-bold">个性化路径</span> | 丰富资源 | 智能推荐
+                    </p>
+                    <p class="fs-5">
+                        <i class="fas fa-cogs me-2 text-primary"></i>
+                        <span class="fw-bold">实时监控</span> | 使用便捷 | 全面掌控
+                    </p>
+                </div>
+
+                <div class="d-grid gap-2 d-md-flex justify-content-md-start">
+                    <a href="{% url 'register' %}" class="btn btn-primary btn-lg px-4 me-md-2 shadow-sm">立即加入</a>
+                    <a href="#" class="btn btn-outline-light btn-lg px-4">了解更多</a>
                 </div>
             </div>
-        </section>
+
+            <div class="col-lg-6 mt-5 mt-lg-0 text-center">
+                <img src="{% static 'images/home_banner.png' %}"
+                     alt="智慧教育插画"
+                     class="img-fluid"
+                     style="max-height: 500px; filter: drop-shadow(0px 10px 20px rgba(255,255,255,0.1));">
+            </div>
+
+        </div>
+    </div>
+</section>
 
         <section class="py-5 bg-light">
             <div class="container">
