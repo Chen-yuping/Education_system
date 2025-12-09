@@ -55,6 +55,7 @@ def upload_knowledge(request):
 @login_required
 @user_passes_test(is_teacher)
 def q_matrix_management(request):
+    subjects = Subject.objects.all()
     if request.method == 'POST':
         form = QMatrixForm(request.POST)
         if form.is_valid():
@@ -67,6 +68,7 @@ def q_matrix_management(request):
     q_matrix = QMatrix.objects.all().select_related('exercise', 'knowledge_point')
 
     return render(request, 'teacher/q_matrix.html', {
+        'subjects': subjects,
         'form': form,
         'q_matrix': q_matrix
     })

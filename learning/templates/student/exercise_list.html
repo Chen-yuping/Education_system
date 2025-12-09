@@ -142,15 +142,16 @@
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="{% url 'student_diagnosis' %}">
-                        <i class="fas fa-chart-line"></i> 学习诊断
+                    <a class="nav-link active" href="{% url 'exercise_list' subject_id=subject.id %}">
+                        <i class="fas fa-tachometer-alt"></i> 题目集介绍
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link active" href="{% url 'student_subject' %}">
-                        <i class="fas fa-chart-line"></i> 我的课程
+                    <a class="nav-link" href="{% url 'subject_exercise_logs' subject_id=subject.id %}">
+                        <i class="fas fa-chart-line"></i> 做题记录
                     </a>
                 </li>
+
 
             </ul>
         </div>
@@ -163,14 +164,6 @@
             <div>
                 <h1 class="h2">{{ subject.name }}习题</h1>
                 <p class="text-muted mb-0">{{ subject.description|default:"开始您的数学学习之旅" }}</p>
-            </div>
-            <div class="btn-toolbar mb-2 mb-md-0">
-                <div class="btn-group me-2">
-                    <button type="button" class="btn btn-sm btn-outline-primary">全部</button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary">简单</button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary">中等</button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary">困难</button>
-                </div>
             </div>
         </div>
 
@@ -247,33 +240,7 @@
             {% endfor %}
         </div>
 
-        <!-- 知识点统计 -->
-        <div class="row mt-4">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h6 class="mb-0">知识点覆盖</h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            {% for kp in knowledge_points %}
-                            <div class="col-md-4 mb-3">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <span>{{ kp.name }}</span>
-                                    <span class="badge bg-info">{{ kp.exercise_count }} 题</span>
-                                </div>
-                                <div class="progress mt-1" style="height: 4px;">
-                                    <div class="progress-bar bg-info" role="progressbar"
-                                         style="width: {{ kp.mastery_percentage }}%"></div>
-                                </div>
-                                <small class="text-muted">掌握度: {{ kp.mastery_percentage }}%</small>
-                            </div>
-                            {% endfor %}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+
     </main>
 </div>
 

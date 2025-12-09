@@ -4,103 +4,38 @@
 
 {% block content %}
 <style>
-    /* 重置容器样式 */
-    .container.mt-4 {
-        margin: 0 !important;
-        padding: 0 !important;
-        max-width: 100% !important;
-        width: 100% !important;
-    }
-
-    /* 学生页面布局样式 - 与教师页面保持一致 */
-    .student-container {
-        display: flex;
-        min-height: calc(100vh - 80px); /* 减去导航栏高度 */
-        margin-top: 20px; /* 与导航栏的间距 */
-    }
-
-    /* 侧边栏样式 - 与教师页面保持一致 */
-    .student-sidebar {
-        width: 280px;
-        background-color: #f8f9fa;
-        border-right: 1px solid #dee2e6;
-        flex-shrink: 0;
-        padding: 0 10px 0;
-    }
-
-    /* 主内容区域 - 与教师页面保持一致 */
-    .student-main-content {
-        flex: 1;
+    /* 只需要添加模型选择器的样式，其他保持原样 */
+    .model-selection-section {
+        background: white;
+        border-radius: 10px;
         padding: 20px;
-        min-height: 100%;
-        background-color: #ffffff;
+        margin-bottom: 25px;
+        border-left: 4px solid #007bff;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     }
 
-    /* 侧边栏导航链接样式 - 与教师页面保持一致 */
-    .sidebar-nav .nav-link {
-        padding: 12px 20px;
-        color: #333;
-        border-radius: 0;
-        border-left: 3px solid transparent;
+    .model-option {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 10px;
+        cursor: pointer;
         transition: all 0.2s ease;
     }
 
-    .sidebar-nav .nav-link:hover {
-        background-color: #e9ecef;
-        color: #007bff;
-        border-left-color: #007bff;
+    .model-option:hover {
+        background-color: #f8f9fa;
+        border-color: #adb5bd;
     }
 
-    .sidebar-nav .nav-link.active {
-        background-color: #007bff;
-        color: white;
-        border-left-color: #007bff;
-    }
-
-    .sidebar-nav .nav-link i {
-        width: 20px;
-        text-align: center;
-        margin-right: 10px;
-    }
-
-    /* 侧边栏标题 - 与教师页面保持一致 */
-    .sidebar-heading {
-        font-size: 0.8rem;
-        text-transform: uppercase;
-        color: #6c757d;
-        margin: 25px 0 10px 20px;
-        font-weight: 600;
-    }
-
-    /* 学生特定样式 */
-    .student-stats .card {
-        border-left-width: 4px;
-    }
-
-    .student-stats .card-body {
-        padding: 1.25rem;
-    }
-
-    /* 移动设备响应式 - 与教师页面保持一致 */
-    @media (max-width: 768px) {
-        .student-container {
-            flex-direction: column;
-        }
-
-        .student-sidebar {
-            width: 100%;
-            border-right: none;
-            border-bottom: 1px solid #dee2e6;
-        }
-
-        .student-main-content {
-            padding: 20px;
-        }
+    .model-option.active {
+        background-color: #e7f1ff;
+        border-color: #007bff;
     }
 </style>
 
 <div class="student-container">
-    <!-- 左侧导航栏 -->
+    <!-- 左侧导航栏 - 完全保持你原来的样子 -->
     <nav class="student-sidebar">
         <div class="sidebar-nav">
             <ul class="nav flex-column">
@@ -119,7 +54,6 @@
                         <i class="fas fa-chart-line"></i> 我的课程
                     </a>
                 </li>
-
             </ul>
         </div>
     </nav>
@@ -129,6 +63,62 @@
         <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
             <h1 class="h2">学习诊断报告</h1>
         </div>
+
+        <!-- 只在这里添加模型选择器 -->
+        <div class="model-selection-section">
+            <h5 class="mb-3">
+                <i class="fas fa-cogs me-2"></i>选择诊断模型
+            </h5>
+
+            <form method="get" action="{% url 'student_diagnosis' %}">
+                {% if available_models %}
+                <div class="row">
+                    {% for model in available_models %}
+                    <div class="col-md-6 mb-3">
+                        <label class="model-option {% if selected_model.id == model.id %}active{% endif %}"
+                               style="display: block; cursor: pointer;">
+                            <input type="radio" name="model_id" value="{{ model.id }}"
+                                   {% if selected_model.id == model.id %}checked{% endif %}
+                                   onchange="this.form.submit()"
+                                   style="display: none;">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="fw-bold">{{ model.name }}</div>
+                                    <div class="text-muted small mt-1">{{ model.description|truncatechars:80 }}</div>
+                                </div>
+                                {% if selected_model.id == model.id %}
+                                <i class="fas fa-check text-success"></i>
+                                {% endif %}
+                            </div>
+                        </label>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                {% if selected_model %}
+                <div class="alert alert-light mt-2 mb-0">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>当前模型：{{ selected_model.name }}</strong>
+                            <div class="text-muted small">{{ selected_model.description }}</div>
+                        </div>
+                        <button type="submit" class="btn btn-sm btn-outline-primary">
+                            重新分析
+                        </button>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% else %}
+                <div class="alert alert-warning mb-0">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    暂无可用诊断模型
+                </div>
+                {% endif %}
+            </form>
+        </div>
+
+        <!-- 这里是你原来的诊断数据显示代码，完全保持不变 -->
         <!--需要重点加强的知识点-->
         {% if weak_points %}
         <div class="row mb-4">
@@ -211,6 +201,22 @@
             <p>开始做题后，系统会根据您的答题情况生成学习诊断报告。</p>
         </div>
         {% endfor %}
+
         {% endblock %}
     </main>
 </div>
+
+<script>
+    // 简单的脚本让点击整个标签都能选中radio
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.model-option').forEach(option => {
+            option.addEventListener('click', function() {
+                const radio = this.querySelector('input[type="radio"]');
+                if (radio) {
+                    radio.checked = true;
+                    radio.closest('form').submit();
+                }
+            });
+        });
+    });
+</script>

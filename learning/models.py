@@ -95,6 +95,20 @@ class AnswerLog(models.Model):
     def __str__(self):
         return f"{self.student.username} - {self.exercise.title}"
 
+
+# 添加models
+class DiagnosisModel(models.Model):
+    name = models.CharField('模型名称', max_length=100)
+    description = models.TextField('模型描述', blank=True)
+    is_active = models.BooleanField('是否启用', default=True)
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+
+    def __str__(self):
+        return self.name
+
+
+
 #对应数据库learning_studentdiagnosis
 class StudentDiagnosis(models.Model):
     student = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="学生")

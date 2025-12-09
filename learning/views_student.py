@@ -8,6 +8,8 @@ from itertools import groupby
 from .models import *
 from .forms import ExerciseForm, KnowledgePointForm, QMatrixForm
 from .diagnosis.views_diagnosis import knowledge_mastery_diagnoses
+from django.utils import timezone
+from datetime import timedelta
 #登录用户判断
 def is_teacher(user):
     return user.user_type == 'teacher'
@@ -162,7 +164,7 @@ def take_exercise(request, exercise_id):
         'exercise': exercise
     })
 
-#"""答题结果页面"""
+#"""单个题目答题结果页面"""
 @login_required
 @user_passes_test(is_student)
 def exercise_result(request, log_id):
@@ -214,6 +216,149 @@ def student_diagnosis(request):
         'subjects': subjects,
         'weak_points': weak_points
     })
+
+#单科目下的做题记录
+@login_required
+def subject_exercise_logs(request, subject_id):
+    """显示科目下所有习题的答题记录"""
+    subject = get_object_or_404(Subject, id=subject_id)
+
+    # 计算3个月前的时间点
+    three_months_ago = timezone.now() - timedelta(days=90)
+
+    # 获取用户在该科目下的所有答题记录（预加载相关数据）
+    answer_logs = AnswerLog.objects.filter(
+        student=request.user,
+        exercise__subject=subject
+    ).select_related('exercise').prefetch_related('selected_choices').order_by('-submitted_at')
+
+    # 统计信息
+    total_logs = answer_logs.count()
+    correct_logs = answer_logs.filter(is_correct=True).count()
+    incorrect_logs = answer_logs.filter(is_correct=False).count()
+    unmarked_logs = answer_logs.filter(is_correct__isnull=True).count()
+
+    # 计算正确率
+    if total_logs > 0:
+        correct_rate = round((correct_logs / total_logs) * 100, 1)
+    else:
+        correct_rate = 0
+
+    # 获取所有不重复的习题（优化性能）
+    exercise_ids = answer_logs.values_list('exercise_id', flat=True).distinct()
+
+    # 预加载习题的选择项
+    exercises = Exercise.objects.filter(id__in=exercise_ids).prefetch_related('choices')
+
+    # 为每个习题准备统计数据
+    exercises_with_stats = []
+    for exercise in exercises:
+        # 获取该习题的所有答题记录
+        exercise_logs = [log for log in answer_logs if log.exercise.id == exercise.id]
+
+        # 获取最近3个月的答题记录
+        recent_logs = [log for log in exercise_logs if log.submitted_at >= three_months_ago][:31]  # 最多显示31个
+
+        # 统计该习题的答题情况
+        total_attempts = len(exercise_logs)
+        correct_attempts = len([log for log in exercise_logs if log.is_correct is True])
+
+        # 计算正确率
+        if total_attempts > 0:
+            exercise_correct_rate = round((correct_attempts / total_attempts) * 100, 1)
+        else:
+            exercise_correct_rate = 0
+
+        # 获取该习题的所有选项
+        choices = list(exercise.choices.all().order_by('order'))
+
+        # 准备最近答题记录的数据
+        processed_recent_logs = []
+        for i, log in enumerate(recent_logs, 1):
+            # 获取用户选择的选项
+            selected_choices = list(log.selected_choices.all())
+
+            # 获取用户选择的文本
+            selected_options_text = []
+            for choice in selected_choices:
+                selected_options_text.append(choice.content)
+
+            # 获取正确答案
+            correct_choices = [c for c in choices if c.is_correct]
+            correct_options_text = [c.content for c in correct_choices]
+
+            # 获取所有选项文本
+            options_text = [c.content for c in choices]
+
+            # 准备日志数据
+            log_data = {
+                'id': log.id,
+                'is_correct': log.is_correct,
+                'submitted_at': log.submitted_at,
+                'question_text': exercise.content,
+                'selected_option': " | ".join(selected_options_text) if selected_options_text else "未选择",
+                'correct_option': " | ".join(correct_options_text) if correct_options_text else "未设置正确答案",
+                'options_json': json.dumps(options_text),
+            }
+            processed_recent_logs.append(log_data)
+
+        exercises_with_stats.append({
+            'id': exercise.id,
+            'title': exercise.title,
+            'points': 20,  # 如果没有points字段，使用默认值20
+            'total_attempts': total_attempts,
+            'correct_rate': exercise_correct_rate,
+            'recent_logs': processed_recent_logs,
+        })
+
+    # 按答题次数排序
+    exercises_with_stats.sort(key=lambda x: x['total_attempts'], reverse=True)
+
+    # 按习题分组统计（保持原有功能）
+    exercise_stats = {}
+    for log in answer_logs:
+        if log.exercise.id not in exercise_stats:
+            exercise_stats[log.exercise.id] = {
+                'exercise': log.exercise,
+                'total': 0,
+                'correct': 0,
+                'logs': []
+            }
+        exercise_stats[log.exercise.id]['total'] += 1
+        if log.is_correct:
+            exercise_stats[log.exercise.id]['correct'] += 1
+        exercise_stats[log.exercise.id]['logs'].append(log)
+
+    for stat in exercise_stats.values():
+        if stat['total'] > 0:
+            stat['correct_rate'] = round((stat['correct'] / stat['total']) * 100, 1)
+        else:
+            stat['correct_rate'] = 0
+
+    # 获取知识点掌握情况
+    knowledge_stats = StudentDiagnosis.objects.filter(
+        student=request.user,
+        knowledge_point__subject=subject
+    ).select_related('knowledge_point')
+
+    context = {
+        'subject': subject,
+        'answer_logs': answer_logs,
+        'total_logs': total_logs,
+        'correct_logs': correct_logs,
+        'incorrect_logs': incorrect_logs,
+        'unmarked_logs': unmarked_logs,
+        'correct_rate': correct_rate,
+        'exercise_stats': exercise_stats.values(),
+        'knowledge_stats': knowledge_stats,
+        'has_data': total_logs > 0,
+        'exercises_with_stats': exercises_with_stats,  # 新增的数据
+    }
+
+    return render(request, 'student/subject_exercise_logs.html', context)
+
+
+
 
 @login_required
 @user_passes_test(is_student)

@@ -4,6 +4,7 @@ from django.urls import path, include
 from .exercise_file import views_exercisefile
 from .diagnosis import views_diagnosis
 
+
 urlpatterns = [
 
     path('dashboard/', views_student.dashboard, name='dashboard'),
@@ -25,4 +26,7 @@ urlpatterns = [
 
     path('teacher/upload/knowledge/', views_teacher.upload_knowledge, name='upload_knowledge'),
     path('teacher/qmatrix/', views_teacher.q_matrix_management, name='q_matrix_management'),
+
+    #单个科目的答题log
+    path('subject/<int:subject_id>/exercise-logs/', views_student.subject_exercise_logs, name='subject_exercise_logs'),
 ]

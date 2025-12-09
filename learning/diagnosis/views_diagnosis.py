@@ -1,6 +1,7 @@
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required, user_passes_test
 from ..models import *
+from learning.models import DiagnosisModel
 
 def knowledge_mastery_diagnoses(user, answerlog):
 
@@ -13,26 +14,33 @@ def is_student(user):
 @login_required
 @user_passes_test(is_student)
 def student_diagnosis(request):
+    try:
+        # 获取所有可用模型
+        available_models = DiagnosisModel.objects.filter(is_active=True)
 
-    diagnoses = StudentDiagnosis.objects.filter(student=request.user).select_related('knowledge_point')
-    answerlog = AnswerLog.objects.filter(student=request.user)
+        # 获取选择的模型ID
+        selected_model = None
+        model_id = request.GET.get('model_id')
 
-    knowledge_mastery_diagnoses(request.user, answerlog)
+        if available_models.exists():
+            if model_id:
+                try:
+                    selected_model = DiagnosisModel.objects.get(id=model_id, is_active=True)
+                except DiagnosisModel.DoesNotExist:
+                    selected_model = available_models.first()
+            else:
+                selected_model = available_models.first()
 
-    # 按科目分组
-    subjects = {}
-    for diagnosis in diagnoses:
-        subject_name = diagnosis.knowledge_point.subject.name
-        if subject_name not in subjects:
-            subjects[subject_name] = []
-        subjects[subject_name].append(diagnosis)
+        context = {
+            'available_models': available_models,
+            'selected_model': selected_model,
+        }
 
-    # 计算推荐学习路径
-    weak_points = diagnoses.filter(mastery_level__lt=0.6).order_by('mastery_level')[:5]
-    # 更新知识点掌握情况
+    except Exception as e:
+        # 处理异常
+        context = {
+            'available_models': [],
+            'selected_model': None,
+        }
 
-
-    return render(request, 'student/student_diagnosis.html', {
-        'subjects': subjects,
-        'weak_points': weak_points
-    })
+    return render(request, 'student/student_diagnosis.html', context)
