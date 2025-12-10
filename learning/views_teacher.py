@@ -8,9 +8,9 @@ from django.http import JsonResponse, HttpResponse
 from django.db.models import Q
 from django.core.paginator import Paginator
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from .models import Exercise, Subject, KnowledgePoint, Choice, QMatrix
-from accounts.models import User
+from accounts.models import *
 from .forms import ExerciseForm
 
 from django.db.models import Count, Q
@@ -100,6 +100,53 @@ def update_knowledge_mastery(student, exercise, is_correct):
         diagnosis.calculate_mastery()
 
 
+# 学生信息显示
+@login_required
+@user_passes_test(is_teacher)
+def student_info(request):
+    # 获取所有学生
+    students = User.objects.filter(user_type='student').select_related('studentprofile')
+
+    # 获取年级列表
+    grade_list = StudentProfile.objects.values_list('grade', flat=True).distinct()
+
+
+    # 获取近7天有学习记录的学生
+    week_ago = datetime.now() - timedelta(days=7)
+    active_students_count = AnswerLog.objects.filter(
+        submitted_at__gte=week_ago
+    ).values('student').distinct().count()
+
+    # 分页处理
+    paginator = Paginator(students, 10)  # 每页10个学生
+    page_number = request.GET.get('page')
+    page_students = paginator.get_page(page_number)
+
+    # 为每个学生添加学习统计数据
+    for student in page_students:
+        # 答题统计
+        answer_logs = AnswerLog.objects.filter(student=student)
+        student.total_exercises = answer_logs.count()
+
+        if student.total_exercises > 0:
+            correct_count = answer_logs.filter(is_correct=True).count()
+            student.accuracy = (correct_count / student.total_exercises) * 100
+        else:
+            student.accuracy = 0
+
+        # 最后学习时间
+        last_log = answer_logs.order_by('-submitted_at').first()
+        student.last_active = last_log.submitted_at if last_log else None
+
+    context = {
+        'students': page_students,
+        'total_students': students.count(),
+        'active_students': active_students_count,
+        'grade_list': grade_list,
+        'subjects': Subject.objects.all(),  # 侧边栏需要的科目
+    }
+
+    return render(request, 'teacher/student_info.html', context)
 
 
 """题库管理主页面"""

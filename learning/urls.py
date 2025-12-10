@@ -7,9 +7,9 @@ from .diagnosis import views_diagnosis
 
 urlpatterns = [
 
+#学生功能
     path('dashboard/', views_student.dashboard, name='dashboard'),
     path('student/dashboard/', views_student.student_dashboard, name='student_dashboard'),
-    path('teacher/dashboard/', views_teacher.teacher_dashboard, name='teacher_dashboard'),
 
     path('student/subject/', views_student.student_subject, name='student_subject'),
     path('subject/<int:subject_id>/exercises/', views_student.exercise_list, name='exercise_list'),
@@ -18,9 +18,10 @@ urlpatterns = [
 
     #学生诊断
     path('diagnosis/', views_diagnosis.student_diagnosis, name='student_diagnosis'),
-
     path('subject/<int:subject_id>/knowledge/', views_student.knowledge_points, name='knowledge_points'),
 
+#老师功能
+    path('teacher/dashboard/', views_teacher.teacher_dashboard, name='teacher_dashboard'),
     #上传习题页面
     path('teacher/upload/exercise/', views_exercisefile.upload_exercise, name='upload_exercise'),
 
@@ -40,6 +41,6 @@ urlpatterns = [
     path('exercise-management/detail/<int:exercise_id>/', views_teacher.exercise_detail, name='exercise_detail'),
     path('exercise-management/batch-delete/', views_teacher.exercise_batch_delete, name='exercise_batch_delete'),
     path('exercise-management/export/', views_teacher.export_exercises, name='export_exercises'),
-
-
+    #查看学生信息
+    path('teacher/students/', views_teacher.student_info, name='student_info'),
 ]

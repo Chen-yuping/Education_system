@@ -34,11 +34,13 @@
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if request.resolver_match.url_name == 'q_matrix_management' %}active{% endif %}"
-                   >
-                    <i class="fas fa-chart-line"></i> 薄弱分析
+                <a class="nav-link {% if request.resolver_match.url_name == 'student_info' %}active{% endif %}"
+                   href="{% url 'student_info' %}">
+                    <i class="fas fa-users"></i> 学生信息
                 </a>
             </li>
+
+
         </ul>
 
         <!-- 科目管理部分 -->
@@ -67,27 +69,6 @@
             </ul>
         </div>
 
-        <!-- 学生管理部分 -->
-        <h6 class="sidebar-heading">
-            <span>学生管理</span>
-            <button class="collapse-btn" type="button">
-                <i class="fas fa-chevron-down"></i>
-            </button>
-        </h6>
-        <div class="nav-collapse">
-            <ul class="nav flex-column">
-                <li class="nav-item">
-                    <a class="nav-link {% if request.resolver_match.url_name == 'student_list' %}active{% endif %}" href="#">
-                        <i class="fas fa-users"></i> 学生列表
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if request.resolver_match.url_name == 'learning_statistics' %}active{% endif %}" href="#">
-                        <i class="fas fa-chart-bar"></i> 学习统计
-                    </a>
-                </li>
-            </ul>
-        </div>
     </div>
 </nav>
 

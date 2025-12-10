@@ -1,0 +1,292 @@
+<!-- templates/teacher/student_info.html -->
+{% extends 'teacher/base.html' %}
+{% load static %}
+
+{% block title %}学生信息 - 在线学习诊断系统{% endblock %}
+
+{% block content %}
+<style>
+    /* 学生信息页面特定样式 */
+    .student-avatar {
+        width: 40px;
+        height: 40px;
+        background-color: #007bff;
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 18px;
+    }
+
+    .progress-thin {
+        height: 6px;
+        border-radius: 3px;
+    }
+
+    .badge-grade {
+        background-color: #6f42c1;
+        color: white;
+    }
+
+    .table-hover tbody tr:hover {
+        background-color: #f8f9fa;
+        cursor: pointer;
+    }
+
+    .filter-box {
+        background: white;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+</style>
+
+<!-- 页面标题 -->
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3 mb-3 border-bottom">
+    <h1 class="h2">学生信息管理</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <span class="text-muted me-3">共 {{ total_students }} 名学生</span>
+    </div>
+</div>
+
+<!-- 统计卡片 -->
+<div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-primary shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                            总学生数
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_students }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-users fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-success shadow h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                            活跃学生
+                        </div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ active_students }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-user-check fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 筛选和搜索 -->
+<div class="filter-box">
+    <div class="row">
+        <div class="col-md-4 mb-3">
+            <label class="form-label">按年级筛选</label>
+            <select class="form-select" id="gradeFilter">
+                <option value="">所有年级</option>
+                {% for grade in grade_list %}
+                <option value="{{ grade }}">{{ grade }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-8 mb-3">
+            <label class="form-label">搜索学生</label>
+            <div class="input-group">
+                <input type="text" class="form-control" placeholder="输入学生姓名或用户名..." id="searchInput">
+                <button class="btn btn-primary" type="button" id="searchBtn">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 学生列表表格 -->
+<div class="card shadow">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">学生列表</h6>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>学生</th>
+                        <th>用户名</th>
+                        <th>年级</th>
+                        <th>学校</th>
+                        <th>答题数</th>
+                        <th>正确率</th>
+                        <th>最后学习时间</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for student in students %}
+                    <tr class="student-row" data-grade="{{ student.profile.grade|default:'' }}">
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="student-avatar me-3">
+                                    {{ student.username|slice:":1"|upper }}
+                                </div>
+                                <div>
+                                    <div class="fw-bold">
+                                        {% if student.first_name %}
+                                            {{ student.first_name }}
+                                        {% else %}
+                                            {{ student.username }}
+                                        {% endif %}
+                                    </div>
+                                    <small class="text-muted">{{ student.email|default:"无邮箱" }}</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td>{{ student.username }}</td>
+                        <td>
+                            {% if student.profile.grade %}
+                                <span class="badge badge-grade">{{ student.profile.grade }}</span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if student.profile.school %}
+                                {{ student.profile.school }}
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="fw-bold {% if student.total_exercises > 0 %}text-primary{% else %}text-muted{% endif %}">
+                                {{ student.total_exercises }}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="progress progress-thin me-2" style="width: 60px;">
+                                    <div class="progress-bar {% if student.accuracy >= 80 %}bg-success{% elif student.accuracy >= 60 %}bg-warning{% else %}bg-danger{% endif %}"
+                                         role="progressbar"
+                                         style="width: {{ student.accuracy }}%"
+                                         aria-valuenow="{{ student.accuracy }}"
+                                         aria-valuemin="0"
+                                         aria-valuemax="100">
+                                    </div>
+                                </div>
+                                <span class="small">{{ student.accuracy|floatformat:1 }}%</span>
+                            </div>
+                        </td>
+                        <td>
+                            {% if student.last_active %}
+                                <small>{{ student.last_active|date:"Y-m-d H:i" }}</small>
+                            {% else %}
+                                <span class="text-muted small">未学习</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4">
+                            <i class="fas fa-user-slash fa-2x text-muted mb-3"></i>
+                            <p class="text-muted mb-0">暂无学生数据</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 分页 -->
+        {% if students.paginator.num_pages > 1 %}
+        <div class="card-footer">
+            <nav>
+                <ul class="pagination justify-content-center mb-0">
+                    {% if students.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ students.previous_page_number }}">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    {% for num in students.paginator.page_range %}
+                        {% if num >= students.number|add:"-2" and num <= students.number|add:"2" %}
+                        <li class="page-item {% if students.number == num %}active{% endif %}">
+                            <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                        </li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if students.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ students.next_page_number }}">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- JavaScript 功能 -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 搜索功能
+    const searchInput = document.getElementById('searchInput');
+    const searchBtn = document.getElementById('searchBtn');
+    const studentRows = document.querySelectorAll('.student-row');
+
+    function filterStudents() {
+        const searchText = searchInput.value.toLowerCase();
+        const selectedGrade = document.getElementById('gradeFilter').value;
+
+        studentRows.forEach(row => {
+            const studentText = row.querySelector('td:first-child').textContent.toLowerCase();
+            const usernameText = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+            const grade = row.getAttribute('data-grade');
+
+            const matchesSearch = searchText === '' ||
+                                 studentText.includes(searchText) ||
+                                 usernameText.includes(searchText);
+            const matchesGrade = selectedGrade === '' || grade === selectedGrade;
+
+            row.style.display = (matchesSearch && matchesGrade) ? '' : 'none';
+        });
+    }
+
+    searchBtn.addEventListener('click', filterStudents);
+    searchInput.addEventListener('keyup', function(event) {
+        if (event.key === 'Enter') {
+            filterStudents();
+        }
+    });
+
+    // 年级筛选
+    document.getElementById('gradeFilter').addEventListener('change', filterStudents);
+
+    // 行点击效果（可以扩展到查看详情功能）
+    studentRows.forEach(row => {
+        row.addEventListener('click', function() {
+            // 这里可以添加点击查看学生详情的功能
+            // 比如：window.location.href = `/teacher/student/${this.dataset.id}/`;
+            console.log('点击了学生行，可以在此处添加查看详情功能');
+        });
+    });
+});
+</script>
+{% endblock %}
