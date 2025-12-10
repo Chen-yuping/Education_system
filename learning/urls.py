@@ -29,4 +29,17 @@ urlpatterns = [
 
     #单个科目的答题log
     path('subject/<int:subject_id>/exercise-logs/', views_student.subject_exercise_logs, name='subject_exercise_logs'),
+    #单个科目的学生诊断
+    path('subject/<int:subject_id>/diagnosis/', views_student.student_subject_diagnosis, name='student_subject_diagnosis'),
+
+    # 题库管理
+    path('exercise-management/', views_teacher.exercise_management, name='exercise_management'),
+    path('exercise-management/add/', views_teacher.exercise_add, name='exercise_add'),
+    path('exercise-management/edit/<int:exercise_id>/', views_teacher.exercise_edit, name='exercise_edit'),
+    path('exercise-management/delete/<int:exercise_id>/', views_teacher.exercise_delete, name='exercise_delete'),
+    path('exercise-management/detail/<int:exercise_id>/', views_teacher.exercise_detail, name='exercise_detail'),
+    path('exercise-management/batch-delete/', views_teacher.exercise_batch_delete, name='exercise_batch_delete'),
+    path('exercise-management/export/', views_teacher.export_exercises, name='export_exercises'),
+
+
 ]

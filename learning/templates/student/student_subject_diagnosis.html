@@ -128,25 +128,32 @@
 </style>
 
 <div class="student-container">
-    <!-- 左侧导航栏 - 完全保持你原来的样子 -->
+    <!-- 左侧导航栏 -->
     <nav class="student-sidebar">
         <div class="sidebar-nav">
             <ul class="nav flex-column">
                 <li class="nav-item">
                     <a class="nav-link " href="{% url 'student_dashboard' %}">
-                        <i class="fas fa-tachometer-alt"></i> 学习面板
+                        <i class="fas fa-arrow-left"></i> 返回学习面板
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link active" href="{% url 'student_diagnosis' %}">
+                    <a class="nav-link" href="{% url 'exercise_list' subject_id=subject.id %}">
+                        <i class="fas fa-tachometer-alt"></i> 题目集介绍
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'subject_exercise_logs' subject_id=subject.id %}">
+                        <i class="fas fa-chart-line"></i> 做题记录
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="{% url 'student_subject_diagnosis' subject_id=subject.id%}">
                         <i class="fas fa-chart-line"></i> 学习诊断
                     </a>
                 </li>
-                <li class="nav-item">
-                    <a class="nav-link " href="{% url 'student_subject' %}">
-                        <i class="fas fa-chart-line"></i> 我的课程
-                    </a>
-                </li>
+
+
             </ul>
         </div>
     </nav>

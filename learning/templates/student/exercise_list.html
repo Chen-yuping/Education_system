@@ -138,7 +138,7 @@
             <ul class="nav flex-column">
                 <li class="nav-item">
                     <a class="nav-link " href="{% url 'student_dashboard' %}">
-                        <i class="fas fa-tachometer-alt"></i> 学习面板
+                        <i class="fas fa-arrow-left"></i> 返回学习面板
                     </a>
                 </li>
                 <li class="nav-item">
@@ -149,6 +149,11 @@
                 <li class="nav-item">
                     <a class="nav-link" href="{% url 'subject_exercise_logs' subject_id=subject.id %}">
                         <i class="fas fa-chart-line"></i> 做题记录
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'student_subject_diagnosis' subject_id=subject.id%}">
+                        <i class="fas fa-chart-line"></i> 学习诊断
                     </a>
                 </li>
 

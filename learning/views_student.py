@@ -357,6 +357,35 @@ def subject_exercise_logs(request, subject_id):
 
     return render(request, 'student/subject_exercise_logs.html', context)
 
+# 单科目下的学生知识点掌握情况
+@login_required
+@user_passes_test(is_student)
+def student_subject_diagnosis(request, subject_id):  # 添加这个参数
+    # 获取科目对象
+    subject = get_object_or_404(Subject, id=subject_id)
+
+    # 获取该科目下的知识点诊断
+    diagnoses = StudentDiagnosis.objects.filter(
+        student=request.user,
+        knowledge_point__subject=subject  # 按科目过滤
+    ).select_related('knowledge_point')
+
+    # 获取该科目下的答题记录
+    answerlog = AnswerLog.objects.filter(
+        student=request.user,
+        exercise__subject=subject  # 按科目过滤
+    )
+
+    knowledge_mastery_diagnoses(request.user, answerlog)
+
+    # 计算推荐学习路径
+    weak_points = diagnoses.filter(mastery_level__lt=0.6).order_by('mastery_level')[:5]
+
+    return render(request, 'student/student_subject_diagnosis.html', {
+        'subject': subject,  # 传递科目对象到模板
+        'diagnoses': diagnoses,
+        'weak_points': weak_points
+    })
 
 
 

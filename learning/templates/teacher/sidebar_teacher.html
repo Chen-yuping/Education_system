@@ -23,8 +23,20 @@
             </li>
             <li class="nav-item">
                 <a class="nav-link {% if request.resolver_match.url_name == 'q_matrix_management' %}active{% endif %}"
-                   href="{% url 'q_matrix_management' %}">
-                    <i class="fas fa-brain"></i> Q矩阵管理
+                   >
+                    <i class="fas fa-robot"></i> 学生诊断
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'q_matrix_management' %}active{% endif %}"
+                   href="{% url 'exercise_management' %}">
+                    <i class="fas fa-database"></i> 题库管理
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'q_matrix_management' %}active{% endif %}"
+                   >
+                    <i class="fas fa-chart-line"></i> 薄弱分析
                 </a>
             </li>
         </ul>
@@ -110,6 +122,7 @@
     .nav-collapse {
         overflow: hidden;
         transition: max-height 0.3s ease;
+        max-height: 500px; /* 设置一个足够大的值 */
     }
 
     .nav-collapse.collapsed {
@@ -138,18 +151,20 @@
     }
 </style>
 
-
+<!-- 将移动设备侧边栏切换脚本放在这里 -->
 <script>
 // 移动设备侧边栏切换
 document.addEventListener('DOMContentLoaded', function() {
-    // 在移动设备上添加侧边栏切换功能
+    console.log('开始初始化侧边栏功能');
+
+    // ========== 移动设备切换功能 ==========
     if (window.innerWidth < 768) {
         const sidebar = document.querySelector('.teacher-sidebar');
         const mainContent = document.querySelector('.teacher-main-content');
 
         // 创建切换按钮
         const toggleBtn = document.createElement('button');
-        toggleBtn.className = 'btn btn-success btn-sm';
+        toggleBtn.className = 'btn btn-success btn-sm sidebar-toggle';
         toggleBtn.innerHTML = '<i class="fas fa-bars"></i>';
         toggleBtn.style.position = 'fixed';
         toggleBtn.style.top = '80px';
@@ -161,36 +176,84 @@ document.addEventListener('DOMContentLoaded', function() {
         toggleBtn.addEventListener('click', function() {
             sidebarVisible = !sidebarVisible;
             sidebar.style.display = sidebarVisible ? 'block' : 'none';
+
+            if (sidebarVisible) {
+                mainContent.style.marginTop = '0';
+            } else {
+                mainContent.style.marginTop = '';
+            }
         });
 
-        // 添加到页面
         document.body.appendChild(toggleBtn);
-
-        // 默认在移动设备上隐藏侧边栏
         sidebar.style.display = 'none';
     }
 
-    // 为所有折叠按钮添加功能
+    // ========== 折叠按钮功能 ==========
     const collapseBtns = document.querySelectorAll('.collapse-btn');
 
-    collapseBtns.forEach(btn => {
+    collapseBtns.forEach((btn, index) => {
         const heading = btn.closest('.sidebar-heading');
         const navCollapse = heading.nextElementSibling;
 
-        // 默认不展开
+        if (!navCollapse) return;
+
+        // ====== 重要修改：默认全部收起 ======
+        // 所有折叠区域默认都收起
         btn.classList.add('collapsed');
         navCollapse.classList.add('collapsed');
 
-        btn.addEventListener('click', function() {
+        // 确保没有初始化标记冲突
+        if (btn.classList.contains('initialized')) {
+            return; // 已经初始化过，跳过
+        }
+        btn.classList.add('initialized');
+
+        // 点击按钮切换
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
             this.classList.toggle('collapsed');
             navCollapse.classList.toggle('collapsed');
+
+            // 当展开时，确保显示所有内容
+            if (!this.classList.contains('collapsed')) {
+                navCollapse.style.maxHeight = navCollapse.scrollHeight + 'px';
+            } else {
+                navCollapse.style.maxHeight = '0';
+            }
         });
 
-        // 点击标题也可以切换
+        // 点击标题切换
         heading.addEventListener('click', function(e) {
             if (e.target !== btn) {
+                e.stopPropagation();
                 btn.classList.toggle('collapsed');
                 navCollapse.classList.toggle('collapsed');
+
+                if (!btn.classList.contains('collapsed')) {
+                    navCollapse.style.maxHeight = navCollapse.scrollHeight + 'px';
+                } else {
+                    navCollapse.style.maxHeight = '0';
+                }
+            }
+        });
+    });
+
+    // ========== 窗口大小改变事件 ==========
+    window.addEventListener('resize', function() {
+        const sidebar = document.querySelector('.teacher-sidebar');
+        const toggleBtn = document.querySelector('.sidebar-toggle');
+
+        if (window.innerWidth >= 768) {
+            sidebar.style.display = 'block';
+            if (toggleBtn) toggleBtn.remove();
+        } else {
+            sidebar.style.display = 'none';
+        }
+
+        // 重新计算展开区域的高度
+        document.querySelectorAll('.nav-collapse').forEach(collapse => {
+            if (!collapse.classList.contains('collapsed')) {
+                collapse.style.maxHeight = collapse.scrollHeight + 'px';
             }
         });
     });

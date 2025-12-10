@@ -1,6 +1,7 @@
-{% load static %}
+
 <!DOCTYPE html>
 <html lang="zh-CN">
+{% load static %}
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -29,6 +30,11 @@
             background: linear-gradient(135deg, var(--primary-color) 0%, #0d47a1 100%);
             color: white;
             padding: 80px 0;
+        }
+
+        /* 修改这里：确保英雄区域的图标是白色 */
+        .hero-section .feature-icon {
+            color: white !important;
         }
 
         .countdown {
@@ -237,7 +243,7 @@
     </nav>
 
     <main>
-       <section class="hero-section py-5 bg-dark text-white">
+       <section class="hero-section py-5">
     <div class="container">
         <div class="row align-items-center">
 
@@ -250,11 +256,13 @@
 
                 <div class="mb-5 text-start">
                     <p class="fs-5 mb-2">
-                        <i class="fas fa-user-tie me-2 text-primary"></i>
+                        <!-- 修改这里：移除text-primary类，使用自定义的白色图标类 -->
+                        <i class="fas fa-user-tie me-2 feature-icon"></i>
                         <span class="fw-bold">个性化路径</span> | 丰富资源 | 智能推荐
                     </p>
                     <p class="fs-5">
-                        <i class="fas fa-cogs me-2 text-primary"></i>
+                        <!-- 修改这里：移除text-primary类，使用自定义的白色图标类 -->
+                        <i class="fas fa-cogs me-2 feature-icon"></i>
                         <span class="fw-bold">实时监控</span> | 使用便捷 | 全面掌控
                     </p>
                 </div>

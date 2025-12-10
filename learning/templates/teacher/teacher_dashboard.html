@@ -193,60 +193,6 @@
 </div>
 
 <script>
-// 移动设备侧边栏切换
-document.addEventListener('DOMContentLoaded', function() {
-    // 在移动设备上添加侧边栏切换功能
-    if (window.innerWidth < 768) {
-        const sidebar = document.querySelector('.teacher-sidebar');
-        const mainContent = document.querySelector('.teacher-main-content');
 
-        // 创建切换按钮
-        const toggleBtn = document.createElement('button');
-        toggleBtn.className = 'btn btn-success btn-sm';
-        toggleBtn.innerHTML = '<i class="fas fa-bars"></i>';
-        toggleBtn.style.position = 'fixed';
-        toggleBtn.style.top = '80px';
-        toggleBtn.style.right = '20px';
-        toggleBtn.style.zIndex = '1000';
-
-        // 切换侧边栏显示
-        let sidebarVisible = false;
-        toggleBtn.addEventListener('click', function() {
-            sidebarVisible = !sidebarVisible;
-            sidebar.style.display = sidebarVisible ? 'block' : 'none';
-        });
-
-        // 添加到页面
-        document.body.appendChild(toggleBtn);
-
-        // 默认在移动设备上隐藏侧边栏
-        sidebar.style.display = 'none';
-    }
-
-    // 为所有折叠按钮添加功能
-    const collapseBtns = document.querySelectorAll('.collapse-btn');
-
-    collapseBtns.forEach(btn => {
-        const heading = btn.closest('.sidebar-heading');
-        const navCollapse = heading.nextElementSibling;
-
-        // 默认不展开
-        btn.classList.add('collapsed');
-        navCollapse.classList.add('collapsed');
-
-        btn.addEventListener('click', function() {
-            this.classList.toggle('collapsed');
-            navCollapse.classList.toggle('collapsed');
-        });
-
-        // 点击标题也可以切换
-        heading.addEventListener('click', function(e) {
-            if (e.target !== btn) {
-                btn.classList.toggle('collapsed');
-                navCollapse.classList.toggle('collapsed');
-            }
-        });
-    });
-});
 </script>
 {% endblock %}

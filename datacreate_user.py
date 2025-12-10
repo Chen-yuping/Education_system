@@ -14,7 +14,7 @@ user = User.objects.first()
 
 if user:
     DiagnosisModel.objects.create(
-        name="基础诊断模型",
+        name="NCD",
         description="基于题目正确率的统计诊断",
         is_active=True,
         created_by=user
