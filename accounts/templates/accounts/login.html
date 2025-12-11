@@ -67,6 +67,7 @@
                 <div class="d-flex justify-content-center gap-2">
                     <button type="button" class="btn btn-outline-primary btn-sm" onclick="fillDemoStudent()">学生演示</button>
                     <button type="button" class="btn btn-outline-success btn-sm" onclick="fillDemoTeacher()">教师演示</button>
+                    <button type="button" class="btn btn-outline-warning btn-sm" onclick="fillDemoResearcher()">研究员演示</button>
                 </div>
             </div>
             <p class="mb-2 mt-3">还没有账号？ <a href="{% url 'register' %}">立即注册</a></p>
@@ -84,11 +85,15 @@ function fillDemoStudent() {
     document.getElementById('id_password').value = 'demo123';
     document.getElementById('id_user_type').value = 'student';
 }
-
 function fillDemoTeacher() {
     document.getElementById('id_username').value = 'demo_teacher';
     document.getElementById('id_password').value = 'demo123';
     document.getElementById('id_user_type').value = 'teacher';
+}
+function fillDemoResearcher() {
+    document.getElementById('id_username').value = 'demo_researcher';
+    document.getElementById('id_password').value = 'demo123';
+    document.getElementById('id_user_type').value = 'researcher';
 }
 
 // 表单提交时的加载状态
@@ -132,6 +137,11 @@ document.getElementById('login-form').addEventListener('input', function() {
 }
 
 .alert-success {
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+    color: #155724;
+}
+.alert-researcher {
     background-color: #d4edda;
     border-color: #c3e6cb;
     color: #155724;

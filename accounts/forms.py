@@ -1,14 +1,16 @@
+from django.contrib.auth.forms import AuthenticationForm
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
+from django.core.exceptions import ValidationError
 from .models import User
-from django.contrib.auth.forms import AuthenticationForm
 
-
+#用户登录
 class UserLoginForm(AuthenticationForm):
     USER_TYPE_CHOICES = [
         ('', '选择身份类型'),
         ('student', '学生'),
         ('teacher', '教师'),
+        ('researcher', '研究员'),
     ]
 
     user_type = forms.ChoiceField(
@@ -77,12 +79,7 @@ class UserLoginForm(AuthenticationForm):
         return user_type
 
 
-from django import forms
-from django.contrib.auth.forms import UserCreationForm
-from django.core.exceptions import ValidationError
-from .models import User
-
-
+#用户注册
 class UserRegistrationForm(UserCreationForm):
     email = forms.EmailField(
         required=True,

@@ -17,12 +17,17 @@ def is_teacher(user):
 def is_student(user):
     return user.user_type == 'student'
 
+def is_researcher(user):
+    return user.user_type == 'researcher'
+
 @login_required
 def dashboard(request):
     if request.user.user_type == 'teacher':
         return redirect('teacher_dashboard')
-    else:
+    if request.user.user_type == 'student':
         return redirect('student_dashboard')
+    else:
+        return redirect('researcher_dashboard')
 
 #学生学习面板
 @login_required

@@ -26,8 +26,10 @@ def user_login(request):
                 # 根据用户类型重定向
                 if user.user_type == 'teacher':
                     return redirect('teacher_dashboard')
-                else:
+                elif    user.user_type == 'student':
                     return redirect('student_dashboard')
+                else:
+                    return redirect('researcher_dashboard')
         else:
             # 显示表单错误
             for field, errors in form.errors.items():

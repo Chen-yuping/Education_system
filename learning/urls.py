@@ -1,5 +1,4 @@
-from django.urls import path
-from . import views_student,views_teacher
+from . import views_student,views_teacher,views_researcher
 from django.urls import path, include
 from .exercise_file import views_exercisefile
 from .diagnosis import views_diagnosis
@@ -43,4 +42,7 @@ urlpatterns = [
     path('exercise-management/export/', views_teacher.export_exercises, name='export_exercises'),
     #查看学生信息
     path('teacher/students/', views_teacher.student_info, name='student_info'),
+
+#研究者功能
+    path('researcher/dashboard/', views_researcher.researcher_dashboard, name='researcher_dashboard'),
 ]
