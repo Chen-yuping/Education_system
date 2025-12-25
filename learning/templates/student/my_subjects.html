@@ -1,0 +1,59 @@
+{% extends 'student/base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3 mb-3 border-bottom">
+    <h1 class="h2">我的科目（已选课程）</h1>
+    <a href="{% url 'student_subject_selection' %}" class="btn btn-primary">
+        <i class="fas fa-plus"></i> 选择更多科目
+    </a>
+</div>
+
+<div class="row">
+    {% if enrolled_records %}
+        {% for record in enrolled_records %}
+            {% comment %} 直接从 record 中获取科目信息和选课时间，无需额外赋值 {% endcomment %}
+            <div class="col-xl-4 col-md-6 mb-4">
+                <div class="card shadow h-100">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-primary">{{ record.subject.name }}</h6>
+                    </div>
+                    <div class="card-body">
+                        {% if record.subject.description %}
+                            <p class="text-muted small mb-3">{{ record.subject.description|truncatechars:100 }}</p>
+                        {% endif %}
+                        <div class="text-muted small">
+                            选课时间: {{ record.enrolled_at|date:"Y-m-d H:i" }}
+                        </div>
+                    </div>
+                    <div class="card-footer bg-white">
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'exercise_list' subject_id=record.subject.id %}" class="btn btn-sm btn-primary">
+                                <i class="fas fa-play"></i> 开始学习
+                            </a>
+                            <form method="post" action="{% url 'student_subject_selection' %}" class="d-inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="drop">
+                                <input type="hidden" name="subject_id" value="{{ record.subject.id }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('确定要退选这门科目吗？')">
+                                    <i class="fas fa-trash"></i> 退选
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="col-12">
+            <div class="text-center py-5 bg-light rounded-lg">
+                <i class="fas fa-book-open fa-4x text-gray-300 mb-3"></i>
+                <h5 class="text-muted">您还没有选择任何科目</h5>
+                <p class="text-muted mb-4">请点击上方按钮选择科目开始学习</p>
+                <a href="{% url 'student_subject_selection' %}" class="btn btn-primary">
+                    <i class="fas fa-plus me-2"></i> 浏览科目
+                </a>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

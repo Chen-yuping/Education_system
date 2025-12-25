@@ -8,7 +8,6 @@ from django.core.validators import FileExtensionValidator
 class Subject(models.Model):
     name = models.CharField(max_length=100, verbose_name="科目名称")
     description = models.TextField(blank=True, verbose_name="科目描述")
-    dataset = models.CharField(max_length=100, default="", verbose_name="关联数据集")
 
     class Meta:
         verbose_name = "科目"
@@ -16,6 +15,34 @@ class Subject(models.Model):
 
     def __str__(self):
         return self.name
+
+# """教师授课关系（关联Subject=课程）"""
+class TeacherSubject(models.Model):
+    teacher = models.ForeignKey(User, on_delete=models.CASCADE, related_name="teaching_subjects", verbose_name="教师")
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name="teachers", verbose_name="课程")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="添加时间")
+
+    class Meta:
+        verbose_name = "教师授课"
+        verbose_name_plural = "教师授课"
+        unique_together = ("teacher", "subject")  # 防止重复关联
+
+    def __str__(self):
+        return f"{self.teacher.username} - {self.subject.name}"
+
+#"""学生选课关系（关联Subject=课程）"""
+class StudentSubject(models.Model):
+    student = models.ForeignKey(User, on_delete=models.CASCADE, related_name="enrolled_subjects", verbose_name="学生")
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name="students", verbose_name="课程")
+    enrolled_at = models.DateTimeField(auto_now_add=True, verbose_name="选课时间")
+
+    class Meta:
+        verbose_name = "学生选课"
+        verbose_name_plural = "学生选课"
+        unique_together = ("student", "subject")  # 防止重复选课
+
+    def __str__(self):
+        return f"{self.student.username} - {self.subject.name}"
 
 #对应数据库learning_knowledgepoint
 class KnowledgePoint(models.Model):
@@ -31,6 +58,28 @@ class KnowledgePoint(models.Model):
 
     def __str__(self):
         return f"{self.subject.name} - {self.name}"
+
+# 对应数据库learning_knowledge_graph
+class KnowledgeGraph(models.Model):
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, verbose_name="所属科目")
+    source = models.ForeignKey(KnowledgePoint, on_delete=models.CASCADE, related_name='outgoing')
+    target = models.ForeignKey(KnowledgePoint, on_delete=models.CASCADE, related_name='incoming')
+
+    class Meta:
+        verbose_name = "知识点关系"
+        verbose_name_plural = "知识点关系"
+        unique_together = ('subject', 'source', 'target')
+
+    def __str__(self):
+        return f"{self.source.name} → {self.target.name}"
+
+    def is_bidirectional(self):
+        """检查是否是双向关系"""
+        return KnowledgeGraph.objects.filter(
+            subject=self.subject,
+            source=self.target,
+            target=self.source
+        ).exists()
 
 #对应数据库learning_exercise
 class Exercise(models.Model):
@@ -107,8 +156,6 @@ class DiagnosisModel(models.Model):
 
     def __str__(self):
         return self.name
-
-
 
 #对应数据库learning_studentdiagnosis
 class StudentDiagnosis(models.Model):

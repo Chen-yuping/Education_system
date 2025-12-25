@@ -1,335 +1,190 @@
 {% extends 'student/base.html' %}
+{% load tz %}
+
 
 {% block title %}学习面板 - 在线学习诊断系统{% endblock %}
 
 {% block content %}
 <style>
-    /* 重置容器样式 */
-    .container.mt-4 {
-        margin: 0 !important;
-        padding: 0 !important;
-        max-width: 100% !important;
-        width: 100% !important;
-    }
-
-    /* 学生页面布局样式 - 与教师页面保持一致 */
-    .student-container {
-        display: flex;
-        min-height: calc(100vh - 80px); /* 减去导航栏高度 */
-        margin-top: 20px; /* 与导航栏的间距 */
-    }
-
-    /* 侧边栏样式 - 与教师页面保持一致 */
-    .student-sidebar {
-        width: 280px;
-        background-color: #f8f9fa;
-        border-right: 1px solid #dee2e6;
-        flex-shrink: 0;
-        padding: 0 10px 0;
-    }
-
-    /* 主内容区域 - 与教师页面保持一致 */
-    .student-main-content {
-        flex: 1;
-        padding: 20px;
-        min-height: 100%;
-        background-color: #ffffff;
-    }
-
-    /* 侧边栏导航链接样式 - 与教师页面保持一致 */
-    .sidebar-nav .nav-link {
-        padding: 12px 20px;
-        color: #333;
-        border-radius: 0;
-        border-left: 3px solid transparent;
-        transition: all 0.2s ease;
-    }
-
-    .sidebar-nav .nav-link:hover {
-        background-color: #e9ecef;
-        color: #007bff;
-        border-left-color: #007bff;
-    }
-
-    .sidebar-nav .nav-link.active {
-        background-color: #007bff;
-        color: white;
-        border-left-color: #007bff;
-    }
-
     .sidebar-nav .nav-link i {
         width: 20px;
         text-align: center;
         margin-right: 10px;
     }
-
-    /* 侧边栏标题 - 与教师页面保持一致 */
-    .sidebar-heading {
-        font-size: 0.8rem;
-        text-transform: uppercase;
-        color: #6c757d;
-        margin: 25px 0 10px 20px;
-        font-weight: 600;
-    }
-
-    /* 学生特定样式 */
-    .student-stats .card {
-        border-left-width: 4px;
-    }
-
-    .student-stats .card-body {
-        padding: 1.25rem;
-    }
-
-    /* 移动设备响应式 - 与教师页面保持一致 */
-    @media (max-width: 768px) {
-        .student-container {
-            flex-direction: column;
-        }
-
-        .student-sidebar {
-            width: 100%;
-            border-right: none;
-            border-bottom: 1px solid #dee2e6;
-        }
-
-        .student-main-content {
-            padding: 20px;
-        }
-    }
 </style>
 
-<div class="student-container">
-    <!-- 左侧导航栏 -->
-    <nav class="student-sidebar">
-        <div class="sidebar-nav">
-            <ul class="nav flex-column">
-                <li class="nav-item">
-                    <a class="nav-link active" href="{% url 'student_dashboard' %}">
-                        <i class="fas fa-tachometer-alt"></i> 学习面板
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="{% url 'student_diagnosis' %}">
-                        <i class="fas fa-chart-line"></i> 学习诊断
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="{% url 'student_subject' %}">
-                        <i class="fas fa-chart-line"></i> 我的课程
-                    </a>
-                </li>
+<!-- 右侧主内容区域 -->
+<main class="student-main-content">
+    <!-- 页面标题 -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3 mb-3 border-bottom">
+        <h1 class="h2">学习面板</h1>
+        <div class="btn-toolbar mb-2 mb-md-0">
 
-            </ul>
         </div>
-    </nav>
+    </div>
 
-    <!-- 右侧主内容区域 -->
-    <main class="student-main-content">
-        <!-- 页面标题 -->
-        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3 mb-3 border-bottom">
-            <h1 class="h2">学习面板</h1>
-            <div class="btn-toolbar mb-2 mb-md-0">
-
-            </div>
-        </div>
-
-        <!-- 统计卡片 -->
-        <div class="row student-stats">
-            <div class="col-xl-3 col-md-6 mb-4">
-                <div class="card border-left-primary shadow h-100 py-2">
-                    <div class="card-body">
-                        <div class="row no-gutters align-items-center">
-                            <div class="col mr-2">
-                                <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
-                                    总体掌握程度
-                                </div>
-                                <div class="h5 mb-0 font-weight-bold text-gray-800">{{ avg_mastery }}%</div>
+    <!-- 统计卡片 -->
+    <div class="row student-stats">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                总体掌握程度
                             </div>
-                            <div class="col-auto">
-                                <i class="fas fa-chart-line fa-2x text-gray-300"></i>
-                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ avg_mastery }}%</div>
                         </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-xl-3 col-md-6 mb-4">
-                <div class="card border-left-success shadow h-100 py-2">
-                    <div class="card-body">
-                        <div class="row no-gutters align-items-center">
-                            <div class="col mr-2">
-                                <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                                    已完成练习
-                                </div>
-                                <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_answers }}</div>
-                            </div>
-                            <div class="col-auto">
-                                <i class="fas fa-tasks fa-2x text-gray-300"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-xl-3 col-md-6 mb-4">
-                <div class="card border-left-info shadow h-100 py-2">
-                    <div class="card-body">
-                        <div class="row no-gutters align-items-center">
-                            <div class="col mr-2">
-                                <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
-                                    学习科目
-                                </div>
-                                <div class="h5 mb-0 font-weight-bold text-gray-800">{{ subjects|length }}</div>
-                            </div>
-                            <div class="col-auto">
-                                <i class="fas fa-book fa-2x text-gray-300"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="col-xl-3 col-md-6 mb-4">
-                <div class="card border-left-warning shadow h-100 py-2">
-                    <div class="card-body">
-                        <div class="row no-gutters align-items-center">
-                            <div class="col mr-2">
-                                <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
-                                    学习天数
-                                </div>
-                                <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                    {% if recent_logs %}
-                                        {{ recent_logs.0.submitted_at|timesince }}
-                                    {% else %}
-                                        0
-                                    {% endif %}
-                                </div>
-                            </div>
-                            <div class="col-auto">
-                                <i class="fas fa-calendar fa-2x text-gray-300"></i>
-                            </div>
+                        <div class="col-auto">
+                            <i class="fas fa-chart-line fa-2x text-gray-300"></i>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="row">
-            <!-- 最近练习记录 -->
-            <div class="col-xl-8 col-lg-7">
-                <div class="card shadow mb-4">
-                    <div class="card-header py-3">
-                        <h6 class="m-0 font-weight-bold text-primary">最近练习记录</h6>
-                    </div>
-                    <div class="card-body">
-                        {% if recent_logs %}
-                        <div class="table-responsive">
-                            <table class="table table-bordered" width="100%" cellspacing="0">
-                                <thead>
-                                    <tr>
-                                        <th>习题名称</th>
-                                        <th>答题时间</th>
-                                        <th>结果</th>
-                                        <th>耗时</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for log in recent_logs %}
-                                    <tr>
-                                        <td>{{ log.exercise.title }}</td>
-                                        <td>{{ log.submitted_at|date:"Y-m-d H:i" }}</td>
-                                        <td>
-                                            {% if log.is_correct %}
-                                            <span class="badge bg-success">正确</span>
-                                            {% else %}
-                                            <span class="badge bg-danger">错误</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>{{ log.time_spent }}秒</td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                已完成练习
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_answers }}</div>
                         </div>
+                        <div class="col-auto">
+                            <i class="fas fa-tasks fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                学习科目
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ subjects|length }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-book fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <div class="card border-left-warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                学习天数
+                            </div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ days_since_creation }} 天
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-calendar fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- 最近练习记录 -->
+        <div class="col-xl-8 col-lg-7">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">最近练习记录</h6>
+                </div>
+                <div class="card-body">
+                    {% if recent_logs %}
+                    <div class="table-responsive">
+                        <table class="table table-bordered" width="100%" cellspacing="0">
+                            <thead>
+                                <tr>
+                                    <th>习题名称</th>
+                                    <th>答题时间</th>
+                                    <th>结果</th>
+                                    <th>耗时</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for log in recent_logs %}
+                                <tr>
+                                    <td>{{ log.exercise.title }}</td>
+                                    <td>{{ log.submitted_at|date:"Y-m-d H:i" }}</td>
+                                    <td>
+                                        {% if log.is_correct %}
+                                        <span class="badge bg-success">正确</span>
+                                        {% else %}
+                                        <span class="badge bg-danger">错误</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ log.time_spent }}秒</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-inbox fa-3x text-gray-300 mb-3"></i>
+                        <p class="text-muted">还没有练习记录，快去开始学习吧！</p>
+                        <!-- 修改这里：添加 subject_id= 并添加条件判断 -->
+                        {% if subjects %}
+                        <a href="{% url 'exercise_list' subject_id=subjects.0.id %}" class="btn btn-primary">
+                            <i class="fas fa-play me-2"></i>开始学习
+                        </a>
                         {% else %}
-                        <div class="text-center py-4">
-                            <i class="fas fa-inbox fa-3x text-gray-300 mb-3"></i>
-                            <p class="text-muted">还没有练习记录，快去开始学习吧！</p>
-                            <!-- 修改这里：添加 subject_id= 并添加条件判断 -->
-                            {% if subjects %}
-                            <a href="{% url 'exercise_list' subject_id=subjects.0.id %}" class="btn btn-primary">
-                                <i class="fas fa-play me-2"></i>开始学习
-                            </a>
-                            {% else %}
-                            <button class="btn btn-primary disabled">
-                                <i class="fas fa-play me-2"></i>暂无科目
-                            </button>
-                            {% endif %}
-                        </div>
+                        <button class="btn btn-primary disabled">
+                            <i class="fas fa-play me-2"></i>暂无科目
+                        </button>
                         {% endif %}
                     </div>
-                </div>
-            </div>
-
-            <!-- 快速操作 -->
-            <div class="col-xl-4 col-lg-5">
-                <div class="card shadow mb-4">
-                    <div class="card-header py-3">
-                        <h6 class="m-0 font-weight-bold text-primary">快速操作</h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="d-grid gap-2">
-                            {% for subject in subjects|slice:":3" %}
-                            <!-- 修改这里：添加 subject_id= -->
-                            <a href="{% url 'exercise_list' subject_id=subject.id %}" class="btn btn-outline-primary text-start">
-                                <i class="fas fa-play-circle me-2"></i>
-                                学习 {{ subject.name }}
-                            </a>
-                            {% endfor %}
-                            <a href="{% url 'student_diagnosis' %}" class="btn btn-outline-info text-start">
-                                <i class="fas fa-chart-bar me-2"></i>
-                                查看学习诊断
-                            </a>
-                        </div>
-                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
 
-    </main>
-</div>
+        <!-- 快速操作 -->
+        <div class="col-xl-4 col-lg-5">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">快速操作</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        {% for subject in subjects|slice:":3" %}
+                        <!-- 修改这里：添加 subject_id= -->
+                        <a href="{% url 'exercise_list' subject_id=subject.id %}" class="btn btn-outline-primary text-start">
+                            <i class="fas fa-play-circle me-2"></i>
+                            学习 {{ subject.name }}
+                        </a>
+                        {% endfor %}
+                        <a href="{% url 'student_diagnosis' %}" class="btn btn-outline-info text-start">
+                            <i class="fas fa-chart-bar me-2"></i>
+                            查看学习诊断
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</main>
 
 <script>
-// 移动设备侧边栏切换 - 与教师页面保持一致
-document.addEventListener('DOMContentLoaded', function() {
-    // 在移动设备上添加侧边栏切换功能
-    if (window.innerWidth < 768) {
-        const sidebar = document.querySelector('.student-sidebar');
-        const mainContent = document.querySelector('.student-main-content');
 
-        // 创建切换按钮
-        const toggleBtn = document.createElement('button');
-        toggleBtn.className = 'btn btn-primary btn-sm';
-        toggleBtn.innerHTML = '<i class="fas fa-bars"></i>';
-        toggleBtn.style.position = 'fixed';
-        toggleBtn.style.top = '80px';
-        toggleBtn.style.right = '20px';
-        toggleBtn.style.zIndex = '1000';
-
-        // 切换侧边栏显示
-        let sidebarVisible = false;
-        toggleBtn.addEventListener('click', function() {
-            sidebarVisible = !sidebarVisible;
-            sidebar.style.display = sidebarVisible ? 'block' : 'none';
-        });
-
-        // 添加到页面
-        document.body.appendChild(toggleBtn);
-
-        // 默认在移动设备上隐藏侧边栏
-        sidebar.style.display = 'none';
-    }
-});
 </script>
 {% endblock %}

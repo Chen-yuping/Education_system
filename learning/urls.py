@@ -2,15 +2,21 @@ from . import views_student,views_teacher,views_researcher
 from django.urls import path, include
 from .exercise_file import views_exercisefile
 from .diagnosis import views_diagnosis
-
+from .knowledge import views_teacherknowledge,views_studentknowledge
 
 urlpatterns = [
 
 #学生功能
-    path('dashboard/', views_student.dashboard, name='dashboard'),
-    path('student/dashboard/', views_student.student_dashboard, name='student_dashboard'),
+    path('dashboard/', views_student.dashboard, name='dashboard'),#用户身份判断
+    path('student/dashboard/', views_student.student_dashboard, name='student_dashboard'),#学生面板
+    path('student/subject/', views_student.student_subject, name='student_subject'),#所有科目
+    path('student/my-subjects/', views_student.my_subjects, name='my_subjects'),  # 学生我的科目
+    path('student/subjects/select/', views_student.student_subject_selection, name='student_subject_selection'),#课程选择
 
-    path('student/subject/', views_student.student_subject, name='student_subject'),
+    #学习诊断
+    path('diagnosis/',views_studentknowledge.student_knowledge_diagnosis,name='student_diagnosis'),
+    path('student/api/knowledge-points/<int:subject_id>/',views_studentknowledge.student_knowledge_data_api,name='knowledge_points_api'),
+
     path('subject/<int:subject_id>/exercises/', views_student.exercise_list, name='exercise_list'),
     path('exercise/<int:exercise_id>/take/', views_student.take_exercise, name='take_exercise'),
     path('exercise/result/<int:log_id>/', views_student.exercise_result, name='exercise_result'),

@@ -10,13 +10,12 @@ from .forms import ExerciseForm, KnowledgePointForm, QMatrixForm
 from .diagnosis.views_diagnosis import knowledge_mastery_diagnoses
 from django.utils import timezone
 from datetime import timedelta
+
 #登录用户判断
 def is_teacher(user):
     return user.user_type == 'teacher'
-
 def is_student(user):
     return user.user_type == 'student'
-
 def is_researcher(user):
     return user.user_type == 'researcher'
 
@@ -29,7 +28,7 @@ def dashboard(request):
     else:
         return redirect('researcher_dashboard')
 
-#学生学习面板
+#学习面板
 @login_required
 @user_passes_test(is_student)
 def student_dashboard(request):
@@ -51,7 +50,23 @@ def student_dashboard(request):
         'first_subject': subjects.first()
     })
 
-#所有课程页面显示
+#我的科目
+@login_required
+@user_passes_test(is_student)
+def my_subjects(request):
+
+    # 获取当前学生已选的科目记录（包含科目信息和选课时间）
+    enrolled_records = StudentSubject.objects.filter(
+        student=request.user
+    ).select_related('subject').order_by('-enrolled_at')
+
+    # 无需额外处理，直接将记录传递给模板（每条记录都包含 subject 和 enrolled_at）
+    context = {
+        'enrolled_records': enrolled_records,  # 直接传递完整记录
+    }
+    return render(request, 'student/my_subjects.html', context)
+
+#所有课程
 @login_required
 @user_passes_test(is_student)
 def student_subject(request):
@@ -72,60 +87,124 @@ def student_subject(request):
         'first_subject': subjects.first()
     })
 
-#"""单个课程列表页面"""
+#课程选择
+@login_required
+@user_passes_test(is_student)
+def student_subject_selection(request):
+    """学生选课页面（选择Subject=课程）"""
+    # 获取所有课程（Subject）
+    all_subjects = Subject.objects.all()
+    # 获取学生已选课程
+    enrolled_subjects = StudentSubject.objects.filter(student=request.user).select_related('subject')
+
+    # 关键：预处理已选课程的ID列表（在视图中完成，避免模板中调用复杂方法）
+    enrolled_subject_ids = [enrollment.subject.id for enrollment in enrolled_subjects]
+
+    if request.method == 'POST':
+        subject_id = request.POST.get('subject_id')
+        action = request.POST.get('action')
+
+        if action == 'enroll' and subject_id:
+            subject = get_object_or_404(Subject, id=subject_id)
+            StudentSubject.objects.get_or_create(student=request.user, subject=subject)
+            messages.success(request, f'已成功选修《{subject.name}》课程')
+        elif action == 'drop' and subject_id:
+            StudentSubject.objects.filter(student=request.user, subject_id=subject_id).delete()
+            messages.success(request, '已退选课程')
+
+        return redirect('student_subject_selection')
+
+    context = {
+        'all_subjects': all_subjects,
+        'enrolled_subjects': enrolled_subjects,
+        'enrolled_subject_ids': enrolled_subject_ids,  # 传递预处理后的ID列表
+    }
+    return render(request, 'student/subject_selection.html', context)
+
+
+
+#"我的科目下的-单个课程列表页面"""
 @login_required
 @user_passes_test(is_student)
 def exercise_list(request, subject_id):
+    # 获取科目
     subject = get_object_or_404(Subject, id=subject_id)
-    exercises = Exercise.objects.filter(subject_id=subject_id).order_by('problemsets', 'id')
-    subjects = Subject.objects.all()  # 所有科目用于侧边栏
 
-    # 获取学生的学习进度
-    completed_exercises = AnswerLog.objects.filter(
+    # 获取该科目的所有习题
+    exercises = Exercise.objects.filter(subject_id=subject_id).order_by('title', 'id')
+
+    # 获取答题记录
+    answer_logs = AnswerLog.objects.filter(
         student=request.user,
         exercise__in=exercises
-    ).values_list('exercise_id', flat=True)
+    )
 
-    # 标记已完成的习题
+    # 统计
+    completed_exercise_ids = answer_logs.values_list('exercise_id', flat=True).distinct()
+    total_attempts = answer_logs.count()
+    correct_attempts = answer_logs.filter(is_correct=True).count()
+
+    # 标记已完成
     for exercise in exercises:
-        exercise.completed = exercise.id in completed_exercises
+        exercise.completed = exercise.id in completed_exercise_ids
 
-    # 计算进度
+    # 进度计算
+    total_exercises = exercises.count()
+    completed_count = len(completed_exercise_ids)
+
+    percentage = 0
+    if total_exercises > 0:
+        percentage = min(100, round((completed_count / total_exercises) * 100, 1))
+
+    accuracy = 0
+    if total_attempts > 0:
+        accuracy = round((correct_attempts / total_attempts) * 100, 1)
+
+    # 进度数据
     progress = {
-        'total': exercises.count(),
-        'completed': len(completed_exercises),
-        'percentage': round((len(completed_exercises) / exercises.count() * 100) if exercises.count() > 0 else 0, 1)
+        'total': total_exercises,
+        'completed': completed_count,
+        'percentage': percentage,
+        'total_attempts': total_attempts,
+        'correct_attempts': correct_attempts,
+        'accuracy': accuracy,
     }
 
-    # 获取知识点统计
-    knowledge_points = KnowledgePoint.objects.filter(subject=subject)
-    for kp in knowledge_points:
-        kp.exercise_count = Exercise.objects.filter(
-            subject=subject,
-            qmatrix__knowledge_point=kp
-        ).distinct().count()
-        # 简化掌握度计算（实际应该基于答题记录）
-        kp.mastery_percentage = min(100, kp.exercise_count * 20)
-
-    # 按title分组
+    # 按标题分组（已按title排序）
     grouped_exercises = []
-    for title, group in groupby(exercises, key=lambda x: x.title):
-        exercises_list = list(group)
+    current_title = None
+    current_group = []
+
+    for exercise in exercises:
+        if exercise.title != current_title:
+            if current_group:
+                # 完成上一个分组
+                grouped_exercises.append({
+                    'title': current_title,
+                    'exercises': current_group,
+                    'exercise_count': len(current_group),
+                    'completed': all(ex.completed for ex in current_group)
+                })
+            # 开始新分组
+            current_title = exercise.title
+            current_group = [exercise]
+        else:
+            current_group.append(exercise)
+
+    # 添加最后一个分组
+    if current_group:
         grouped_exercises.append({
-            'title': title,
-            'exercises': exercises_list,
-            'exercise_count': len(exercises_list),
-            'completed': all(ex.completed for ex in exercises_list)  # 假设有completed字段
+            'title': current_title,
+            'exercises': current_group,
+            'exercise_count': len(current_group),
+            'completed': all(ex.completed for ex in current_group)
         })
 
     return render(request, 'student/exercise_list.html', {
         'subject': subject,
-        'subjects': subjects,
-        'exercises': exercises,
+        'grouped_exercises': grouped_exercises,
         'progress': progress,
-        'knowledge_points': knowledge_points,
-        'grouped_exercises':grouped_exercises
-
+        # 其他可选参数...
     })
 
 #"""答题页面，做题页面"""
