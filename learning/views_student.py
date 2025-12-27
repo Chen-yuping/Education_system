@@ -32,7 +32,8 @@ def dashboard(request):
 @login_required
 @user_passes_test(is_student)
 def student_dashboard(request):
-    subjects = Subject.objects.all()
+    enrolled_records = request.user.enrolled_subjects.all().select_related('subject').order_by('subject__name')
+    subjects = [record.subject for record in enrolled_records]
     recent_logs = AnswerLog.objects.filter(student=request.user).order_by('-submitted_at')[:5]
     total_answers = AnswerLog.objects.filter(student=request.user).count()
     # 计算总体掌握情况
@@ -42,12 +43,20 @@ def student_dashboard(request):
     else:
         avg_mastery = 0
 
+    # 只传递账号创建时间（不做计算，交给模板处理）
+    account_joined = request.user.date_joined
+    current_time = timezone.now()
+    days_since_creation = (current_time - account_joined).days + 1
+
+    first_subject = subjects[0] if subjects else None  # 推荐：用索引判断（最简洁）
+
     return render(request, 'student/student_dashboard.html', {
         'total_answers': total_answers,
         'subjects': subjects,
         'recent_logs': recent_logs,
         'avg_mastery': round(avg_mastery * 100, 1),
-        'first_subject': subjects.first()
+        'first_subject': first_subject,
+        'days_since_creation': days_since_creation
     })
 
 #我的科目
@@ -120,8 +129,6 @@ def student_subject_selection(request):
         'enrolled_subject_ids': enrolled_subject_ids,  # 传递预处理后的ID列表
     }
     return render(request, 'student/subject_selection.html', context)
-
-
 
 #"我的科目下的-单个课程列表页面"""
 @login_required
@@ -248,32 +255,71 @@ def take_exercise(request, exercise_id):
         'exercise': exercise
     })
 
-#"""单个题目答题结果页面"""
+#显示答题结果，并提供下一题链接
 @login_required
 @user_passes_test(is_student)
 def exercise_result(request, log_id):
-    answer_log = get_object_or_404(AnswerLog, id=log_id, student=request.user)
+    # 1. 获取答题记录并验证权限
+    answer_log = get_object_or_404(
+        AnswerLog.objects.select_related(
+            'exercise__subject',
+            'student'
+        ).prefetch_related(
+            'selected_choices',
+            'exercise__choices'
+        ),
+        id=log_id,
+        student=request.user  # 确保学生只能查看自己的答题记录
+    )
+
     current_exercise = answer_log.exercise
     current_subject = current_exercise.subject
-    current_title = current_exercise.title
-    # 获取用户选择的选项ID列表
+
+    # 2. 验证学生是否选修该科目（可选，但推荐添加）
+    if not StudentSubject.objects.filter(
+            student=request.user,
+            subject=current_subject
+    ).exists():
+        # 如果没有选修该科目，返回错误页面
+        return render(request, 'errors/403.html', {
+            'message': '您未选修此科目，无法查看答题结果'
+        }, status=403)
+
+    # 3. 获取用户选择的选项ID列表（如果需要的话）
     selected_choice_ids = list(answer_log.selected_choices.values_list('id', flat=True))
 
-    # 查找同科目中下一题（按ID顺序，未完成的优先）
-    # 1. 先找同科目中ID大于当前题且未完成的
+    # 4. 查找同一科目、同一标题的下一题
+    # 先查找同一习题集中的下一题（假设同一标题属于同一习题集）
     next_exercise = Exercise.objects.filter(
         subject=current_subject,
-        title=current_title,
-        id__gt=current_exercise.id  # ID比当前题大（保证顺序）
-    ).first()
+        title=current_exercise.title,  # 同一习题集
+        id__gt=current_exercise.id,  # ID比当前大
+    ).order_by('id').first()  # 按ID排序取第一个
 
-    return render(request, 'student/exercise_result.html', {
+    # 如果没有同一习题集的下一题，则查找同科目的其他题目
+    if not next_exercise:
+        next_exercise = Exercise.objects.filter(
+            subject=current_subject,
+            id__gt=current_exercise.id
+        ).exclude(
+            id__in=AnswerLog.objects.filter(
+                student=request.user,
+                exercise__subject=current_subject
+            ).values_list('exercise_id', flat=True)
+        ).order_by('id').first()
+
+    # 5. 准备上下文数据
+    context = {
         'answer_log': answer_log,
         'selected_choice_ids': selected_choice_ids,
-        'next_exercise': next_exercise
-    })
+        'next_exercise': next_exercise,
+    }
 
-# 获取学生的知识点掌握情况，学习诊断页面
+    return render(request, 'student/exercise_result.html', context)
+
+
+
+# 学习诊断，知识点掌握情况
 @login_required
 @user_passes_test(is_student)
 def student_diagnosis(request):
@@ -441,35 +487,7 @@ def subject_exercise_logs(request, subject_id):
 
     return render(request, 'student/subject_exercise_logs.html', context)
 
-# 单科目下的学生知识点掌握情况
-@login_required
-@user_passes_test(is_student)
-def student_subject_diagnosis(request, subject_id):  # 添加这个参数
-    # 获取科目对象
-    subject = get_object_or_404(Subject, id=subject_id)
 
-    # 获取该科目下的知识点诊断
-    diagnoses = StudentDiagnosis.objects.filter(
-        student=request.user,
-        knowledge_point__subject=subject  # 按科目过滤
-    ).select_related('knowledge_point')
-
-    # 获取该科目下的答题记录
-    answerlog = AnswerLog.objects.filter(
-        student=request.user,
-        exercise__subject=subject  # 按科目过滤
-    )
-
-    knowledge_mastery_diagnoses(request.user, answerlog)
-
-    # 计算推荐学习路径
-    weak_points = diagnoses.filter(mastery_level__lt=0.6).order_by('mastery_level')[:5]
-
-    return render(request, 'student/student_subject_diagnosis.html', {
-        'subject': subject,  # 传递科目对象到模板
-        'diagnoses': diagnoses,
-        'weak_points': weak_points
-    })
 
 
 

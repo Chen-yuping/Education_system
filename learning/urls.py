@@ -1,7 +1,7 @@
 from . import views_student,views_teacher,views_researcher
 from django.urls import path, include
 from .exercise_file import views_exercisefile
-from .diagnosis import views_diagnosis
+from .diagnosis import views_diagnosis,views_personalized_recommendations
 from .knowledge import views_teacherknowledge,views_studentknowledge
 
 urlpatterns = [
@@ -17,12 +17,16 @@ urlpatterns = [
     path('diagnosis/',views_studentknowledge.student_knowledge_diagnosis,name='student_diagnosis'),
     path('student/api/knowledge-points/<int:subject_id>/',views_studentknowledge.student_knowledge_data_api,name='knowledge_points_api'),
 
+    # 个性化推荐
+    path('personalized-recommendations/',views_personalized_recommendations.personalized_recommendations,name='personalized_recommendations'),
+    path('personalized-recommendations/<int:subject_id>/',views_personalized_recommendations.personalized_recommendations,name='personalized_recommendations'),
+    # 推荐完成页面
+    path('recommendation-result/<int:subject_id>/',views_personalized_recommendations.recommendation_result, name='recommendation_result'),
+
     path('subject/<int:subject_id>/exercises/', views_student.exercise_list, name='exercise_list'),
     path('exercise/<int:exercise_id>/take/', views_student.take_exercise, name='take_exercise'),
     path('exercise/result/<int:log_id>/', views_student.exercise_result, name='exercise_result'),
 
-    #学生诊断
-    path('diagnosis/', views_diagnosis.student_diagnosis, name='student_diagnosis'),
     path('subject/<int:subject_id>/knowledge/', views_student.knowledge_points, name='knowledge_points'),
 
 #老师功能
@@ -35,8 +39,6 @@ urlpatterns = [
 
     #单个科目的答题log
     path('subject/<int:subject_id>/exercise-logs/', views_student.subject_exercise_logs, name='subject_exercise_logs'),
-    #单个科目的学生诊断
-    path('subject/<int:subject_id>/diagnosis/', views_student.student_subject_diagnosis, name='student_subject_diagnosis'),
 
     # 题库管理
     path('exercise-management/', views_teacher.exercise_management, name='exercise_management'),

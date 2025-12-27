@@ -116,8 +116,15 @@
         <div class="question-body">
             <!-- 题目内容 -->
             <div class="mb-4">
-                <h5 class="text-muted mb-3">题目描述</h5>
-                <div class="question-content p-3 bg-light rounded">
+                <h5 class="mb-0 opacity-75">
+                    {% if exercise.question_type == '1' %}单选题
+                    {% elif exercise.question_type == '2' %}多选题
+                    {% elif exercise.question_type == '3' %}投票题
+                    {% elif exercise.question_type == '4' %}填空题
+                    {% elif exercise.question_type == '5' %}主观题
+                    {% else %}判断题{% endif %}
+                </h5>
+                <div class="question-content p-3 bg-light rounded" style="font-size: 1.5rem; line-height: 1.6;">
                     {{ exercise.content|linebreaks }}
                 </div>
             </div>
@@ -127,7 +134,7 @@
                 {% csrf_token %}
                 <input type="hidden" name="time_spent" id="time-spent" value="0">
 
-                <h5 class="text-muted mb-3">请选择答案：</h5>
+                <h6 class="text-muted mb-3">请选择答案：</h6>
 
                 {% if exercise.question_type == '1' %}
                 <!-- 单选题 -->
