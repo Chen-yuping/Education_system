@@ -2,47 +2,296 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from .models import *
 from .forms import ExerciseForm, KnowledgePointForm, QMatrixForm
 from django.shortcuts import render, get_object_or_404, redirect
-from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.http import JsonResponse, HttpResponse
-from django.db.models import Q
-from django.core.paginator import Paginator
-import json
-from datetime import datetime, timedelta
-from .models import Exercise, Subject, KnowledgePoint, Choice, QMatrix
-from accounts.models import *
 from .forms import ExerciseForm
-
 from django.db.models import Count, Q
 from django.db import transaction
 import csv
 from datetime import datetime
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import user_passes_test
+from django.http import JsonResponse, HttpResponse
+from django.shortcuts import render, get_object_or_404
+from django.core.paginator import Paginator
+from django.utils import timezone
+from datetime import timedelta
+from .models import *
 #教师身份判断
 def is_teacher(user):
     return user.user_type == 'teacher'
 
-#教师控制面板
-@login_required
-def dashboard(request):
-    if request.user.user_type == 'teacher':
-        return redirect('teacher_dashboard')
-    else:
-        return redirect('student_dashboard')
-
-#教师面板
+# 教师面板
 @login_required
 @user_passes_test(is_teacher)
 def teacher_dashboard(request):
-    subjects = Subject.objects.all()
-    total_exercises = Exercise.objects.filter(creator=request.user).count()
-    total_knowledge_points = KnowledgePoint.objects.count()
+    # 获取当前教师
+    teacher = request.user
+
+    # 1. 获取教师授课的课程（使用TeacherSubject关系）
+    # 方法1：通过TeacherSubject中间表
+    teaching_subjects = Subject.objects.filter(
+        teachers__teacher=teacher
+    ).distinct()
+    teacher_count = teaching_subjects.count()
+
+    # 2. 授课知识点数量（只统计教师授课课程的知识点）
+    total_knowledge_points = KnowledgePoint.objects.filter(
+        subject__in=teaching_subjects
+    ).count()
+
+    # 3. 授课学生总数（统计所有选择教师授课课程的学生）
+    total_students = User.objects.filter(
+        enrolled_subjects__subject__in=teaching_subjects
+    ).distinct().count()
+
+    # 4. 授课活跃学生数（最近30天有答题记录的学生）
+    from datetime import datetime, timedelta
+
+    thirty_days_ago = datetime.now() - timedelta(days=30)
+
+    active_students = User.objects.filter(
+        enrolled_subjects__subject__in=teaching_subjects
+    ).filter(
+        answerlog__submitted_at__gte=thirty_days_ago
+    ).distinct().count()
+
+    # 5. 获取所有课程（如果需要显示全部课程）
+    all_subjects = Subject.objects.all()
+
+    # 6. 教师上传的习题文件数量
+    exercise_files_count = ExerciseFile.objects.filter(teacher=teacher).count()
+
+    # 7. 教师创建的习题数量（跨所有科目）
+    # 因为你的习题模型有creator字段，可以这样统计
+    from django.db.models import Count
+
+    # 统计教师创建的所有习题
+    total_exercises_created = Exercise.objects.filter(creator=teacher).count()
 
     return render(request, 'teacher/teacher_dashboard.html', {
-        'subjects': subjects,
-        'total_exercises': total_exercises,
+        'subjects': all_subjects,  # 所有课程
+        'teaching_subjects': teaching_subjects,  # 教师授课的课程
+        'teacher_count': teacher_count,  # 授课课程数量
         'total_knowledge_points': total_knowledge_points,
+        'total_students': total_students,
+        'active_students': active_students,
+        'exercise_files_count': exercise_files_count,
+        'total_exercises_created': total_exercises_created,
+        'teacher': teacher,  # 传递教师对象到模板
     })
 
+# 老师选择授课
+@login_required
+@user_passes_test(is_teacher)
+def teacher_subject_management(request):
+    """教师课程（Subject）管理页面"""
+    # 获取所有课程（Subject）
+    all_subjects = Subject.objects.all()
+    # 获取教师已选授课课程
+    teaching_subjects = TeacherSubject.objects.filter(teacher=request.user).select_related('subject')
+
+    # 关键：预处理已选授课课程的ID列表（视图中完成，避免模板中调用复杂方法）
+    teaching_subject_ids = [teaching.subject.id for teaching in teaching_subjects]
+
+    if request.method == 'POST':
+        subject_id = request.POST.get('subject_id')
+        action = request.POST.get('action')
+
+        if action == 'add' and subject_id:
+            subject = get_object_or_404(Subject, id=subject_id)
+            TeacherSubject.objects.get_or_create(teacher=request.user, subject=subject)
+            messages.success(request, f'已成功选择教授《{subject.name}》课程')
+        elif action == 'remove' and subject_id:
+            TeacherSubject.objects.filter(teacher=request.user, subject_id=subject_id).delete()
+            messages.success(request, '已取消授课')
+
+        return redirect('teacher_subject_management')
+
+    context = {
+        'all_subjects': all_subjects,
+        'teaching_subjects': teaching_subjects,
+        'teaching_subject_ids': teaching_subject_ids,  # 传递预处理后的ID列表
+    }
+    return render(request, 'teacher/subject_management.html', context)
+
+# 学生信息显示
+@login_required
+@user_passes_test(is_teacher)
+def student_info(request):
+    teacher = request.user
+
+    # 1. 获取教师所授的科目
+    teacher_subjects = TeacherSubject.objects.filter(teacher=teacher).select_related('subject')
+
+    # 2. 获取当前选中的科目
+    subject_id = request.GET.get('subject')
+    current_subject = None
+    students = []
+
+    if teacher_subjects.exists():
+        # 如果有科目ID参数，使用该科目
+        if subject_id:
+            try:
+                current_subject = Subject.objects.get(
+                    id=subject_id,
+                    teachers__teacher=teacher
+                )
+            except Subject.DoesNotExist:
+                # 如果教师没有权限查看该科目，使用第一个科目
+                current_subject = teacher_subjects.first().subject
+        else:
+            # 没有科目参数，使用第一个科目
+            current_subject = teacher_subjects.first().subject
+
+        # 3. 获取选了当前科目的学生
+        enrolled_students = StudentSubject.objects.filter(
+            subject=current_subject
+        ).select_related('student', 'student__studentprofile')
+        students = [enrollment.student for enrollment in enrolled_students]
+
+    # 4. 统计活跃学生（当前科目下）
+    week_ago = timezone.now() - timedelta(days=7)
+    active_students_count = 0
+    if students and current_subject:
+        active_students_count = AnswerLog.objects.filter(
+            student__in=[s.id for s in students],
+            exercise__subject=current_subject,
+            submitted_at__gte=week_ago
+        ).values('student').distinct().count()
+
+    # 5. 分页处理
+    paginator = Paginator(students, 10)
+    page_number = request.GET.get('page')
+    page_students = paginator.get_page(page_number)
+
+    # 6. 为每个学生添加学习统计数据（当前科目下）
+    for student in page_students:
+        if current_subject:
+            # 获取学生当前科目的答题记录
+            answer_logs = AnswerLog.objects.filter(
+                student=student,
+                exercise__subject=current_subject
+            )
+        else:
+            answer_logs = AnswerLog.objects.filter(student=student)
+
+        # 不重复的习题数量
+        student.total_exercises = answer_logs.values('exercise').distinct().count()
+
+        # 计算正确率（基于习题的正确率）
+        if student.total_exercises > 0:
+            # 获取学生做过的所有习题ID（去重）
+            exercise_ids = answer_logs.values_list('exercise', flat=True).distinct()
+
+            # 计算有多少个习题学生至少做对过一次
+            correct_exercises = 0
+            for exercise_id in exercise_ids:
+                if answer_logs.filter(exercise_id=exercise_id, is_correct=True).exists():
+                    correct_exercises += 1
+
+            student.accuracy = (correct_exercises / student.total_exercises) * 100
+        else:
+            student.accuracy = 0
+
+        # 最后学习时间
+        last_log = answer_logs.order_by('-submitted_at').first()
+        student.last_active = last_log.submitted_at if last_log else None
+
+    # 7. 准备上下文
+    context = {
+        'students': page_students,
+        'total_students': len(students),
+        'active_students': active_students_count,
+        'teacher_subjects': teacher_subjects,
+        'current_subject': current_subject,
+        'teacher_subjects_count': teacher_subjects.count(),
+        'subjects': Subject.objects.all(),
+    }
+
+    return render(request, 'teacher/student_info.html', context)
+
+#学生做题记录
+@login_required
+@user_passes_test(is_teacher)
+def get_student_answer_records(request, student_id):
+    """获取学生做题记录API"""
+    try:
+        teacher = request.user
+
+        # 1. 验证学生存在
+        student = User.objects.get(id=student_id, user_type='student')
+
+        # 2. 获取科目ID参数
+        subject_id = request.GET.get('subject_id')
+
+        # 3. 验证教师权限（如果指定了科目）
+        if subject_id:
+            # 验证教师是否有权限查看该科目
+            if not TeacherSubject.objects.filter(
+                    teacher=teacher,
+                    subject_id=subject_id
+            ).exists():
+                return JsonResponse({
+                    'status': 'error',
+                    'message': '您没有权限查看该科目的记录'
+                }, status=403)
+
+        # 4. 构建查询 - 包含exercise的content字段
+        answer_logs = AnswerLog.objects.filter(
+            student=student
+        ).select_related('exercise', 'exercise__subject')
+
+        # 5. 如果指定了科目，进行过滤
+        if subject_id:
+            answer_logs = answer_logs.filter(exercise__subject_id=subject_id)
+
+        # 6. 排序和限制数量
+        total_records = answer_logs.count()
+        answer_logs = answer_logs.order_by('-submitted_at')[:50]  # 限制最近50条
+
+        # 7. 准备记录数据 - 将 exercise_title 改为 exercise_content
+        records = []
+        for log in answer_logs:
+            # 截取内容，避免过长
+            content = log.exercise.content+log.exercise.option_text
+
+
+            records.append({
+                'submitted_at': log.submitted_at.strftime('%Y-%m-%d %H:%M:%S'),
+                'exercise_content': content,  # 改为content
+                'subject_name': log.exercise.subject.name,
+                'is_correct': bool(log.is_correct),
+                'time_spent': log.time_spent,
+            })
+
+        # 8. 返回数据
+        data = {
+            'status': 'success',
+            'student_name': student.username,
+            'total_records': total_records,
+            'records': records
+        }
+
+        print(f"DEBUG: 返回实际数据 - 学生: {student.username}, 记录数: {total_records}")
+        return JsonResponse(data)
+
+    except User.DoesNotExist:
+        print(f"DEBUG: 学生不存在 - ID: {student_id}")
+        return JsonResponse({
+            'status': 'error',
+            'message': '学生不存在'
+        }, status=404)
+
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"DEBUG: 发生异常: {e}")
+        print(f"DEBUG: 错误追踪: {error_trace}")
+
+        return JsonResponse({
+            'status': 'error',
+            'message': f'服务器错误: {str(e)}'
+        }, status=500)
 
 @login_required
 @user_passes_test(is_teacher)
@@ -100,53 +349,7 @@ def update_knowledge_mastery(student, exercise, is_correct):
         diagnosis.calculate_mastery()
 
 
-# 学生信息显示
-@login_required
-@user_passes_test(is_teacher)
-def student_info(request):
-    # 获取所有学生
-    students = User.objects.filter(user_type='student').select_related('studentprofile')
 
-    # 获取年级列表
-    grade_list = StudentProfile.objects.values_list('grade', flat=True).distinct()
-
-
-    # 获取近7天有学习记录的学生
-    week_ago = datetime.now() - timedelta(days=7)
-    active_students_count = AnswerLog.objects.filter(
-        submitted_at__gte=week_ago
-    ).values('student').distinct().count()
-
-    # 分页处理
-    paginator = Paginator(students, 10)  # 每页10个学生
-    page_number = request.GET.get('page')
-    page_students = paginator.get_page(page_number)
-
-    # 为每个学生添加学习统计数据
-    for student in page_students:
-        # 答题统计
-        answer_logs = AnswerLog.objects.filter(student=student)
-        student.total_exercises = answer_logs.count()
-
-        if student.total_exercises > 0:
-            correct_count = answer_logs.filter(is_correct=True).count()
-            student.accuracy = (correct_count / student.total_exercises) * 100
-        else:
-            student.accuracy = 0
-
-        # 最后学习时间
-        last_log = answer_logs.order_by('-submitted_at').first()
-        student.last_active = last_log.submitted_at if last_log else None
-
-    context = {
-        'students': page_students,
-        'total_students': students.count(),
-        'active_students': active_students_count,
-        'grade_list': grade_list,
-        'subjects': Subject.objects.all(),  # 侧边栏需要的科目
-    }
-
-    return render(request, 'teacher/student_info.html', context)
 
 
 """题库管理主页面"""

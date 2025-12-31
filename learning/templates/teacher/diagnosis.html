@@ -1,0 +1,1045 @@
+<!-- templates/teacher/diagnosis.html -->
+{% extends 'teacher/base.html' %}
+{% load static %}
+
+{% block title %}学生诊断分析 - 在线学习诊断系统{% endblock %}
+
+{% block content %}
+<style>
+    /* 诊断页面特定样式 */
+    .diagnosis-card {
+        transition: all 0.3s ease;
+        border: none;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .diagnosis-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.12);
+    }
+
+    .visualization-container {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+
+    .knowledge-mastery-chart {
+        width: 100%;
+        height: 400px;
+    }
+
+    .student-progress-chart {
+        width: 100%;
+        height: 300px;
+    }
+
+    .mastery-level-badge {
+        font-size: 0.8rem;
+        padding: 3px 8px;
+    }
+
+    .progress-circle {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 18px;
+        color: white;
+    }
+
+    .toggle-switch {
+        cursor: pointer;
+        display: inline-block;
+        margin-right: 10px;
+    }
+
+    .toggle-switch input {
+        display: none;
+    }
+
+    .toggle-slider {
+        position: relative;
+        display: inline-block;
+        width: 50px;
+        height: 26px;
+        background-color: #ccc;
+        border-radius: 34px;
+        transition: .4s;
+        vertical-align: middle;
+    }
+
+    .toggle-slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 4px;
+        bottom: 4px;
+        background-color: white;
+        border-radius: 50%;
+        transition: .4s;
+    }
+
+    input:checked + .toggle-slider {
+        background-color: #4e73df;
+    }
+
+    input:checked + .toggle-slider:before {
+        transform: translateX(24px);
+    }
+
+    /* 知识图谱样式 */
+    .knowledge-node {
+        cursor: pointer;
+    }
+
+    .knowledge-node:hover {
+        filter: brightness(1.1);
+    }
+</style>
+
+<!-- 页面标题 -->
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3 mb-3 border-bottom">
+    <div>
+        <h1 class="h2">学生诊断分析</h1>
+        <small class="text-muted">基于NCD等认知诊断模型的学生掌握情况分析</small>
+    </div>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <button class="btn btn-primary me-2" id="refreshBtn">
+            <i class="fas fa-sync-alt"></i> 刷新数据
+        </button>
+    </div>
+</div>
+
+<!-- 诊断配置面板 -->
+<div class="card diagnosis-card mb-4">
+    <div class="card-header bg-white">
+        <h5 class="mb-0"><i class="fas fa-cogs me-2"></i>诊断配置</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <!-- 科目选择 -->
+            <div class="col-md-4 mb-3">
+                <label class="form-label fw-bold">选择科目</label>
+                <select class="form-select" id="subjectSelect">
+                    <option value="">-- 请选择科目 --</option>
+                    {% for teacher_subject in teacher_subjects %}
+                    <option value="{{ teacher_subject.subject.id }}">
+                        {{ teacher_subject.subject.name }}
+                    </option>
+                    {% empty %}
+                    <option value="" disabled>暂无授课科目</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- 诊断模型选择 -->
+            <div class="col-md-4 mb-3">
+                <label class="form-label fw-bold">诊断模型</label>
+                <select class="form-select" id="modelSelect">
+                    <option value="">-- 选择诊断模型 --</option>
+                    {% for model in diagnosis_models %}
+                    <option value="{{ model.id }}">{{ model.name }}</option>
+                    {% empty %}
+                    <option value="" disabled>暂无可用模型</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- 参数配置 -->
+            <div class="col-md-4 mb-3">
+                <label class="form-label fw-bold">模型参数</label>
+                <div class="d-flex gap-2">
+                    <div class="flex-grow-1">
+                        <select class="form-select" id="paramSelect">
+                            <option value="default">默认参数</option>
+                            <option value="custom">自定义参数</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-outline-secondary" id="paramConfigBtn">
+                        <i class="fas fa-sliders-h"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 模型配置选项 -->
+        <div class="row" id="customParams" style="display: none;">
+            <div class="col-12">
+                <div class="border rounded p-3 bg-light">
+                    <h6><i class="fas fa-tools me-2"></i>自定义模型参数</h6>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label class="form-label">学习率</label>
+                            <input type="number" class="form-control" id="learningRate" value="0.001" step="0.0001">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">迭代次数</label>
+                            <input type="number" class="form-control" id="epochs" value="100" min="10" max="1000">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">隐藏层维度</label>
+                            <input type="number" class="form-control" id="hiddenDim" value="64" min="16" max="256">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">正则化系数</label>
+                            <input type="number" class="form-control" id="regLambda" value="0.01" step="0.001">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 操作按钮 -->
+        <div class="row mt-3">
+            <div class="col-12">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <button class="btn btn-success" id="startDiagnosisBtn">
+                            <i class="fas fa-play me-2"></i>开始诊断分析
+                        </button>
+                        <button class="btn btn-outline-info ms-2" id="exportReportBtn">
+                            <i class="fas fa-download me-2"></i>导出报告
+                        </button>
+                    </div>
+                    <div class="form-check form-switch align-self-center">
+                        <input class="form-check-input" type="checkbox" id="realTimeUpdate" checked>
+                        <label class="form-check-label" for="realTimeUpdate">
+                            实时更新图表
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 总体分析结果 -->
+<div class="row mb-4">
+    <!-- 总体掌握情况 -->
+    <div class="col-lg-8 mb-4">
+        <div class="card diagnosis-card h-100">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>学生总体掌握情况</h5>
+                <small class="text-muted">基于选择科目的全体学生分析</small>
+            </div>
+            <div class="card-body">
+                <div id="overallMasteryChart" class="knowledge-mastery-chart">
+                    <!-- 总体掌握情况图表 -->
+                    <div class="text-center py-5 text-muted">
+                        <i class="fas fa-chart-bar fa-3x mb-3"></i>
+                        <p>请选择科目并开始诊断分析</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 统计摘要 -->
+    <div class="col-lg-4 mb-4">
+        <div class="card diagnosis-card h-100">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>统计摘要</h5>
+            </div>
+            <div class="card-body">
+                <div id="statsSummary">
+                    <div class="text-center py-4 text-muted">
+                        <i class="fas fa-calculator fa-3x mb-3"></i>
+                        <p>等待诊断结果</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 知识点掌握分布 -->
+<div class="card diagnosis-card mb-4">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <div>
+            <h5 class="mb-0"><i class="fas fa-sitemap me-2"></i>知识点掌握分布</h5>
+            <small class="text-muted">知识点掌握程度热力图</small>
+        </div>
+        <div class="btn-group">
+            <button class="btn btn-sm btn-outline-secondary active" data-view="heatmap">
+                <i class="fas fa-th-large"></i> 热力图
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" data-view="graph">
+                <i class="fas fa-project-diagram"></i> 关系图
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div id="knowledgeMasteryView">
+            <!-- 知识点掌握热力图 -->
+            <div id="heatmapContainer" style="width:100%; height:350px;">
+                <div class="text-center py-5 text-muted">
+                    <i class="fas fa-thermometer-three-quarters fa-3x mb-3"></i>
+                    <p>等待诊断结果生成热力图</p>
+                </div>
+            </div>
+
+            <!-- 知识点关系图 -->
+            <div id="graphContainer" style="width:100%; height:350px; display:none;">
+                <div class="text-center py-5 text-muted">
+                    <i class="fas fa-project-diagram fa-3x mb-3"></i>
+                    <p>知识点关系图将在诊断后显示</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 学生个体分析 -->
+<div class="card diagnosis-card">
+    <div class="card-header bg-white">
+        <h5 class="mb-0"><i class="fas fa-user-graduate me-2"></i>学生个体分析</h5>
+        <small class="text-muted">查看每个学生的详细掌握情况</small>
+    </div>
+    <div class="card-body">
+        <!-- 学生筛选 -->
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <label class="form-label">筛选学生</label>
+                <select class="form-select" id="studentFilter">
+                    <option value="all">所有学生</option>
+                    <option value="weak">需要加强 (掌握度 < 50%)</option>
+                    <option value="average">一般掌握 (50%-80%)</option>
+                    <option value="good">良好掌握 (> 80%)</option>
+                </select>
+            </div>
+            <div class="col-md-8">
+                <label class="form-label">搜索学生</label>
+                <div class="input-group">
+                    <input type="text" class="form-control" placeholder="输入学生姓名..." id="studentSearch">
+                    <button class="btn btn-outline-secondary" type="button">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 学生分析列表 -->
+        <div class="table-responsive">
+            <table class="table table-hover" id="studentAnalysisTable">
+                <thead>
+                    <tr>
+                        <th>学生</th>
+                        <th>总体掌握度</th>
+                        <th>强项知识点</th>
+                        <th>弱项知识点</th>
+                        <th>推荐学习路径</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="studentAnalysisBody">
+                    <tr>
+                        <td colspan="6" class="text-center py-4 text-muted">
+                            <i class="fas fa-users fa-3x mb-3"></i>
+                            <p>请先进行诊断分析</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 学生详情模态框 -->
+<div class="modal fade" id="studentDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">学生详细诊断报告</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="studentDetailContent">
+                    <!-- 动态加载学生详情 -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" id="printReportBtn">打印报告</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 引入图表库 -->
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.2/dist/echarts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+
+<script>
+// 全局变量
+let currentDiagnosisData = null;
+let overallChart = null;
+let heatmapChart = null;
+let knowledgeGraph = null;
+
+// 页面加载完成
+document.addEventListener('DOMComponentLoaded', function() {
+    initCharts();
+    setupEventListeners();
+});
+
+// 初始化图表
+function initCharts() {
+    // 初始化ECharts实例
+    overallChart = echarts.init(document.getElementById('overallMasteryChart'));
+
+    // 设置默认图表
+    setDefaultChart();
+}
+
+// 设置默认图表
+function setDefaultChart() {
+    const option = {
+        title: {
+            text: '等待诊断数据',
+            left: 'center',
+            top: 'center',
+            textStyle: {
+                color: '#999',
+                fontSize: 16,
+                fontWeight: 'normal'
+            }
+        },
+        graphic: {
+            type: 'group',
+            left: 'center',
+            top: 'center',
+            children: [{
+                type: 'rect',
+                shape: {
+                    width: 200,
+                    height: 150
+                },
+                style: {
+                    fill: 'transparent',
+                    stroke: '#ddd',
+                    lineWidth: 1
+                }
+            }]
+        }
+    };
+    overallChart.setOption(option);
+}
+
+// 设置事件监听
+function setupEventListeners() {
+    // 科目选择
+    document.getElementById('subjectSelect').addEventListener('change', function() {
+        if (this.value) {
+            loadSubjectData(this.value);
+        }
+    });
+
+    // 参数选择
+    document.getElementById('paramSelect').addEventListener('change', function() {
+        const customParams = document.getElementById('customParams');
+        customParams.style.display = this.value === 'custom' ? 'block' : 'none';
+    });
+
+    // 开始诊断
+    document.getElementById('startDiagnosisBtn').addEventListener('click', startDiagnosis);
+
+    // 刷新数据
+    document.getElementById('refreshBtn').addEventListener('click', function() {
+        const subjectId = document.getElementById('subjectSelect').value;
+        if (subjectId) {
+            loadSubjectData(subjectId);
+        }
+    });
+
+    // 视图切换
+    document.querySelectorAll('[data-view]').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const view = this.dataset.view;
+            document.querySelectorAll('[data-view]').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+
+            if (view === 'heatmap') {
+                document.getElementById('heatmapContainer').style.display = 'block';
+                document.getElementById('graphContainer').style.display = 'none';
+            } else {
+                document.getElementById('heatmapContainer').style.display = 'none';
+                document.getElementById('graphContainer').style.display = 'block';
+                renderKnowledgeGraph();
+            }
+        });
+    });
+
+    // 导出报告
+    document.getElementById('exportReportBtn').addEventListener('click', exportReport);
+}
+
+// 加载科目数据
+function loadSubjectData(subjectId) {
+    console.log('加载科目数据:', subjectId);
+    // 显示加载状态
+    showLoading('正在加载科目数据...');
+
+    // 这里应该调用API获取科目相关信息
+    // fetch(`/api/diagnosis/subject/${subjectId}/`)
+    //     .then(response => response.json())
+    //     .then(data => {
+    //         // 处理科目数据
+    //         hideLoading();
+    //     })
+    //     .catch(error => {
+    //         console.error('加载失败:', error);
+    //         hideLoading();
+    //     });
+}
+
+// 开始诊断分析
+function startDiagnosis() {
+    const subjectId = document.getElementById('subjectSelect').value;
+    const modelType = document.getElementById('modelSelect').value;
+
+    if (!subjectId) {
+        showAlert('请先选择科目', 'warning');
+        return;
+    }
+
+    console.log('开始诊断分析:', { subjectId, modelType });
+
+    // 显示加载状态
+    showLoading('正在进行诊断分析...');
+
+    // 构建请求参数
+    const params = {
+        subject_id: subjectId,
+        model_type: modelType,
+        learning_rate: parseFloat(document.getElementById('learningRate').value),
+        epochs: parseInt(document.getElementById('epochs').value),
+        hidden_dim: parseInt(document.getElementById('hiddenDim').value),
+        reg_lambda: parseFloat(document.getElementById('regLambda').value)
+    };
+
+    // 模拟API调用（实际开发中应该调用真实API）
+    simulateDiagnosisAnalysis(params);
+}
+
+// 模拟诊断分析（实际开发中替换为真实API调用）
+function simulateDiagnosisAnalysis(params) {
+    console.log('诊断参数:', params);
+
+    // 模拟延迟
+    setTimeout(() => {
+        // 生成模拟数据
+        const mockData = generateMockDiagnosisData(params);
+        currentDiagnosisData = mockData;
+
+        // 更新UI
+        updateDiagnosisResults(mockData);
+
+        // 隐藏加载状态
+        hideLoading();
+
+        showAlert('诊断分析完成！', 'success');
+    }, 2000);
+}
+
+// 生成模拟诊断数据
+function generateMockDiagnosisData(params) {
+    const knowledgePoints = [
+        '函数概念', '一次函数', '二次函数', '三角函数', '导数',
+        '集合论', '不等式', '数列', '概率统计', '立体几何'
+    ];
+
+    const students = [
+        { id: 1, name: '张三', grade: '高三(1)' },
+        { id: 2, name: '李四', grade: '高三(1)' },
+        { id: 3, name: '王五', grade: '高三(2)' },
+        { id: 4, name: '赵六', grade: '高三(2)' },
+        { id: 5, name: '钱七', grade: '高三(3)' }
+    ];
+
+    // 生成知识点掌握数据
+    const knowledgeMastery = knowledgePoints.map(kp => ({
+        name: kp,
+        mastery: Math.random() * 100,
+        studentCount: Math.floor(Math.random() * 50) + 20
+    }));
+
+    // 生成学生个体数据
+    const studentMastery = students.map(student => {
+        const strengths = [];
+        const weaknesses = [];
+        const masteryData = {};
+
+        knowledgePoints.forEach((kp, idx) => {
+            const mastery = Math.random() * 100;
+            masteryData[kp] = mastery;
+
+            if (mastery > 80) strengths.push(kp);
+            else if (mastery < 50) weaknesses.push(kp);
+        });
+
+        const overallMastery = Object.values(masteryData).reduce((a, b) => a + b, 0) / knowledgePoints.length;
+
+        return {
+            ...student,
+            overallMastery: overallMastery.toFixed(1),
+            masteryData,
+            strengths: strengths.slice(0, 3),
+            weaknesses: weaknesses.slice(0, 3),
+            learningPath: generateLearningPath(weaknesses)
+        };
+    });
+
+    return {
+        subject: { id: params.subject_id, name: '数学' },
+        model: params.model_type,
+        timestamp: new Date().toISOString(),
+        stats: {
+            totalStudents: students.length,
+            avgMastery: (studentMastery.reduce((sum, s) => sum + parseFloat(s.overallMastery), 0) / students.length).toFixed(1),
+            maxMastery: Math.max(...studentMastery.map(s => parseFloat(s.overallMastery))).toFixed(1),
+            minMastery: Math.min(...studentMastery.map(s => parseFloat(s.overallMastery))).toFixed(1)
+        },
+        knowledgeMastery,
+        studentMastery
+    };
+}
+
+// 生成学习路径
+function generateLearningPath(weaknesses) {
+    const paths = {
+        1: '基础概念 → 典型例题 → 综合应用',
+        2: '概念理解 → 方法掌握 → 变式训练',
+        3: '知识梳理 → 专项突破 → 巩固提升'
+    };
+    return weaknesses.length > 0 ? paths[Math.floor(Math.random() * 3) + 1] : '已掌握较好，建议拓展学习';
+}
+
+// 更新诊断结果
+function updateDiagnosisResults(data) {
+    // 更新总体图表
+    renderOverallChart(data);
+
+    // 更新统计摘要
+    updateStatsSummary(data);
+
+    // 更新热力图
+    renderHeatmap(data);
+
+    // 更新学生分析表
+    updateStudentAnalysisTable(data);
+}
+
+// 渲染总体图表
+function renderOverallChart(data) {
+    const categories = data.knowledgeMastery.map(k => k.name);
+    const masteryData = data.knowledgeMastery.map(k => k.mastery);
+
+    const option = {
+        title: {
+            text: '知识点掌握情况分布',
+            left: 'center',
+            textStyle: {
+                fontSize: 16,
+                fontWeight: 'bold'
+            }
+        },
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: {
+                type: 'shadow'
+            }
+        },
+        grid: {
+            left: '3%',
+            right: '4%',
+            bottom: '3%',
+            containLabel: true
+        },
+        xAxis: {
+            type: 'category',
+            data: categories,
+            axisLabel: {
+                rotate: 45,
+                fontSize: 10
+            }
+        },
+        yAxis: {
+            type: 'value',
+            name: '掌握度(%)',
+            min: 0,
+            max: 100,
+            axisLabel: {
+                formatter: '{value}%'
+            }
+        },
+        series: [{
+            name: '掌握度',
+            type: 'bar',
+            data: masteryData,
+            itemStyle: {
+                color: function(params) {
+                    const value = params.value;
+                    if (value >= 80) return '#52c41a';
+                    if (value >= 60) return '#faad14';
+                    return '#f5222d';
+                }
+            },
+            label: {
+                show: true,
+                position: 'top',
+                formatter: '{c}%'
+            }
+        }]
+    };
+
+    overallChart.setOption(option);
+}
+
+// 更新统计摘要
+function updateStatsSummary(data) {
+    const stats = data.stats;
+    const html = `
+        <div class="row text-center">
+            <div class="col-6 mb-4">
+                <div class="progress-circle mb-2" style="background: linear-gradient(135deg, #4e73df 0%, #224abe 100%);">
+                    ${stats.avgMastery}%
+                </div>
+                <div class="fw-bold">平均掌握度</div>
+                <small class="text-muted">全体学生平均</small>
+            </div>
+            <div class="col-6 mb-4">
+                <div class="progress-circle mb-2" style="background: linear-gradient(135deg, #1cc88a 0%, #13855c 100%);">
+                    ${stats.maxMastery}%
+                </div>
+                <div class="fw-bold">最高掌握度</div>
+                <small class="text-muted">学生最佳表现</small>
+            </div>
+            <div class="col-6">
+                <div class="progress-circle mb-2" style="background: linear-gradient(135deg, #f6c23e 0%, #dda20a 100%);">
+                    ${stats.minMastery}%
+                </div>
+                <div class="fw-bold">最低掌握度</div>
+                <small class="text-muted">需要重点关注</small>
+            </div>
+            <div class="col-6">
+                <div class="progress-circle mb-2" style="background: linear-gradient(135deg, #e74a3b 0%, #be2617 100%);">
+                    ${stats.totalStudents}
+                </div>
+                <div class="fw-bold">学生总数</div>
+                <small class="text-muted">参与分析学生</small>
+            </div>
+        </div>
+        <div class="mt-3 p-3 bg-light rounded">
+            <small class="text-muted">
+                <i class="fas fa-info-circle me-1"></i>
+                诊断时间: ${new Date(data.timestamp).toLocaleString()}<br>
+                使用模型: ${data.model.toUpperCase()}
+            </small>
+        </div>
+    `;
+
+    document.getElementById('statsSummary').innerHTML = html;
+}
+
+// 渲染热力图
+function renderHeatmap(data) {
+    const container = document.getElementById('heatmapContainer');
+
+    // 简单热力图示例
+    const html = `
+        <div class="text-center">
+            <h6 class="mb-3">知识点掌握热力图</h6>
+            <div class="d-flex flex-wrap justify-content-center">
+                ${data.knowledgeMastery.map(kp => `
+                    <div class="m-2 p-3 rounded text-center" style="
+                        width: 120px;
+                        background: linear-gradient(to right, #f5222d ${kp.mastery}%, #f5f5f5 ${kp.mastery}%);
+                        border: 1px solid #dee2e6;
+                    ">
+                        <div class="fw-bold">${kp.name}</div>
+                        <div class="mt-1">${kp.mastery.toFixed(1)}%</div>
+                        <small class="text-muted">${kp.studentCount}人</small>
+                    </div>
+                `).join('')}
+            </div>
+            <div class="mt-3">
+                <small class="text-muted">
+                    <span class="badge" style="background: linear-gradient(to right, #f5222d 0%, #52c41a 100%); padding: 5px 20px;">掌握度从低到高</span>
+                </small>
+            </div>
+        </div>
+    `;
+
+    container.innerHTML = html;
+}
+
+// 渲染知识图谱
+function renderKnowledgeGraph() {
+    // 这里可以添加D3.js知识图谱的渲染代码
+    console.log('渲染知识图谱');
+}
+
+// 更新学生分析表
+function updateStudentAnalysisTable(data) {
+    const tbody = document.getElementById('studentAnalysisBody');
+
+    const rows = data.studentMastery.map(student => `
+        <tr>
+            <td>
+                <div class="d-flex align-items-center">
+                    <div class="student-avatar me-2">
+                        ${student.name.charAt(0)}
+                    </div>
+                    <div>
+                        <div class="fw-bold">${student.name}</div>
+                        <small class="text-muted">${student.grade}</small>
+                    </div>
+                </div>
+            </td>
+            <td>
+                <div class="d-flex align-items-center">
+                    <div class="progress flex-grow-1 me-2" style="height: 10px;">
+                        <div class="progress-bar"
+                             style="width: ${student.overallMastery}%;
+                                    background-color: ${getMasteryColor(student.overallMastery)}">
+                        </div>
+                    </div>
+                    <span class="fw-bold">${student.overallMastery}%</span>
+                </div>
+            </td>
+            <td>
+                ${student.strengths.map(s => `
+                    <span class="badge mastery-level-badge bg-success me-1 mb-1">${s}</span>
+                `).join('')}
+            </td>
+            <td>
+                ${student.weaknesses.map(w => `
+                    <span class="badge mastery-level-badge bg-danger me-1 mb-1">${w}</span>
+                `).join('')}
+            </td>
+            <td>
+                <small class="text-muted">${student.learningPath}</small>
+            </td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary view-detail-btn"
+                        data-student-id="${student.id}">
+                    <i class="fas fa-chart-bar"></i> 查看详情
+                </button>
+            </td>
+        </tr>
+    `).join('');
+
+    tbody.innerHTML = rows || `<tr><td colspan="6" class="text-center">暂无数据</td></tr>`;
+
+    // 绑定详情查看事件
+    document.querySelectorAll('.view-detail-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const studentId = this.dataset.studentId;
+            showStudentDetail(studentId);
+        });
+    });
+}
+
+// 显示学生详情
+function showStudentDetail(studentId) {
+    const student = currentDiagnosisData.studentMastery.find(s => s.id == studentId);
+    if (!student) return;
+
+    const modal = new bootstrap.Modal(document.getElementById('studentDetailModal'));
+    const content = document.getElementById('studentDetailContent');
+
+    // 生成详细报告
+    const reportHtml = generateStudentReport(student);
+    content.innerHTML = reportHtml;
+
+    modal.show();
+}
+
+// 生成学生报告
+function generateStudentReport(student) {
+    return `
+        <div class="student-report">
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <h5>${student.name} - 诊断报告</h5>
+                    <p class="text-muted">${student.grade} | 科目: ${currentDiagnosisData.subject.name}</p>
+                </div>
+                <div class="col-md-6 text-end">
+                    <div class="display-4 fw-bold" style="color: ${getMasteryColor(student.overallMastery)}">
+                        ${student.overallMastery}%
+                    </div>
+                    <small>总体掌握度</small>
+                </div>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title">强项分析</h6>
+                            <div class="d-flex flex-wrap">
+                                ${student.strengths.map(item => `
+                                    <span class="badge bg-success p-2 m-1">
+                                        <i class="fas fa-check me-1"></i>${item}
+                                    </span>
+                                `).join('')}
+                            </div>
+                            <p class="mt-2 small text-muted">
+                                该学生在这些知识点上表现优秀，建议继续保持并尝试拓展应用。
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title">弱项分析</h6>
+                            <div class="d-flex flex-wrap">
+                                ${student.weaknesses.map(item => `
+                                    <span class="badge bg-danger p-2 m-1">
+                                        <i class="fas fa-exclamation-triangle me-1"></i>${item}
+                                    </span>
+                                `).join('')}
+                            </div>
+                            <p class="mt-2 small text-muted">
+                                这些知识点需要加强学习，建议按照推荐路径进行系统学习。
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h6 class="card-title">详细掌握情况</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>知识点</th>
+                                    <th>掌握度</th>
+                                    <th>状态</th>
+                                    <th>建议</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${Object.entries(student.masteryData).map(([kp, mastery]) => `
+                                    <tr>
+                                        <td>${kp}</td>
+                                        <td>
+                                            <div class="progress" style="height: 10px;">
+                                                <div class="progress-bar"
+                                                     style="width: ${mastery}%;
+                                                            background-color: ${getMasteryColor(mastery)}">
+                                                </div>
+                                            </div>
+                                            <small>${mastery.toFixed(1)}%</small>
+                                        </td>
+                                        <td>
+                                            ${mastery >= 80 ?
+                                                '<span class="badge bg-success">优秀</span>' :
+                                                mastery >= 60 ?
+                                                '<span class="badge bg-warning">良好</span>' :
+                                                '<span class="badge bg-danger">需加强</span>'}
+                                        </td>
+                                        <td>
+                                            <small>
+                                                ${mastery >= 80 ? '可拓展学习' :
+                                                 mastery >= 60 ? '需巩固练习' :
+                                                 '需系统学习'}
+                                            </small>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">个性化学习建议</h6>
+                    <div class="alert alert-info">
+                        <i class="fas fa-lightbulb me-2"></i>
+                        <strong>推荐学习路径:</strong> ${student.learningPath}
+                    </div>
+                    <ul class="list-unstyled">
+                        <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>重点突破弱项知识点</li>
+                        <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>加强概念理解和应用</li>
+                        <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i>定期进行学习效果评估</li>
+                        <li><i class="fas fa-check-circle text-success me-2"></i>结合错题本进行针对性练习</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// 导出报告
+function exportReport() {
+    if (!currentDiagnosisData) {
+        showAlert('请先进行诊断分析', 'warning');
+        return;
+    }
+
+    showAlert('报告导出功能开发中...', 'info');
+}
+
+// 工具函数
+function getMasteryColor(mastery) {
+    const value = parseFloat(mastery);
+    if (value >= 80) return '#52c41a';
+    if (value >= 60) return '#faad14';
+    return '#f5222d';
+}
+
+function showLoading(message) {
+    // 实现加载状态显示
+    console.log('加载中:', message);
+}
+
+function hideLoading() {
+    // 隐藏加载状态
+    console.log('加载完成');
+}
+
+function showAlert(message, type) {
+    const alertClass = {
+        success: 'alert-success',
+        warning: 'alert-warning',
+        info: 'alert-info',
+        error: 'alert-danger'
+    }[type] || 'alert-info';
+
+    const alert = document.createElement('div');
+    alert.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+    alert.style.cssText = 'top: 20px; right: 20px; z-index: 1050; min-width: 300px;';
+    alert.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+
+    document.body.appendChild(alert);
+
+    setTimeout(() => {
+        if (alert.parentNode) {
+            alert.parentNode.removeChild(alert);
+        }
+    }, 3000);
+}
+
+// 初始化
+document.addEventListener('DOMContentLoaded', function() {
+    initCharts();
+    setupEventListeners();
+});
+</script>
+{% endblock %}

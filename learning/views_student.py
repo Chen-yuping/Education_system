@@ -7,7 +7,7 @@ import json
 from itertools import groupby
 from .models import *
 from .forms import ExerciseForm, KnowledgePointForm, QMatrixForm
-from .diagnosis.views_diagnosis import knowledge_mastery_diagnoses
+from .diagnosis.views_diagnosis import *
 from django.utils import timezone
 from datetime import timedelta
 
@@ -130,7 +130,7 @@ def student_subject_selection(request):
     }
     return render(request, 'student/subject_selection.html', context)
 
-#"我的科目下的-单个课程列表页面"""
+#"单个课程列表页面"""
 @login_required
 @user_passes_test(is_student)
 def exercise_list(request, subject_id):

@@ -23,22 +23,26 @@ urlpatterns = [
     # 推荐完成页面
     path('recommendation-result/<int:subject_id>/',views_personalized_recommendations.recommendation_result, name='recommendation_result'),
 
+    #课程-做题-做题结果
     path('subject/<int:subject_id>/exercises/', views_student.exercise_list, name='exercise_list'),
     path('exercise/<int:exercise_id>/take/', views_student.take_exercise, name='take_exercise'),
     path('exercise/result/<int:log_id>/', views_student.exercise_result, name='exercise_result'),
+    path('subject/<int:subject_id>/exercise-logs/', views_student.subject_exercise_logs, name='subject_exercise_logs'),# 单个科目的答题log
 
     path('subject/<int:subject_id>/knowledge/', views_student.knowledge_points, name='knowledge_points'),
 
 #老师功能
-    path('teacher/dashboard/', views_teacher.teacher_dashboard, name='teacher_dashboard'),
-    #上传习题页面
-    path('teacher/upload/exercise/', views_exercisefile.upload_exercise, name='upload_exercise'),
+    path('teacher/dashboard/', views_teacher.teacher_dashboard, name='teacher_dashboard'),#教师面板
+    path('teacher/upload/exercise/', views_exercisefile.upload_exercise, name='upload_exercise'),#上传习题页面
+
+    # 知识点关系图页面,知识点数据接口
+    path('teacher/knowledge-graph/',views_teacherknowledge.knowledge_graph,name='teacher_knowledge_graph'),#知识点关系图
+    path('teacher/api/knowledge-points/<int:subject_id>/',views_teacherknowledge.knowledge_points_api,name='knowledge_points_api'),
+
+    path('teacher/subjects/', views_teacher.teacher_subject_management, name='teacher_subject_management'),#老师选择授课
 
     path('teacher/upload/knowledge/', views_teacher.upload_knowledge, name='upload_knowledge'),
     path('teacher/qmatrix/', views_teacher.q_matrix_management, name='q_matrix_management'),
-
-    #单个科目的答题log
-    path('subject/<int:subject_id>/exercise-logs/', views_student.subject_exercise_logs, name='subject_exercise_logs'),
 
     # 题库管理
     path('exercise-management/', views_teacher.exercise_management, name='exercise_management'),
@@ -50,6 +54,12 @@ urlpatterns = [
     path('exercise-management/export/', views_teacher.export_exercises, name='export_exercises'),
     #查看学生信息
     path('teacher/students/', views_teacher.student_info, name='student_info'),
+    path('teacher/api/student/<int:student_id>/answer-records/', views_teacher.get_student_answer_records, name='get_student_answer_records'),
+    #诊断
+    path('teacher/diagnosis/', views_diagnosis.diagnosis, name='diagnosis'),
+    path('teacher/api/diagnosis/run/', views_diagnosis.run_diagnosis, name='run_diagnosis'),
+    path('teacher/api/diagnosis/<int:diagnosis_id>/', views_diagnosis.get_diagnosis_result, name='get_diagnosis_result'),
+    path('teacher/api/student/<int:student_id>/diagnosis/<int:subject_id>/', views_diagnosis.get_student_diagnosis_detail, name='student_diagnosis_detail'),
 
 #研究者功能
     path('researcher/dashboard/', views_researcher.researcher_dashboard, name='researcher_dashboard'),

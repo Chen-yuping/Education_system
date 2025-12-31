@@ -6,7 +6,6 @@
 
 {% block content %}
 <style>
-    /* 学生信息页面特定样式 */
     .student-avatar {
         width: 40px;
         height: 40px;
@@ -46,9 +45,11 @@
 
 <!-- 页面标题 -->
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3 mb-3 border-bottom">
-    <h1 class="h2">学生信息管理</h1>
-    <div class="btn-toolbar mb-2 mb-md-0">
-        <span class="text-muted me-3">共 {{ total_students }} 名学生</span>
+    <div>
+        <h1 class="h2">{{ current_subject.name }}</h1>
+        {% if current_subject %}
+            <small class="text-muted"></small>
+        {% endif %}
     </div>
 </div>
 
@@ -60,7 +61,7 @@
                 <div class="row no-gutters align-items-center">
                     <div class="col mr-2">
                         <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
-                            总学生数
+                            选课学生数
                         </div>
                         <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_students }}</div>
                     </div>
@@ -73,17 +74,18 @@
     </div>
 
     <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card border-left-success shadow h-100 py-2">
+        <div class="card border-left-info shadow h-100 py-2">
             <div class="card-body">
                 <div class="row no-gutters align-items-center">
                     <div class="col mr-2">
-                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                            活跃学生
+                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                            教师授课总数
                         </div>
-                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ active_students }}</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ teacher_subjects_count }}</div>
+
                     </div>
                     <div class="col-auto">
-                        <i class="fas fa-user-check fa-2x text-gray-300"></i>
+                        <i class="fas fa-book fa-2x text-gray-300"></i>
                     </div>
                 </div>
             </div>
@@ -95,11 +97,16 @@
 <div class="filter-box">
     <div class="row">
         <div class="col-md-4 mb-3">
-            <label class="form-label">按年级筛选</label>
-            <select class="form-select" id="gradeFilter">
-                <option value="">所有年级</option>
-                {% for grade in grade_list %}
-                <option value="{{ grade }}">{{ grade }}</option>
+            <label class="form-label">按科目筛选</label>
+            <select class="form-select" id="subjectFilter">
+                <option value="">所有科目</option>
+                {% for teacher_subject in teacher_subjects %}
+                <option value="{{ teacher_subject.subject.id }}"
+                        {% if current_subject and current_subject.id == teacher_subject.subject.id %}selected{% endif %}>
+                    {{ teacher_subject.subject.name }}
+                </option>
+                {% empty %}
+                <option value="" disabled>暂无授课科目</option>
                 {% endfor %}
             </select>
         </div>
@@ -119,6 +126,9 @@
 <div class="card shadow">
     <div class="card-header py-3">
         <h6 class="m-0 font-weight-bold text-primary">学生列表</h6>
+        {% if current_subject %}
+            <small class="text-muted">当前科目: {{ current_subject.name }}</small>
+        {% endif %}
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
@@ -126,17 +136,17 @@
                 <thead class="table-light">
                     <tr>
                         <th>学生</th>
-                        <th>用户名</th>
+                        <th>邮箱</th>
                         <th>年级</th>
                         <th>学校</th>
-                        <th>答题数</th>
+                        <th>完成习题数</th>
                         <th>正确率</th>
-                        <th>最后学习时间</th>
+                        <th>操作</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for student in students %}
-                    <tr class="student-row" data-grade="{{ student.profile.grade|default:'' }}">
+                    <tr class="student-row">
                         <td>
                             <div class="d-flex align-items-center">
                                 <div class="student-avatar me-3">
@@ -144,27 +154,22 @@
                                 </div>
                                 <div>
                                     <div class="fw-bold">
-                                        {% if student.first_name %}
-                                            {{ student.first_name }}
-                                        {% else %}
-                                            {{ student.username }}
-                                        {% endif %}
+                                        {{ student.first_name }}{{ student.last_name }}
                                     </div>
-                                    <small class="text-muted">{{ student.email|default:"无邮箱" }}</small>
                                 </div>
                             </div>
                         </td>
-                        <td>{{ student.username }}</td>
+                        <td> {{ student.email|default:"无邮箱" }}</td>
                         <td>
-                            {% if student.profile.grade %}
-                                <span class="badge badge-grade">{{ student.profile.grade }}</span>
+                            {% if student.studentprofile.grade %}
+                                <span class="badge badge-grade">{{ student.studentprofile.grade }}</span>
                             {% else %}
                                 <span class="text-muted">-</span>
                             {% endif %}
                         </td>
                         <td>
-                            {% if student.profile.school %}
-                                {{ student.profile.school }}
+                            {% if student.studentprofile.school %}
+                                {{ student.studentprofile.school }}
                             {% else %}
                                 <span class="text-muted">-</span>
                             {% endif %}
@@ -189,18 +194,30 @@
                             </div>
                         </td>
                         <td>
-                            {% if student.last_active %}
-                                <small>{{ student.last_active|date:"Y-m-d H:i" }}</small>
-                            {% else %}
-                                <span class="text-muted small">未学习</span>
-                            {% endif %}
+                            <!-- 添加查看按钮 -->
+                            <button class="btn btn-sm btn-outline-primary view-records-btn"
+                                    data-student-id="{{ student.id }}"
+                                    data-student-name="{{ student.username }}"
+                                    {% if current_subject %}
+                                    data-subject-id="{{ current_subject.id }}"
+                                    {% endif %}>
+                                <i class="fas fa-history"></i> 查看做题记录
+                            </button>
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="7" class="text-center py-4">
-                            <i class="fas fa-user-slash fa-2x text-muted mb-3"></i>
-                            <p class="text-muted mb-0">暂无学生数据</p>
+                        <td colspan="8" class="text-center py-4">
+                            {% if teacher_subjects.exists %}
+                                <i class="fas fa-user-slash fa-2x text-muted mb-3"></i>
+                                <p class="text-muted mb-0">当前科目暂无学生</p>
+                            {% else %}
+                                <i class="fas fa-book fa-2x text-muted mb-3"></i>
+                                <p class="text-muted mb-0">您暂无授课科目</p>
+                                <a href="{% url 'teacher:subject_management' %}" class="btn btn-sm btn-primary mt-2">
+                                    <i class="fas fa-plus me-1"></i>申请授课
+                                </a>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -215,7 +232,7 @@
                 <ul class="pagination justify-content-center mb-0">
                     {% if students.has_previous %}
                     <li class="page-item">
-                        <a class="page-link" href="?page={{ students.previous_page_number }}">
+                        <a class="page-link" href="?page={{ students.previous_page_number }}{% if current_subject %}&subject={{ current_subject.id }}{% endif %}">
                             <i class="fas fa-chevron-left"></i>
                         </a>
                     </li>
@@ -224,14 +241,14 @@
                     {% for num in students.paginator.page_range %}
                         {% if num >= students.number|add:"-2" and num <= students.number|add:"2" %}
                         <li class="page-item {% if students.number == num %}active{% endif %}">
-                            <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                            <a class="page-link" href="?page={{ num }}{% if current_subject %}&subject={{ current_subject.id }}{% endif %}">{{ num }}</a>
                         </li>
                         {% endif %}
                     {% endfor %}
 
                     {% if students.has_next %}
                     <li class="page-item">
-                        <a class="page-link" href="?page={{ students.next_page_number }}">
+                        <a class="page-link" href="?page={{ students.next_page_number }}{% if current_subject %}&subject={{ current_subject.id }}{% endif %}">
                             <i class="fas fa-chevron-right"></i>
                         </a>
                     </li>
@@ -243,50 +260,215 @@
     </div>
 </div>
 
+<!-- 做题记录模态框 -->
+<div class="modal fade" id="recordModal" tabindex="-1" aria-labelledby="recordModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="recordModalLabel">学生做题记录</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="recordLoading" style="display: none;">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        <p class="mt-2">正在加载记录...</p>
+                    </div>
+                </div>
+                <div id="recordContent">
+                    <!-- 动态加载的内容会显示在这里 -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- JavaScript 功能 -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // 搜索功能
+    // 1. 科目筛选 - 跳转到对应科目页面
+    const subjectFilter = document.getElementById('subjectFilter');
+    if (subjectFilter) {
+        subjectFilter.addEventListener('change', function() {
+            const subjectId = this.value;
+            const currentUrl = new URL(window.location.href);
+
+            if (subjectId) {
+                currentUrl.searchParams.set('subject', subjectId);
+                currentUrl.searchParams.delete('page');
+            } else {
+                currentUrl.searchParams.delete('subject');
+                currentUrl.searchParams.delete('page');
+            }
+
+            window.location.href = currentUrl.toString();
+        });
+    }
+
+    // 2. 本地搜索功能
     const searchInput = document.getElementById('searchInput');
     const searchBtn = document.getElementById('searchBtn');
     const studentRows = document.querySelectorAll('.student-row');
 
-    function filterStudents() {
+    function filterStudentsBySearch() {
         const searchText = searchInput.value.toLowerCase();
-        const selectedGrade = document.getElementById('gradeFilter').value;
 
         studentRows.forEach(row => {
-            const studentText = row.querySelector('td:first-child').textContent.toLowerCase();
-            const usernameText = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
-            const grade = row.getAttribute('data-grade');
+            const studentName = row.querySelector('td:first-child').textContent.toLowerCase();
+            const username = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
 
             const matchesSearch = searchText === '' ||
-                                 studentText.includes(searchText) ||
-                                 usernameText.includes(searchText);
-            const matchesGrade = selectedGrade === '' || grade === selectedGrade;
+                                 studentName.includes(searchText) ||
+                                 username.includes(searchText);
 
-            row.style.display = (matchesSearch && matchesGrade) ? '' : 'none';
+            row.style.display = matchesSearch ? '' : 'none';
         });
     }
 
-    searchBtn.addEventListener('click', filterStudents);
-    searchInput.addEventListener('keyup', function(event) {
-        if (event.key === 'Enter') {
-            filterStudents();
-        }
-    });
+    if (searchBtn) {
+        searchBtn.addEventListener('click', filterStudentsBySearch);
+    }
 
-    // 年级筛选
-    document.getElementById('gradeFilter').addEventListener('change', filterStudents);
+    if (searchInput) {
+        searchInput.addEventListener('keyup', function(event) {
+            if (event.key === 'Enter') {
+                filterStudentsBySearch();
+            }
+        });
+    }
 
-    // 行点击效果（可以扩展到查看详情功能）
-    studentRows.forEach(row => {
-        row.addEventListener('click', function() {
-            // 这里可以添加点击查看学生详情的功能
-            // 比如：window.location.href = `/teacher/student/${this.dataset.id}/`;
-            console.log('点击了学生行，可以在此处添加查看详情功能');
+    // 3. 查看做题记录功能
+    const viewButtons = document.querySelectorAll('.view-records-btn');
+    const recordModal = new bootstrap.Modal(document.getElementById('recordModal'));
+
+    viewButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const studentId = this.getAttribute('data-student-id');
+            const studentName = this.getAttribute('data-student-name');
+            const subjectId = this.getAttribute('data-subject-id');
+
+            loadStudentRecords(studentId, studentName, subjectId);
+            recordModal.show();
         });
     });
+    // 加载学生做题记录
+    function loadStudentRecords(studentId, studentName, subjectId) {
+        const recordContent = document.getElementById('recordContent');
+        const recordLoading = document.getElementById('recordLoading');
+
+        // 显示加载状态
+        recordLoading.style.display = 'block';
+        recordContent.innerHTML = '';
+
+        // 更新模态框标题
+        document.getElementById('recordModalLabel').textContent = `学生做题记录 - ${studentName}`;
+
+        // 构建API URL
+        let apiUrl = `/learning/teacher/api/student/${studentId}/answer-records/`;
+
+        if (subjectId) {
+            apiUrl += `?subject_id=${subjectId}`;
+        }
+
+        console.log('请求API:', apiUrl);
+
+        // 发送请求获取记录
+        fetch(apiUrl, {
+            headers: {
+                'Accept': 'application/json',
+            }
+        })
+            .then(response => {
+                console.log('响应状态:', response.status, response.statusText);
+                if (!response.ok) {
+                    throw new Error(`HTTP错误: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('API响应:', data);
+
+                // 隐藏加载状态
+                recordLoading.style.display = 'none';
+
+                if (data.status === 'success') {
+                    if (data.records && data.records.length > 0) {
+                        // 显示记录表格
+                        let html = `
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>时间</th>
+                                            <th>习题</th>
+                                            <th>结果</th>
+                                            <th>耗时</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                        `;
+
+                        data.records.forEach(record => {
+                            const resultClass = record.is_correct ? 'success' : 'danger';
+                            const resultText = record.is_correct ? '正确' : '错误';
+                            const timeSpent = record.time_spent ? `${record.time_spent}秒` : '-';
+
+                            html += `
+                                <tr>
+                                    <td><small>${record.submitted_at}</small></td>
+                                    <td>${record.exercise_content}</td>
+                                    <td><span class="badge bg-${resultClass}">${resultText}</span></td>
+                                    <td><small>${timeSpent}</small></td>
+                                </tr>
+                            `;
+                        });
+
+                        html += `
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="mt-3 text-muted small">
+                                <i class="fas fa-info-circle me-1"></i>
+                                共 ${data.total_records} 条记录，当前显示最近 ${data.records.length} 条
+                            </div>
+                        `;
+
+                        recordContent.innerHTML = html;
+                    } else {
+                        recordContent.innerHTML = `
+                            <div class="text-center py-4">
+                                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                                <p class="text-muted">该学生暂无做题记录</p>
+                            </div>
+                        `;
+                    }
+                } else {
+                    recordContent.innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            ${data.message || '加载记录失败'}
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('请求失败:', error);
+                recordLoading.style.display = 'none';
+                recordContent.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        请求失败: ${error.message}
+                        <br><small>URL: ${apiUrl}</small>
+                    </div>
+                `;
+            });
+    }
 });
 </script>
+
 {% endblock %}

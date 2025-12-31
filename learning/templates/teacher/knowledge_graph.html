@@ -1,0 +1,513 @@
+{% extends 'teacher/base.html' %}
+{% load static %}
+
+{% block title %}知识点关系图 - 在线学习诊断系统{% endblock %}
+
+{% block content %}
+<style>
+    .knowledge-graph-container {
+        width: 100%;
+        height: 600px;
+        border: 1px solid #e9ecef;
+        border-radius: 5px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .node circle {
+        fill: #4e73df;
+        stroke: #2e59d9;
+        stroke-width: 2px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .node text {
+        font: 12px sans-serif;
+        fill: white;
+        font-weight: bold;
+        pointer-events: none;
+        text-anchor: middle;
+        dominant-baseline: central;
+    }
+
+    .link {
+        fill: none;
+        stroke: #999;
+        stroke-width: 2px;
+    }
+
+    .link.arrow {
+        marker-end: url(#arrowhead);
+    }
+
+    .node:hover circle {
+        fill: #ff5722;
+        stroke: #e64a19;
+        r: 35;
+    }
+
+    .tooltip {
+        position: absolute;
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 10px 15px;
+        border-radius: 6px;
+        font-size: 14px;
+        pointer-events: none;
+        z-index: 100;
+        max-width: 300px;
+        box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+        transition: opacity 0.2s;
+        display: none;
+    }
+
+    .tooltip h6 {
+        margin: 0 0 5px 0;
+        color: #ffcc00;
+        font-weight: bold;
+    }
+
+    .tooltip p {
+        margin: 2px 0;
+        font-size: 13px;
+    }
+
+    .arrow {
+        fill: #999;
+        stroke: #999;
+    }
+</style>
+
+<!-- 页面标题栏 -->
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">知识点关系图</h1>
+</div>
+
+<!-- 科目选择器 -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row align-items-center">
+            <div class="col-md-4">
+                <div class="form-group mb-0">
+                    <label for="subjectSelect" class="form-label fw-bold">选择科目</label>
+                    <select class="form-select" id="subjectSelect" onchange="safeLoadGraph()">
+                        <option value="">-- 请选择科目 --</option>
+                        {% for subject in subjects %}
+                        <option value="{{ subject.id }}"
+                                {% if default_subject and subject.id == default_subject.id %}selected{% endif %}>
+                            {{ subject.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-8">
+                <div class="text-end">
+                    <small class="text-muted">选择科目后自动加载图表，鼠标悬停查看详情</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 知识点关系图容器 -->
+<div class="card">
+    <div class="card-body p-0">
+        <div id="graphContainer" class="knowledge-graph-container">
+            <!-- 加载状态 -->
+            <div id="loading" style="position:absolute; top:0; left:0; width:100%; height:100%; display:none; flex-direction:column; justify-content:center; align-items:center; background:rgba(255,255,255,0.95); z-index:1000;">
+                <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+                    <span class="visually-hidden">加载中...</span>
+                </div>
+                <h5 class="mt-3 text-primary">正在加载知识点关系图...</h5>
+                <p id="loadingMessage" class="text-muted"></p>
+            </div>
+
+            <!-- 初始提示 -->
+            <div id="initialMessage" style="position:absolute; top:0; left:0; width:100%; height:100%; display:flex; flex-direction:column; justify-content:center; align-items:center;">
+                <i class="fas fa-hand-point-up fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">请选择科目</h5>
+                <p class="text-muted small">从上方选择科目查看知识点关系图</p>
+            </div>
+
+            <!-- 工具提示 -->
+            <div id="tooltip" class="tooltip"></div>
+
+            <!-- D3.js图表区域 -->
+            <div id="chart"></div>
+        </div>
+    </div>
+</div>
+
+<!-- 统计信息 -->
+<div id="stats" class="mt-3 alert alert-info" style="display:none;">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <i class="fas fa-chart-bar me-2"></i>
+            <span id="subjectName"></span>：
+            共 <span id="nodeCount" class="fw-bold">0</span> 个知识点，<span id="linkCount" class="fw-bold">0</span> 个关系
+        </div>
+        <div class="text-muted small">
+            <i class="fas fa-mouse-pointer me-1"></i>鼠标悬停查看详情 |
+            <i class="fas fa-arrows-alt me-1"></i>拖拽节点 |
+            <i class="fas fa-search me-1"></i>滚轮缩放
+        </div>
+    </div>
+</div>
+
+<!-- 图例 -->
+<div class="row mt-3">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body py-2">
+                <div class="d-flex align-items-center">
+                    <div class="me-3">
+                        <div style="width: 15px; height: 15px; border-radius: 50%; background: #4e73df; border: 2px solid #2e59d9;"></div>
+                    </div>
+                    <div class="flex-grow-1">
+                        <small class="text-muted">节点大小表示习题数量</small>
+                    </div>
+                    <div class="me-3">
+                        <svg width="40" height="15">
+                            <line x1="0" y1="7.5" x2="30" y2="7.5" stroke="#999" stroke-width="2"></line>
+                            <polygon points="30,7.5 25,4 25,11" fill="#999"></polygon>
+                        </svg>
+                    </div>
+                    <div>
+                        <small class="text-muted">箭头表示知识点关系方向</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- 引入D3.js -->
+<script src="https://d3js.org/d3.v7.min.js"></script>
+
+<script>
+// 全局变量
+let simulation, currentData = {};
+
+// 页面加载完成
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('页面加载完成');
+
+    // 初始化时隐藏统计信息
+    document.getElementById('stats').style.display = 'none';
+
+    // 检查是否有默认选中的科目
+    const select = document.getElementById('subjectSelect');
+    if (select && select.value) {
+        console.log('有默认科目，自动加载:', select.value);
+        loadKnowledgeGraph();
+    }
+});
+
+// 加载知识点关系图
+function loadKnowledgeGraph() {
+    const subjectSelect = document.getElementById('subjectSelect');
+    const subjectId = subjectSelect ? subjectSelect.value : null;
+    if (!subjectId) {
+        // 清空图表
+        d3.select('#chart').html('');
+        document.getElementById('initialMessage').style.display = 'flex';
+        document.getElementById('stats').style.display = 'none';
+        return;
+    }
+
+    console.log('加载科目ID:', subjectId);
+
+    // 显示加载中，隐藏初始提示
+    const loading = document.getElementById('loading');
+    const loadingMessage = document.getElementById('loadingMessage');
+
+    // 安全地设置textContent
+    if (loadingMessage) {
+        loadingMessage.textContent = `正在加载科目ID: ${subjectId} 的数据...`;
+    }
+
+    if (loading) {
+        loading.style.display = 'flex';
+    }
+
+    if (document.getElementById('initialMessage')) {
+        document.getElementById('initialMessage').style.display = 'none';
+    }
+
+    // 隐藏统计信息
+    const stats = document.getElementById('stats');
+    if (stats) {
+        stats.style.display = 'none';
+    }
+
+    // 清空之前的图表
+    d3.select('#chart').html('');
+
+    // 调用API - 注意URL路径需要正确
+    const apiUrl = `/learning/teacher/api/knowledge-points/${subjectId}/`;  // 注意这里，根据您的urls.py配置
+    console.log('调用API:', apiUrl);
+
+    fetch(apiUrl)
+        .then(response => {
+            console.log('API响应状态:', response.status);
+            console.log('Content-Type:', response.headers.get('content-type'));
+
+            // 检查是否是JSON响应
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                // 如果不是JSON，获取文本看看是什么
+                return response.text().then(text => {
+                    console.error('非JSON响应:', text.substring(0, 200));
+                    throw new Error(`服务器返回了非JSON响应: ${response.status}`);
+                });
+            }
+
+            if (!response.ok) {
+                throw new Error(`HTTP错误: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('收到数据:', data);
+
+            // 隐藏加载状态
+            if (loading) {
+                loading.style.display = 'none';
+            }
+
+            if (data.status === 'success') {
+                currentData = data;
+
+                // 显示统计信息
+                const nodeCountEl = document.getElementById('nodeCount');
+                const linkCountEl = document.getElementById('linkCount');
+                const subjectNameEl = document.getElementById('subjectName');
+                const statsEl = document.getElementById('stats');
+
+                if (nodeCountEl) nodeCountEl.textContent = data.node_count;
+                if (linkCountEl) linkCountEl.textContent = data.link_count;
+                if (subjectNameEl) subjectNameEl.textContent = data.subject_name;
+                if (statsEl) statsEl.style.display = 'block';
+
+                // 绘制图表
+                renderInteractiveGraph(data);
+            } else {
+                throw new Error(data.message || 'API返回失败状态');
+            }
+        })
+        .catch(error => {
+            console.error('加载失败:', error);
+            if (loading) {
+                loading.innerHTML = `
+                    <i class="fas fa-exclamation-triangle text-danger fa-3x mb-3"></i>
+                    <h5 class="text-danger">加载失败</h5>
+                    <p class="text-muted">${error.message}</p>
+                    <p class="text-muted small">检查网络连接或联系管理员</p>
+                    <button class="btn btn-sm btn-primary mt-2" onclick="safeLoadGraph()">重试</button>
+                `;
+            }
+        });
+}
+
+// 安全的加载函数，避免DOM错误
+function safeLoadGraph() {
+    try {
+        loadKnowledgeGraph();
+    } catch (error) {
+        console.error('重试时发生错误:', error);
+        alert('加载失败，请刷新页面重试');
+    }
+}
+
+// 绘制交互式关系图
+function renderInteractiveGraph(data) {
+    const container = document.getElementById('graphContainer');
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+
+    // 清空图表
+    d3.select('#chart').html('');
+
+    // 创建SVG
+    const svg = d3.select('#chart')
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height)
+        .call(d3.zoom()
+            .scaleExtent([0.1, 4])
+            .on('zoom', function(event) {
+                g.attr('transform', event.transform);
+            }));
+
+    const g = svg.append('g');
+
+    // 添加箭头定义（只用于单向关系）
+    const defs = svg.append('defs');
+
+    defs.append('marker')
+        .attr('id', 'arrowhead')
+        .attr('viewBox', '0 -5 10 10')
+        .attr('refX', 25)
+        .attr('refY', 0)
+        .attr('markerWidth', 6)
+        .attr('markerHeight', 6)
+        .attr('orient', 'auto')
+        .append('path')
+        .attr('d', 'M0,-5L10,0L0,5')
+        .attr('fill', '#999')
+        .attr('class', 'arrow');
+
+    // 创建力导向图
+    simulation = d3.forceSimulation(data.nodes)
+        .force('link', d3.forceLink(data.links).id(d => d.id).distance(100))
+        .force('charge', d3.forceManyBody().strength(10))
+        .force('center', d3.forceCenter(width / 2, height / 2))
+        .force('collision', d3.forceCollide().radius(50));
+
+    // 绘制链接
+    const link = g.append('g')
+        .attr('class', 'links')
+        .selectAll('line')
+        .data(data.links)
+        .enter().append('line')
+        .attr('class', d => `link ${d.arrow ? 'arrow' : ''}`)
+        .attr('stroke-width', d => d.arrow ? 2 : 2)
+        .attr('stroke', '#999')
+        .attr('stroke-dasharray', d => d.arrow ? 'none' : '5,5') // 双向关系用虚线
+        .attr('marker-end', d => d.arrow ? 'url(#arrowhead)' : null);
+
+    // 绘制节点
+    const node = g.append('g')
+        .attr('class', 'nodes')
+        .selectAll('g')
+        .data(data.nodes)
+        .enter().append('g')
+        .attr('class', 'node')
+        .call(d3.drag()
+            .on('start', dragstarted)
+            .on('drag', dragged)
+            .on('end', dragended));
+
+    // 节点圆圈（大小基于exercise_count）
+    node.append('circle')
+        .attr('r', d => {
+            const baseSize = 20;
+            const exerciseBonus = Math.min(d.exercise_count || 0, 30);
+            return baseSize + exerciseBonus;
+        })
+        .attr('fill', '#4e73df')
+        .attr('stroke', '#2e59d9')
+        .attr('stroke-width', 2);
+
+    // 节点文字
+    node.append('text')
+        .text(d => d.name)
+        .attr('x', 0)
+        .attr('y', 0)
+        .attr('text-anchor', 'middle')
+        .attr('fill', 'white')
+        .style('font-size', '12px')
+        .style('font-weight', 'bold')
+        .style('pointer-events', 'none');
+
+    // 节点悬停事件
+    node.on('mouseover', function(event, d) {
+        console.log('鼠标悬停在节点:', d.name);
+
+        // 高亮当前节点
+        d3.select(this).select('circle')
+            .attr('fill', '#ff5722')
+            .attr('stroke', '#e64a19')
+            .attr('stroke-width', 3);
+
+        // 高亮相关链接
+        link.style('stroke', function(linkData) {
+            return (linkData.source.id === d.id || linkData.target.id === d.id) ? '#ff5722' : '#999';
+        }).style('stroke-width', function(linkData) {
+            return (linkData.source.id === d.id || linkData.target.id === d.id) ? 3 : 2;
+        });
+
+        // 显示工具提示
+        const tooltip = document.getElementById('tooltip');
+        tooltip.innerHTML = `
+            <h6>${d.name}</h6>
+            <p><strong>科目:</strong> ${d.subject}</p>
+            <p><strong>习题数量:</strong> ${d.exercise_count || 0}</p>
+            <p><strong>知识点ID:</strong> ${d.id}</p>
+            <p class="text-warning small"><i class="fas fa-lightbulb me-1"></i>鼠标移开隐藏</p>
+        `;
+
+        // 定位工具提示
+        const rect = container.getBoundingClientRect();
+        tooltip.style.left = (event.clientX - rect.left + 20) + 'px';
+        tooltip.style.top = (event.clientY - rect.top - 60) + 'px';
+        tooltip.style.display = 'block';
+    });
+
+    node.on('mousemove', function(event) {
+        const tooltip = document.getElementById('tooltip');
+        const rect = container.getBoundingClientRect();
+        tooltip.style.left = (event.clientX - rect.left + 20) + 'px';
+        tooltip.style.top = (event.clientY - rect.top - 60) + 'px';
+    });
+
+    node.on('mouseout', function(event, d) {
+        // 恢复节点样式
+        d3.select(this).select('circle')
+            .attr('fill', '#4e73df')
+            .attr('stroke', '#2e59d9')
+            .attr('stroke-width', 2);
+
+        // 恢复链接样式
+        link.style('stroke', '#999')
+            .style('stroke-width', d => d.arrow ? 2 : 2);
+
+        // 隐藏工具提示
+        document.getElementById('tooltip').style.display = 'none';
+    });
+
+    // 力导向图更新
+    simulation.on('tick', () => {
+        link
+            .attr('x1', d => d.source.x)
+            .attr('y1', d => d.source.y)
+            .attr('x2', d => d.target.x)
+            .attr('y2', d => d.target.y);
+
+        node.attr('transform', d => `translate(${d.x},${d.y})`);
+    });
+
+    console.log('图表绘制完成');
+}
+
+// 拖拽函数
+function dragstarted(event) {
+    if (!event.active) simulation.alphaTarget(0.3).restart();
+    event.subject.fx = event.subject.x;
+    event.subject.fy = event.subject.y;
+}
+
+function dragged(event) {
+    event.subject.fx = event.x;
+    event.subject.fy = event.y;
+}
+
+function dragended(event) {
+    if (!event.active) simulation.alphaTarget(0);
+    event.subject.fx = null;
+    event.subject.fy = null;
+}
+
+// 窗口大小变化时重绘
+window.addEventListener('resize', function() {
+    const select = document.getElementById('subjectSelect');
+    if (select && select.value && currentData && currentData.nodes) {
+        renderInteractiveGraph(currentData);
+    }
+});
+</script>
+{% endblock %}
