@@ -1,0 +1,468 @@
+{% extends 'teacher/base.html' %}
+{% load static %}
+
+{% block title %}知识点关系图 - 在线学习诊断系统{% endblock %}
+
+{% block content %}
+
+<!-- 右侧主内容区域 -->
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">知识点关系图</h1>
+</div>
+
+<!-- 筛选区域 -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="form-group">
+                    <label for="subjectSelect">选择科目</label>
+                    <select class="form-select" id="subjectSelect" onchange="loadKnowledgeGraph()">
+                        <option value="">-- 请选择科目 --</option>
+                        {% for subject in subjects %}
+                        <option value="{{ subject.id }}">{{ subject.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-8 d-flex align-items-end">
+                <button class="btn btn-outline-secondary me-2" onclick="zoomIn()">
+                    <i class="fas fa-search-plus"></i> 放大
+                </button>
+                <button class="btn btn-outline-secondary me-2" onclick="zoomOut()">
+                    <i class="fas fa-search-minus"></i> 缩小
+                </button>
+                <button class="btn btn-outline-secondary" onclick="resetView()">
+                    <i class="fas fa-compress-arrows-alt"></i> 重置视图
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 关系图展示区域 -->
+<div class="card">
+    <div class="card-body">
+        <div id="graph-container" style="width: 100%; height: 600px; border: 1px solid #e9ecef; position: relative; overflow: hidden;">
+            <div id="empty-state" class="d-flex flex-column align-items-center justify-content-center h-100">
+                <i class="fas fa-project-diagram fa-5x text-gray-300 mb-3"></i>
+                <p class="text-muted">请选择一个科目查看知识点关系图</p>
+            </div>
+            <canvas id="knowledgeGraph" style="width: 100%; height: 100%; display: none;"></canvas>
+
+            <!-- 添加专属工具提示 -->
+            <div id="knowledge-graph-tooltip" class="tooltip"></div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<style>
+    .node {
+        cursor: pointer;
+    }
+    
+    .node circle {
+        fill: #fff;
+        stroke: #337ab7;
+        stroke-width: 2px;
+        transition: all 0.3s ease;
+    }
+
+    .node text {
+        font: 12px sans-serif;
+    }
+
+    .link {
+        fill: none;
+        stroke: #ccc;
+        stroke-width: 1.5px;
+    }
+
+    .node.active circle {
+        stroke: #ff5722;
+        stroke-width: 3px;
+    }
+    /* 确保工具提示正确显示 */
+    .tooltip {
+        position: absolute;
+        background: rgba(0, 0, 0, 0.9);
+        color: white;
+        padding: 12px 15px;
+        border-radius: 8px;
+        font-size: 14px;
+        pointer-events: none;
+        z-index: 10000;
+        max-width: 300px;
+        box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+        display: none;
+        opacity: 1;
+        visibility: visible;
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .tooltip h6 {
+        margin: 0 0 8px 0;
+        color: #ffcc00;
+        font-weight: bold;
+        border-bottom: 1px solid rgba(255,255,255,0.2);
+        padding-bottom: 5px;
+    }
+
+    .tooltip p {
+        margin: 5px 0;
+        font-size: 13px;
+    }
+</style>
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+    // 全局变量
+    let svg, simulation, graph = { nodes: [], links: [] };
+    let scale = 1;
+    let transformX = 0;
+    let transformY = 0;
+    let isDragging = false;
+    let dragStartX, dragStartY;
+    let currentZoom;
+
+    // 页面加载完成后初始化
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('知识点关系图页面加载完成');
+
+        // 初始化画布
+        initCanvas();
+
+        // 如果有科目参数，自动加载
+        const urlParams = new URLSearchParams(window.location.search);
+        const subjectId = urlParams.get('subject_id');
+        if (subjectId) {
+            document.getElementById('subjectSelect').value = subjectId;
+            loadKnowledgeGraph();
+        }
+    });
+
+    // 初始化画布
+    function initCanvas() {
+        const container = document.getElementById('graph-container');
+        const canvas = document.getElementById('knowledgeGraph');
+
+        // 创建SVG
+        svg = d3.select('#knowledgeGraph')
+            .append('svg')
+            .attr('width', '100%')
+            .attr('height', '100%')
+            .call(d3.zoom().on('zoom', (event) => {
+                g.attr('transform', event.transform);
+                currentZoom = event.transform;
+            }))
+            .append('g')
+            .attr('id', 'graphGroup');
+
+        g = d3.select('#graphGroup');
+    }
+
+    // 加载知识点关系图
+    function loadKnowledgeGraph() {
+        const subjectId = document.getElementById('subjectSelect').value;
+        if (!subjectId) {
+            // 显示初始状态
+            document.getElementById('empty-state').style.display = 'flex';
+            document.getElementById('knowledgeGraph').style.display = 'none';
+            return;
+        }
+
+        console.log('加载科目:', subjectId);
+
+        // 显示加载状态
+        document.getElementById('empty-state').style.display = 'none';
+        document.getElementById('knowledgeGraph').style.display = 'block';
+        d3.select('#graphGroup').html('<div class="d-flex justify-content-center align-items-center" style="height: 600px;"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">加载中...</span></div><div class="ms-3">正在加载知识点关系图...</div></div>');
+
+        // 从服务器获取知识点数据
+        // 注意：请确保这个API路径是正确的
+        fetch(`/api/knowledge-points/${subjectId}/`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP错误: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('收到数据:', data);
+                graph = {
+                    nodes: data.nodes.map(node => ({
+                        id: node.id,
+                        name: node.name,
+                        exercise_count: node.exercise_count || 0,
+                        full_name: node.full_name || node.name,
+                        x: Math.random() * 500,
+                        y: Math.random() * 400
+                    })),
+                    links: data.links.map(link => ({
+                        source: link.source,
+                        target: link.target,
+                        value: 1
+                    }))
+                };
+                renderGraph();
+            })
+            .catch(error => {
+                console.error('加载知识点失败:', error);
+                d3.select('#graphGroup').html(`
+                    <div class="text-center mt-5">
+                        <i class="fas fa-exclamation-triangle text-warning fa-3x mb-3"></i>
+                        <h5 class="text-danger">加载失败</h5>
+                        <p class="text-muted">${error.message}</p>
+                        <button class="btn btn-sm btn-primary mt-2" onclick="loadKnowledgeGraph()">重试</button>
+                    </div>
+                `);
+            });
+    }
+
+    // 渲染关系图
+    function renderGraph() {
+        console.log('渲染图表，节点数:', graph.nodes.length);
+
+        // 清空现有内容
+        d3.select('#graphGroup').html('');
+
+        // 如果没有数据
+        if (graph.nodes.length === 0) {
+            d3.select('#graphGroup').html(`
+                <div class="text-center mt-5">
+                    <i class="fas fa-database fa-3x text-gray-300 mb-3"></i>
+                    <h5 class="text-muted">暂无知识点数据</h5>
+                    <p class="text-muted small">该科目暂无知识点定义</p>
+                </div>
+            `);
+            return;
+        }
+
+        const container = document.getElementById('graph-container');
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+
+        // 创建力导向图
+        simulation = d3.forceSimulation(graph.nodes)
+            .force('link', d3.forceLink(graph.links).id(d => d.id).distance(150))
+            .force('charge', d3.forceManyBody().strength(-300))
+            .force('center', d3.forceCenter(width / 2, height / 2))
+            .force('collide', d3.forceCollide().radius(60))
+            .alphaDecay(0.05)
+            .velocityDecay(0.4);
+
+        // 绘制连接线
+        const link = d3.select('#graphGroup').append('g')
+            .attr('class', 'links')
+            .selectAll('line')
+            .data(graph.links)
+            .enter().append('line')
+            .attr('class', 'link')
+            .attr('stroke', '#999')
+            .attr('stroke-width', 2)
+            .attr('stroke-opacity', 0.6);
+
+        // 绘制节点组
+        const node = d3.select('#graphGroup').append('g')
+            .attr('class', 'nodes')
+            .selectAll('.node')
+            .data(graph.nodes)
+            .enter().append('g')
+            .attr('class', 'node')
+            .call(d3.drag()
+                .on('start', dragStarted)
+                .on('drag', draggedNode)
+                .on('end', dragEnded));
+
+        // 添加节点圆圈
+        node.append('circle')
+            .attr('r', 25)  // 固定大小
+            .attr('fill', '#337ab7')
+            .attr('stroke', '#fff')
+            .attr('stroke-width', 2);
+
+        // 添加节点文本
+        node.append('text')
+            .attr('text-anchor', 'middle')
+            .attr('dy', '0.35em')
+            .attr('fill', 'white')
+            .style('font-size', '11px')
+            .style('font-weight', 'bold')
+            .style('pointer-events', 'none')
+            .text(d => d.name);
+
+        // === 鼠标悬停事件 ===
+        node.on('mouseover', function(event, d) {
+            console.log('鼠标悬停在节点:', d.name);
+
+            // 高亮当前节点
+            d3.select(this).select('circle')
+                .attr('stroke', '#ff5722')
+                .attr('stroke-width', 3)
+                .attr('r', 28);  // 稍微放大
+
+            // 获取工具提示
+            const tooltip = document.getElementById('knowledge-graph-tooltip');
+            if (!tooltip) {
+                console.error('未找到工具提示元素');
+                return;
+            }
+
+            // 计算关联关系
+            const incoming = graph.links.filter(link => link.target.id === d.id).length;
+            const outgoing = graph.links.filter(link => link.source.id === d.id).length;
+
+            // 设置工具提示内容
+            tooltip.innerHTML = `
+                <h6>${d.full_name || d.name}</h6>
+                <p><strong>ID:</strong> ${d.id}</p>
+                <p><strong>关联习题数:</strong> ${d.exercise_count}</p>
+                <p><strong>入度连接:</strong> ${incoming} 个</p>
+                <p><strong>出度连接:</strong> ${outgoing} 个</p>
+                <p><strong>位置:</strong> (${Math.round(d.x)}, ${Math.round(d.y)})</p>
+            `;
+
+            // 获取容器位置
+            const container = document.getElementById('graph-container');
+            const rect = container.getBoundingClientRect();
+
+            // 计算工具提示位置
+            const tooltipWidth = tooltip.offsetWidth;
+            const tooltipHeight = tooltip.offsetHeight;
+
+            let left = event.clientX - rect.left + 15;
+            let top = event.clientY - rect.top - tooltipHeight - 10;
+
+            // 确保在容器内
+            if (left + tooltipWidth > rect.width) {
+                left = rect.width - tooltipWidth - 10;
+            }
+            if (top < 10) {
+                top = event.clientY - rect.top + 20;
+            }
+            if (left < 10) left = 10;
+            if (top < 10) top = 10;
+
+            // 显示工具提示
+            tooltip.style.left = left + 'px';
+            tooltip.style.top = top + 'px';
+            tooltip.style.display = 'block';
+        })
+        .on('mouseout', function(event, d) {
+            console.log('鼠标移出节点');
+
+            // 恢复节点样式
+            d3.select(this).select('circle')
+                .attr('stroke', '#fff')
+                .attr('stroke-width', 2)
+                .attr('r', 25);
+
+            // 隐藏工具提示
+            const tooltip = document.getElementById('knowledge-graph-tooltip');
+            if (tooltip) {
+                tooltip.style.display = 'none';
+            }
+        })
+        .on('mousemove', function(event) {
+            // 鼠标移动时更新工具提示位置
+            const tooltip = document.getElementById('knowledge-graph-tooltip');
+            if (tooltip && tooltip.style.display === 'block') {
+                const container = document.getElementById('graph-container');
+                const rect = container.getBoundingClientRect();
+
+                const tooltipWidth = tooltip.offsetWidth;
+                const tooltipHeight = tooltip.offsetHeight;
+
+                let left = event.clientX - rect.left + 15;
+                let top = event.clientY - rect.top - tooltipHeight - 10;
+
+                // 确保在容器内
+                if (left + tooltipWidth > rect.width) {
+                    left = rect.width - tooltipWidth - 10;
+                }
+                if (top < 10) {
+                    top = event.clientY - rect.top + 20;
+                }
+                if (left < 10) left = 10;
+                if (top < 10) top = 10;
+
+                tooltip.style.left = left + 'px';
+                tooltip.style.top = top + 'px';
+            }
+        });
+
+        // 更新力导向图
+        simulation.on('tick', () => {
+            // 限制节点在边界内
+            graph.nodes.forEach(node => {
+                node.x = Math.max(30, Math.min(width - 30, node.x));
+                node.y = Math.max(30, Math.min(height - 30, node.y));
+            });
+
+            link
+                .attr('x1', d => d.source.x)
+                .attr('y1', d => d.source.y)
+                .attr('x2', d => d.target.x)
+                .attr('y2', d => d.target.y);
+
+            node
+                .attr('transform', d => `translate(${d.x},${d.y})`);
+        });
+
+        console.log('图表渲染完成');
+    }
+
+    // 拖拽事件处理
+    function dragStarted(event) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        event.subject.fx = event.subject.x;
+        event.subject.fy = event.subject.y;
+    }
+
+    function draggedNode(event) {
+        event.subject.fx = event.x;
+        event.subject.fy = event.y;
+    }
+
+    function dragEnded(event) {
+        if (!event.active) simulation.alphaTarget(0);
+        event.subject.fx = null;
+        event.subject.fy = null;
+    }
+
+    // 缩放控制
+    function zoomIn() {
+        if (currentZoom) {
+            currentZoom.k *= 1.2;
+            d3.select('#graphGroup').attr('transform', currentZoom);
+        }
+    }
+
+    function zoomOut() {
+        if (currentZoom && currentZoom.k > 0.2) {
+            currentZoom.k *= 0.8;
+            d3.select('#graphGroup').attr('transform', currentZoom);
+        }
+    }
+
+    function resetView() {
+        currentZoom = d3.zoomIdentity;
+        d3.select('#graphGroup').attr('transform', currentZoom);
+
+        // 重置节点位置
+        if (simulation) {
+            simulation.alpha(1).restart();
+        }
+    }
+
+    // 窗口大小改变时重绘
+    window.addEventListener('resize', function() {
+        if (graph.nodes.length > 0) {
+            renderGraph();
+        }
+    });
+</script>
+{% endblock %}

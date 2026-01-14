@@ -44,7 +44,7 @@ class StudentSubject(models.Model):
     def __str__(self):
         return f"{self.student.username} - {self.subject.name}"
 
-#知识点
+#对应数据库learning_knowledgepoint
 class KnowledgePoint(models.Model):
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, verbose_name="所属科目")
     name = models.CharField(max_length=200, verbose_name="知识点名称")
@@ -59,7 +59,7 @@ class KnowledgePoint(models.Model):
     def __str__(self):
         return f"{self.subject.name} - {self.name}"
 
-#知识点关系图
+# 对应数据库learning_knowledge_graph
 class KnowledgeGraph(models.Model):
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, verbose_name="所属科目")
     source = models.ForeignKey(KnowledgePoint, on_delete=models.CASCADE, related_name='outgoing')
@@ -81,7 +81,7 @@ class KnowledgeGraph(models.Model):
             target=self.source
         ).exists()
 
-#习题
+#对应数据库learning_exercise
 class Exercise(models.Model):
 
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, verbose_name="所属科目")
@@ -99,7 +99,7 @@ class Exercise(models.Model):
     def __str__(self):
         return self.title
 
-#选项
+#对应数据库learning_choice
 class Choice(models.Model):
     exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE, related_name='choices', verbose_name="所属习题")
     content = models.CharField(max_length=500, verbose_name="选项内容")
@@ -114,7 +114,7 @@ class Choice(models.Model):
     def __str__(self):
         return f"{self.exercise.title} - 选项 {self.order}"
 
-#Q矩阵
+#对应数据库learning_qmatrix
 class QMatrix(models.Model):
     exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE, verbose_name="习题")
     knowledge_point = models.ForeignKey(KnowledgePoint, on_delete=models.CASCADE, verbose_name="知识点")
@@ -128,7 +128,7 @@ class QMatrix(models.Model):
     def __str__(self):
         return f"{self.exercise.title} - {self.knowledge_point.name}"
 
-#回答记录
+#对应数据库learning_answerlog
 class AnswerLog(models.Model):
     student = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="学生")
     exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE, verbose_name="习题")
@@ -137,17 +137,10 @@ class AnswerLog(models.Model):
     is_correct = models.BooleanField(null=True, verbose_name="是否正确")
     time_spent = models.IntegerField(default=0, verbose_name="答题耗时(秒)")
     submitted_at = models.DateTimeField(auto_now_add=True, verbose_name="提交时间")
-    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, verbose_name="所属科目", null=True, blank=True)
 
     class Meta:
         verbose_name = "答题记录"
         verbose_name_plural = "答题记录"
-
-    def save(self, *args, **kwargs):
-        # 自动从关联的 exercise 获取 subject
-        if self.exercise_id and not self.subject_id:
-            self.subject = self.exercise.subject
-        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.student.username} - {self.exercise.title}"
@@ -164,14 +157,11 @@ class DiagnosisModel(models.Model):
     def __str__(self):
         return self.name
 
-
-
 #对应数据库learning_studentdiagnosis
 class StudentDiagnosis(models.Model):
     student = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="学生")
     knowledge_point = models.ForeignKey(KnowledgePoint, on_delete=models.CASCADE, verbose_name="知识点")
     mastery_level = models.FloatField(default=0.0, verbose_name="掌握程度")
-    diagnosis_model = models.ForeignKey(DiagnosisModel,default=1, on_delete=models.CASCADE, verbose_name="使用模型")
     last_practiced = models.DateTimeField(auto_now=True, verbose_name="最后练习时间")
     practice_count = models.IntegerField(default=0, verbose_name="练习次数")
     correct_count = models.IntegerField(default=0, verbose_name="正确次数")
@@ -179,6 +169,7 @@ class StudentDiagnosis(models.Model):
     class Meta:
         verbose_name = "学生诊断"
         verbose_name_plural = "学生诊断"
+        unique_together = ['student', 'knowledge_point']
 
     def __str__(self):
         return f"{self.student.username} - {self.knowledge_point.name}"

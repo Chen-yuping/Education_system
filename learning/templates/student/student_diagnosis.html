@@ -90,7 +90,7 @@
     }
     .knowledge-diagnosis-container {
         width: 90%;
-        height: 500px;
+        height: 400px;
         border: 1px solid #e9ecef;
         border-radius: 5px;
         position: relative;
@@ -560,7 +560,7 @@ function renderDiagnosisGraph(data) {
         .attr('height', height)
         .attr('viewBox', [0, 0, width, height])
         .call(d3.zoom()
-            .scaleExtent([0.1, 8])
+            .scaleExtent([0.1, 4])
             .on('zoom', function(event) {
                 g.attr('transform', event.transform);
             }))
@@ -587,8 +587,8 @@ function renderDiagnosisGraph(data) {
     // 处理节点
     const nodes = data.nodes.map((node, i) => ({
         ...node,
-        x: width / 2 + Math.cos(i * 2 * Math.PI / data.nodes.length) * 250,
-        y: height / 2 + Math.sin(i * 2 * Math.PI / data.nodes.length) * 250
+        x: width / 2 + Math.cos(i * 2 * Math.PI / data.nodes.length) * 150,
+        y: height / 2 + Math.sin(i * 2 * Math.PI / data.nodes.length) * 150
     }));
 
     // 处理链接
@@ -602,30 +602,24 @@ function renderDiagnosisGraph(data) {
     console.log('链接:', links);
 
     // 修正后的力模拟设置
-   const simulation = d3.forceSimulation(nodes)
-        // 关键：链接距离要足够大，让节点能分开
+    const simulation = d3.forceSimulation(nodes)
         .force('link', d3.forceLink(links)
             .id(d => d.id)
-            .distance(150)           // 增加距离：让有关系的节点适度分开
-            .strength(0.2))          // 减小强度：避免拉扯太紧
-
-        // 关键：排斥力要足够强，让无关节点推开
+            .distance(150)        // 增加距离，让节点更分散
+            .strength(0.8))       // 增加链接强度
         .force('charge', d3.forceManyBody()
-            .strength(-80))          // 中等排斥力
-
-        // 关键：中心引力要小，让节点能分散开
+            .strength(-200)       // 减小排斥力强度（原来是-300）
+            .distanceMax(200))    // 限制最大作用距离
         .force('center', d3.forceCenter(width / 2, height / 2)
-            .strength(0.02))         // 很小的中心引力
-
-        // 碰撞力防止重叠
+            .strength(0.2))       // 增加中心引力强度
         .force('collision', d3.forceCollide()
-            .radius(30)
-            .strength(0.8))
-
-        // 关键：减慢布局过程，让节点有时间找到合适位置
-        .alphaDecay(0.01)            // 非常慢的衰减
-        .velocityDecay(0.8)          // 适当速度衰减
-        .alpha(0.3);                 // 中等启动能量
+            .radius(50)           // 增加碰撞半径
+            .strength(1.0))       // 增加碰撞强度
+        .force('x', d3.forceX(width / 2).strength(0.1))  // 添加X轴约束
+        .force('y', d3.forceY(height / 2).strength(0.1))  // 添加Y轴约束
+        .alphaDecay(0.05)         // 加快衰减
+        .velocityDecay(0.6)       // 增加速度衰减
+        .alpha(0.5);              // 设置初始alpha值
 
     // 绘制链接
     const link = g.append('g')
@@ -685,11 +679,11 @@ function renderDiagnosisGraph(data) {
         node
             .attr('cx', d => {
                 // 限制在边界内
-                d.x = Math.max(30, Math.min(width - 50, d.x));
+                d.x = Math.max(30, Math.min(width - 30, d.x));
                 return d.x;
             })
             .attr('cy', d => {
-                d.y = Math.max(30, Math.min(height - 50, d.y));
+                d.y = Math.max(30, Math.min(height - 30, d.y));
                 return d.y;
             });
 

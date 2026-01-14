@@ -49,6 +49,31 @@
 
         </ul>
 
+        <!-- 科目管理部分 -->
+        <h6 class="sidebar-heading">
+            <span>科目管理</span>
+            <button class="collapse-btn" type="button">
+                <i class="fas fa-chevron-down"></i>
+            </button>
+        </h6>
+        <div class="nav-collapse">
+            <ul class="nav flex-column">
+                {% for subject in subjects %}
+                <li class="nav-item">
+                    <a class="nav-link {% if request.resolver_match.url_name == 'exercise_list' and subject.id|stringformat:'s' in request.path %}active{% endif %}"
+                       href="{% url 'exercise_list' subject.id %}">
+                        <i class="fas fa-book"></i> {{ subject.name }}
+                    </a>
+                </li>
+                {% empty %}
+                <li class="nav-item">
+                    <a class="nav-link text-muted" href="#">
+                        <i class="fas fa-book"></i> 暂无科目
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
 
     </div>
 </nav>
