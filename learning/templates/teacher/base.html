@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}在线学习诊断系统{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    {% load static %}
+    <link href="{% static 'css/style.css' %}" rel="stylesheet">
+
+    <!-- 页面特定的CSS -->
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+    <!-- 页眉 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'home' %}">
+                <i class="fas fa-graduation-cap"></i> 学习诊断系统
+            </a>
+            <div class="navbar-nav ms-auto">
+                {% if user.is_authenticated %}
+                    <span class="navbar-text me-3">
+                        <i class="fas fa-user"></i> {{ user.username }} ({{ user.get_user_type_display }})
+                    </span>
+                    <a class="nav-link" href="{% url 'logout' %}">
+                        <i class="fas fa-sign-out-alt"></i> 退出
+                    </a>
+                {% else %}
+                    <a class="nav-link" href="{% url 'login' %}">
+                        <i class="fas fa-sign-in-alt"></i> 登录
+                    </a>
+                    <a class="nav-link" href="{% url 'register' %}">
+                        <i class="fas fa-user-plus"></i> 注册
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="teacher-container">
+            <nav class="teacher-sidebar">
+                {% include 'teacher/sidebar_teacher.html' %}
+            </nav>
+            <main class="teacher-main-content">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- 页面特定的JavaScript -->
+    {% block extra_js %}{% endblock %}
+
+</body>
+</html>
+
+<style>
+    /* 重置容器样式 */
+    .container.mt-4 {
+        margin: 0 !important;
+        padding: 0 !important;
+        max-width: 100% !important;
+        width: 100% !important;
+    }
+
+    /* 教师页面布局样式 */
+    .teacher-container {
+        display: flex;
+        min-height: calc(100vh - 80px); /* 减去导航栏高度 */
+        margin-top: 20px; /* 与导航栏的间距 */
+    }
+
+    /* 侧边栏样式 */
+    .teacher-sidebar {
+        width: 280px;
+        background-color: #f8f9fa;
+        border-right: 1px solid #dee2e6;
+        flex-shrink: 0;
+        padding: 0 10px 0;
+    }
+
+    /* 主内容区域 */
+    .teacher-main-content {
+        flex: 1;
+        padding: 20px;
+        min-height: 100%;
+        background-color: #ffffff;
+    }
+    .sidebar-nav .nav-link i {
+        width: 20px;
+        text-align: center;
+        margin-right: 10px;
+    }
+    /* 移动设备响应式 */
+    @media (max-width: 768px) {
+        .teacher-container {
+            flex-direction: column;
+        }
+
+        .teacher-sidebar {
+            width: 100%;
+            border-right: none;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .teacher-main-content {
+            padding: 20px;
+        }
+    }
+
+
+</style>

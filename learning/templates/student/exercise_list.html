@@ -1,0 +1,217 @@
+{% extends 'student/base.html' %}
+
+{% block title %}习题列表 - 在线学习诊断系统{% endblock %}
+
+{% block content %}
+<!-- 单个课程页面显示 -->
+
+<style>
+    /* 在style部分添加 */
+    .progress {
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .progress-bar {
+        border-radius: 4px;
+    }
+
+    .bg-primary {
+        background-color: #0668fa !important;
+    }
+
+    .bg-success {
+        background-color: #2ecc71 !important;
+    }
+
+
+    /* 主内容区域 */
+    .student-main-content {
+        flex: 1;
+        padding: 20px;
+        min-height: 100%;
+        background-color: #ffffff;
+    }
+
+    .sidebar-nav .nav-link i {
+        width: 20px;
+        text-align: center;
+        margin-right: 10px;
+    }
+    /* 习题卡片样式 */
+    .exercise-card {
+        border: none;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        transition: all 0.3s ease;
+        margin-bottom: 20px;
+    }
+
+    .exercise-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+
+    .exercise-card .card-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 10px 10px 0 0 !important;
+        border: none;
+    }
+
+
+
+
+
+
+</style>
+
+
+<!-- 右侧主内容区域 -->
+<main class="student-main-content">
+    <!-- 页面标题 -->
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3 mb-3 border-bottom">
+        <div>
+            <h1 class="h2">{{ subject.name }}习题</h1>
+            <p class="text-muted mb-0">{{ subject.description|default:"开始您的学习之旅" }}</p>
+        </div>
+        <div>
+            <a href="{% url 'subject_exercise_logs' subject.id %}" class="btn btn-outline-primary">
+                <i class="fas fa-history me-1"></i>查看做题记录
+            </a>
+        </div>
+    </div>
+
+    <!-- 学习进度卡片 - 简洁美观版 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-light shadow-sm">
+                <div class="card-body p-4">
+                    <!-- 标题 -->
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="card-title mb-0 text-dark">
+                            <i class="fas fa-chart-line text-primary me-2"></i>学习统计
+                        </h6>
+                        <span class="badge bg-primary rounded-pill">{{ progress.percentage }}%</span>
+                    </div>
+
+                    <!-- 进度条 -->
+                    <div class="mb-4">
+                        <div class="progress" style="height: 8px; border-radius: 4px; background-color: #f1f3f4;">
+                            <div class="progress-bar bg-primary"
+                                 style="width: {{ progress.percentage }}%; border-radius: 4px;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 统计卡片 -->
+                    <div class="row g-2">
+                        <div class="col-3">
+                            <div class="text-center border rounded py-2" style="background: #e3f2fd;">
+                                <div class="h5 mb-1 text-dark">{{ progress.total }}</div>
+                                <div class="small text-muted">题目总数</div>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div class="text-center border rounded py-2" style="background: #d4efd8">
+                                <div class="h5 mb-1 text-dark">{{ progress.total_attempts }}</div>
+                                <div class="small text-muted">做题次数</div>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div class="text-center border rounded py-2" style="background: #e3f2fd;">
+                                <div class="h5 mb-1 text-success">{{ progress.correct_attempts }}</div>
+                                <div class="small text-muted">正确次数</div>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div class="text-center border rounded py-2" style="background: #d4efd8">
+                                <div class="h5 mb-1 text-info">{{ progress.accuracy }}%</div>
+                                <div class="small text-muted">正确率</div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 习题列表 -->
+    <div class="row">
+        {% for exercise_set in grouped_exercises %}
+        <div class="col-lg-6 mb-4">
+            <div class="card exercise-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"> {{ exercise_set.title }}</h6>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">包含 {{ exercise_set.exercise_count }} 道题目</p>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <small class="text-muted">
+                                <i class="fas fa-question-circle me-1"></i>
+                                习题集
+                            </small>
+                        </div>
+                        <div>
+                            {% if exercise_set.completed %}
+                            <span class="badge bg-success me-2">
+                                <i class="fas fa-check me-1"></i>已完成
+                            </span>
+                            {% endif %}
+                            <a href="{% url 'take_exercise' exercise_id=exercise_set.exercises.0.id %}"
+                               class="btn btn-primary btn-sm">
+                                 {% if exercise_set.completed %}
+                                 <i class="fas fa-redo me-1"></i>重新练习
+                                 {% else %}
+                                 <i class="fas fa-play me-1"></i>开始答题
+                                 {% endif %}
+                            </a>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="text-center py-5">
+                <i class="fas fa-book-open fa-4x text-muted mb-3"></i>
+                <h4 class="text-muted">暂无习题</h4>
+                <p class="text-muted">该科目暂时没有可用的习题</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+
+</main>
+
+
+<script>
+// 移动设备侧边栏切换
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.innerWidth < 768) {
+        const sidebar = document.querySelector('.student-sidebar');
+        const toggleBtn = document.createElement('button');
+
+        toggleBtn.className = 'btn btn-primary btn-sm';
+        toggleBtn.innerHTML = '<i class="fas fa-bars"></i>';
+        toggleBtn.style.position = 'fixed';
+        toggleBtn.style.top = '80px';
+        toggleBtn.style.right = '20px';
+        toggleBtn.style.zIndex = '1000';
+
+        let sidebarVisible = false;
+        toggleBtn.addEventListener('click', function() {
+            sidebarVisible = !sidebarVisible;
+            sidebar.style.display = sidebarVisible ? 'block' : 'none';
+        });
+
+        document.body.appendChild(toggleBtn);
+        sidebar.style.display = 'none';
+    }
+});
+</script>
+{% endblock %}

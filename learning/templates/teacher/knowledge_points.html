@@ -1,0 +1,36 @@
+<!-- learning/templates/teacher/knowledge_points.html -->
+{% extends 'teacher/base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header">
+            <h4>知识点管理</h4>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                {% for subject in subjects %}
+                <div class="col-md-4 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ subject.name }}</h5>
+                            <p class="card-text">{{ subject.description|truncatechars:50 }}</p>
+                            <a href="{% url 'teacher_knowledge_graph' %}?subject_id={{ subject.id }}"
+                               class="btn btn-primary btn-sm">
+                                查看知识点关系图
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        暂无授课科目
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

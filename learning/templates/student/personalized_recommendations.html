@@ -1,0 +1,302 @@
+{% extends 'student/base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<style>
+    .exercise-card {
+        border: none;
+        border-radius: 10px;
+        box-shadow: 0 3px 15px rgba(0,0,0,0.08);
+        margin-bottom: 20px;
+        transition: all 0.3s ease;
+    }
+
+    .exercise-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 5px 20px rgba(0,0,0,0.12);
+    }
+
+    .card-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 10px 10px 0 0 !important;
+    }
+
+    .badge-recommend {
+        background: #dc3545;
+        color: white;
+        padding: 5px 10px;
+        border-radius: 15px;
+        font-size: 0.9rem;
+    }
+
+    .badge-new {
+        background: #28a745;
+        color: white;
+        padding: 5px 10px;
+        border-radius: 15px;
+        font-size: 0.9rem;
+    }
+
+    .knowledge-tag {
+        display: inline-block;
+        padding: 4px 10px;
+        margin: 2px 5px 2px 0;
+        background-color: #e3f2fd;
+        color: #1976d2;
+        border-radius: 15px;
+        font-size: 0.85rem;
+        border: 1px solid #bbdefb;
+    }
+
+    .weak-tag {
+        background-color: #ffebee;
+        color: #d32f2f;
+        border: 1px solid #ffcdd2;
+    }
+
+    .btn-start {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        color: white;
+        padding: 8px 20px;
+        border-radius: 20px;
+        font-weight: 500;
+    }
+
+    .btn-start:hover {
+        color: white;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    }
+
+    .weak-point-item {
+        padding: 10px 15px;
+        border-left: 3px solid #dc3545;
+        margin-bottom: 10px;
+        background: #fff5f5;
+        border-radius: 5px;
+    }
+</style>
+
+<div class="container mt-4">
+    <!-- 标题和科目选择 -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h4 class="mb-1">{{ title }}</h4>
+                    <p class="mb-0 text-muted">
+                        <i class="fas fa-book me-2"></i>{{ current_subject.name }}
+                    </p>
+                </div>
+                <div class="d-flex align-items-center">
+                    <!-- 科目选择下拉框 -->
+                    <select class="form-select me-3" style="width: 200px;"
+                            onchange="window.location.href='{% url 'personalized_recommendations' 0 %}'.replace('/0/', '/' + this.value + '/')">
+                        {% for sub in subjects %}
+                        <option value="{{ sub.subject.id }}"
+                                {% if current_subject.id == sub.subject.id %}selected{% endif %}>
+                            {{ sub.subject.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <button class="btn btn-outline-primary" onclick="location.reload()">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- 左侧：推荐习题列表 -->
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-star me-2"></i>为您推荐的习题
+                        <span class="badge bg-light text-dark ms-2">{{ exercises|length }} 题</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if exercises %}
+                        {% for exercise in exercises %}
+                        <div class="exercise-card">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <div>
+                                        <h5 class="card-title mb-2">{{ exercise.title }}</h5>
+                                        <div class="mb-2">
+                                            <span class="badge bg-light text-dark me-2">
+                                                <i class="fas fa-question-circle me-1"></i>
+                                                {% if exercise.question_type == '1' %}单选题
+                                                {% elif exercise.question_type == '2' %}多选题
+                                                {% elif exercise.question_type == '3' %}投票题
+                                                {% elif exercise.question_type == '4' %}填空题
+                                                {% elif exercise.question_type == '5' %}主观题
+                                                {% else %}判断题{% endif %}
+                                            </span>
+
+                                            <!-- 显示推荐标签 -->
+                                            {% with weak_knowledge_count=exercise.qmatrix_set.count %}
+                                            {% if weak_knowledge_count > 0 %}
+                                            <span class="badge-recommend me-2">
+                                                <i class="fas fa-exclamation-triangle me-1"></i>
+                                                薄弱知识点相关
+                                            </span>
+                                            {% else %}
+                                            <span class="badge-new">
+                                                <i class="fas fa-star me-1"></i>
+                                                新习题
+                                            </span>
+                                            {% endif %}
+                                            {% endwith %}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <a href="{% url 'take_exercise' exercise.id %}" class="btn btn-start">
+                                            <i class="fas fa-play me-1"></i>开始练习
+                                        </a>
+                                    </div>
+                                </div>
+
+                                <!-- 题目内容预览 -->
+                                <div class="mb-3">
+                                    <p class="text-muted small mb-2">题目预览：</p>
+                                    <div class="bg-light p-3 rounded" style="max-height: 120px; overflow: auto;">
+                                        {{ exercise.content|truncatechars:300|linebreaks }}
+                                    </div>
+                                    <div class="bg-light p-3 rounded" style="max-height: 120px; overflow: auto;">
+                                        {{ exercise.option_text|truncatechars:300|linebreaks }}
+                                    </div>
+                                </div>
+
+                                <!-- 涉及知识点 -->
+                                <div class="mb-3">
+                                    <p class="text-muted small mb-2">涉及知识点：</p>
+                                    <div>
+                                        {% for q_matrix in exercise.qmatrix_set.all %}
+                                        <span class="knowledge-tag {% if q_matrix.knowledge_point.mastery_level < 0.6 %}weak-tag{% endif %}">
+                                            {{ q_matrix.knowledge_point.name }}
+                                        </span>
+                                        {% empty %}
+                                        <span class="text-muted">未关联知识点</span>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+
+                                <!-- 统计信息 -->
+                                <div class="d-flex justify-content-between text-muted small pt-3 border-top">
+                                    <div>
+                                        <i class="fas fa-history me-1"></i>
+                                        已有 {{ exercise.answerlog_set.count }} 人练习
+                                    </div>
+                                    <div>
+                                        <i class="fas fa-clock me-1"></i>
+                                        建议时间: 5分钟
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">暂无推荐习题</h5>
+                        <p class="text-muted mb-4">请先完成一些练习，系统会根据您的掌握情况推荐习题。</p>
+                        <a href="{% url 'exercise_list' current_subject.id %}" class="btn btn-primary">
+                            <i class="fas fa-list me-2"></i>查看所有习题
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧：薄弱知识点分析 -->
+        <div class="col-lg-4">
+            <!-- 薄弱知识点卡片 -->
+            <div class="card mb-4">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-exclamation-triangle me-2"></i>薄弱知识点
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if weak_points %}
+                        {% for point in weak_points %}
+                        <div class="weak-point-item">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <strong>{{ point.knowledge_point.name }}</strong>
+                                <span class="badge bg-danger">
+                                    {{ point.mastery_level|floatformat:0 }}%
+                                </span>
+                            </div>
+                            <div class="progress" style="height: 6px;">
+                                <div class="progress-bar bg-danger"
+                                     style="width: {{ point.mastery_level|floatformat:0 }}%">
+                                </div>
+                            </div>
+
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-check-circle fa-2x text-success mb-3"></i>
+                        <p class="text-muted mb-0">当前没有薄弱知识点</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- 推荐说明 -->
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="mb-3">
+                        <i class="fas fa-info-circle me-2 text-primary"></i>推荐规则
+                    </h6>
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-2">
+                            <small><i class="fas fa-dot-circle text-danger me-2"></i>
+                            优先推荐<strong>薄弱知识点</strong>相关习题</small>
+                        </li>
+                        <li class="mb-2">
+                            <small><i class="fas fa-dot-circle text-success me-2"></i>
+                            其次推荐<strong>未做过</strong>的新习题</small>
+                        </li>
+                        <li>
+                            <small><i class="fas fa-dot-circle text-warning me-2"></i>
+                            最后推荐<strong>做错过</strong>的习题</small>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 快速操作 -->
+            <div class="card mt-4">
+                <div class="card-body text-center">
+                    <a href="{% url 'exercise_list' current_subject.id %}" class="btn btn-outline-primary w-100 mb-2">
+                        <i class="fas fa-list me-2"></i>查看所有习题
+                    </a>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// 科目切换函数
+function changeSubject() {
+    const select = document.querySelector('.form-select');
+    const subjectId = select.value;
+    const currentUrl = window.location.href;
+
+    // 构建新的URL
+    const baseUrl = currentUrl.split('/personalized-recommendations/')[0];
+    window.location.href = baseUrl + '/personalized-recommendations/' + subjectId + '/';
+}
+</script>
+{% endblock %}

@@ -1,0 +1,362 @@
+{% extends 'student/base.html' %}
+
+{% block title %}答题结果 - {{ answer_log.exercise.title }}{% endblock %}
+
+{% block content %}
+<style>
+    /* 完全复制答题页面的选项样式 */
+    .option-item {
+        border: 2px solid #e9ecef;          /* 完全相同 */
+        border-radius: 10px;               /* 完全相同 */
+        padding: 1rem 1.5rem;              /* 完全相同 */
+        margin-bottom: 1rem;               /* 完全相同 */
+        cursor: pointer;                   /* 添加光标 */
+        transition: all 0.3s ease;         /* 完全相同 */
+    }
+    .result-container {
+        max-width: 800px;
+        margin: 20px auto;
+        padding: 20px;
+    }
+
+    .result-header {
+        padding: 2rem;
+        border-radius: 10px 10px 0 0;
+        color: white;
+    }
+
+    .correct {
+        background-color: #28a745;
+    }
+
+    .incorrect {
+        background-color: #dc3545;
+    }
+
+    .pending {
+        background-color: #6c757d;
+    }
+
+    /* 选项样式 - 修改这里，让它匹配答题页面 */
+    .option-item {
+        border: 2px solid #e9ecef;          /* 匹配答题页面的边框 */
+        border-radius: 10px;               /* 匹配答题页面的圆角 */
+        padding: 1rem 1.5rem;              /* 匹配答题页面的内边距 */
+        margin-bottom: 1rem;               /* 匹配答题页面的外边距 */
+        transition: all 0.3s ease;         /* 匹配答题页面的过渡效果 */
+    }
+
+    /* 用户选择的选项：正确 */
+    .user-choice-correct {
+        border-color: #28a745 !important;     /* 绿色边框 */
+        background-color: #d4edda !important; /* 绿色背景 */
+        border-left: 4px solid #28a745 !important;
+    }
+
+    /* 用户选择的选项：错误 */
+    .user-choice-incorrect {
+        border-color: #dc3545 !important;     /* 红色边框 */
+        background-color: #f8d7da !important; /* 红色背景 */
+        border-left: 4px solid #dc3545 !important;
+    }
+
+    /* 正确答案但不是用户选的 */
+    .correct-answer-only {
+        border-color: #17a2b8 !important;     /* 蓝色边框 */
+        background-color: #f0f8ff !important; /* 蓝色背景 */
+        border-left: 4px solid #17a2b8 !important;
+    }
+
+    .option-letter {
+        display: inline-block;
+        width: 24px;
+        height: 24px;
+        line-height: 24px;
+        text-align: center;
+        background-color: #6c757d;
+        color: white;
+        border-radius: 3px;
+        margin-right: 10px;
+        font-weight: bold;
+        font-size: 0.9rem;
+    }
+
+    .user-choice-letter {
+        background-color: #007bff;
+    }
+
+    .correct-answer-letter {
+        background-color: #28a745;
+    }
+
+    .correct-mark {
+        color: #28a745;
+        font-weight: bold;
+    }
+
+    .incorrect-mark {
+        color: #dc3545;
+        font-weight: bold;
+    }
+
+    .correct-answer-box {
+        display: inline-block;
+        padding: 5px 15px;
+        background-color: #fff3cd;
+        border: 1px solid #ffeaa7;
+        border-radius: 4px;
+        font-weight: bold;
+        color: #856404;
+    }
+
+    /* 答题卡片样式 */
+    .result-card {
+        border: none;
+        border-radius: 15px;
+        box-shadow: 0 5px 25px rgba(0,0,0,0.1);
+        margin-bottom: 30px;
+        overflow: hidden;
+    }
+
+    .result-body {
+        padding: 2rem;
+    }
+</style>
+
+<div class="result-container">
+    <div class="card shadow">
+        <!-- 头部状态显示 -->
+        <div class="result-header {% if answer_log.is_correct == True %}correct{% elif answer_log.is_correct == False %}incorrect{% else %}pending{% endif %}">
+            <div class="text-center">
+                {% if answer_log.is_correct == True %}
+                <i class="fas fa-check-circle fa-3x mb-3"></i>
+                <h3>回答正确！</h3>
+                {% elif answer_log.is_correct == False %}
+                <i class="fas fa-times-circle fa-3x mb-3"></i>
+                <h3>回答错误</h3>
+                {% else %}
+                <i class="fas fa-clock fa-3x mb-3"></i>
+                <h3>待批改</h3>
+                {% endif %}
+                <p class="mb-0">答题用时: {{ answer_log.time_spent }}秒</p>
+            </div>
+        </div>
+
+        <div class="card-body">
+
+            <!-- 题目内容 -->
+            <div class="mb-4">
+                <h5 class="card-title mb-3" style="white-space: pre-line;">{{ answer_log.exercise.content }}</h5>
+            </div>
+
+            <hr>
+
+            <!-- 选择题选项显示（单选和多选） -->
+            {% if answer_log.exercise.question_type == '1' or answer_log.exercise.question_type == '2' %}
+            <div class="mb-4">
+                <div class="options-list">
+                    {% for choice in answer_log.exercise.choices.all %}
+                        {% with choice_index=forloop.counter0 %}
+                        {% with option_letter=choice_index|add:65|stringformat:"c"|upper %}
+
+                        {# 判断是否为用户选择 #}
+                        {% if choice.id in selected_choice_ids %}
+                            {# 用户选择的选项 #}
+                            <div class="option-item mb-2 p-3 rounded
+                                {% if choice.is_correct %}
+                                    user-choice-correct
+                                {% else %}
+                                    user-choice-incorrect
+                                {% endif %}">
+                                <div class="d-flex align-items-center">
+                                    <span class="option-letter user-choice-letter">
+                                        {{ option_letter }}
+                                    </span>
+                                    <div class="flex-grow-1">
+                                        {{ choice.content }}
+                                    </div>
+                                    {% if choice.is_correct %}
+                                        <span class="correct-mark"></span>
+                                    {% else %}
+                                        <span class="incorrect-mark"></span>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                        {% else %}
+                            {# 用户没有选择的选项 #}
+                            <div class="option-item mb-2 p-3 rounded">
+                                <div class="d-flex align-items-center">
+                                    <span class="option-letter">
+                                        {{ option_letter }}
+                                    </span>
+                                    <div class="flex-grow-1">
+                                        {{ choice.content }}
+                                    </div>
+                                    {% if choice.is_correct %}
+                                        <span class="text-muted"></span>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                        {% endif %}
+
+                        {% endwith %}
+                        {% endwith %}
+                    {% endfor %}
+                </div>
+
+                <!-- 正确答案字母显示 -->
+                <div class="mt-4">
+                    <strong>正确答案：</strong>
+                    <div class="mt-2">
+                        {% for choice in answer_log.exercise.choices.all %}
+                            {% if choice.is_correct %}
+                                {% with choice_index=forloop.counter0 %}
+                                <span class="correct-answer-box me-2">
+                                    {{ choice_index|add:65|stringformat:"c"|upper }}
+                                </span>
+                                {% endwith %}
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- 填空题 -->
+            {% elif answer_log.exercise.question_type == '4' %}
+            <div class="mb-4">
+                <h5 class="mb-3">
+                    <i class="fas fa-edit me-2"></i>答题结果
+                </h5>
+
+                <div class="mb-3">
+                    <strong>我的答案：</strong>
+                    <div class="p-3 mt-2 rounded
+                        {% if answer_log.is_correct == True %}bg-success bg-opacity-10 border border-success
+                        {% elif answer_log.is_correct == False %}bg-danger bg-opacity-10 border border-danger
+                        {% else %}bg-secondary bg-opacity-10 border border-secondary{% endif %}">
+                        {{ answer_log.text_answer|default:"未填写" }}
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <strong>正确答案：</strong>
+                    <div class="p-3 mt-2 rounded bg-warning bg-opacity-10 border border-warning">
+                        {{ answer_log.exercise.answer|default:"暂无标准答案" }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- 主观题 -->
+            {% elif answer_log.exercise.question_type == '5' %}
+            <div class="mb-4">
+                <h5 class="mb-3">
+                    <i class="fas fa-file-alt me-2"></i>答题结果
+                </h5>
+
+                <div class="mb-3">
+                    <strong>我的答案：</strong>
+                    <div class="p-3 mt-2 rounded bg-light border" style="white-space: pre-line;">
+                        {{ answer_log.text_answer|default:"未填写" }}
+                    </div>
+                </div>
+
+                {% if answer_log.exercise.answer %}
+                <div class="mb-3">
+                    <strong>参考答案：</strong>
+                    <div class="p-3 mt-2 rounded bg-warning bg-opacity-10 border border-warning" style="white-space: pre-line;">
+                        {{ answer_log.exercise.answer }}
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if answer_log.is_correct is None %}
+                <div class="alert alert-info mt-3">
+                    <i class="fas fa-info-circle me-2"></i>
+                    主观题需要老师批改，请耐心等待。
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- 判断题 -->
+            {% elif answer_log.exercise.question_type == '6' %}
+            <div class="mb-4">
+                <h5 class="mb-3">
+                    <i class="fas fa-check-circle me-2"></i>判断结果
+                </h5>
+
+                <div class="mb-3">
+                    <strong>我的判断：</strong>
+                    <div class="p-3 mt-2 rounded
+                        {% if answer_log.is_correct == True %}bg-success bg-opacity-10 border border-success
+                        {% elif answer_log.is_correct == False %}bg-danger bg-opacity-10 border border-danger
+                        {% else %}bg-secondary bg-opacity-10 border border-secondary{% endif %}">
+                        {{ answer_log.text_answer|default:"未选择" }}
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <strong>正确答案：</strong>
+                    <div class="p-3 mt-2 rounded bg-warning bg-opacity-10 border border-warning">
+                        {{ answer_log.exercise.answer|default:"正确" }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- 投票题 -->
+            {% elif answer_log.exercise.question_type == '3' %}
+            <div class="mb-4">
+                <h5 class="mb-3">
+                    <i class="fas fa-vote-yea me-2"></i>投票结果
+                </h5>
+
+                <div class="options-list">
+                    {% for choice in answer_log.exercise.choices.all %}
+                        {% with choice_index=forloop.counter0 %}
+                        {% with option_letter=choice_index|add:65|stringformat:"c"|upper %}
+                        <div class="option-item mb-2 p-3 rounded
+                            {% if choice.id in selected_choice_ids %}bg-primary bg-opacity-10 border border-primary{% else %}bg-light{% endif %}">
+                            <div class="d-flex align-items-center">
+                                <span class="option-letter">{{ option_letter }}</span>
+                                <div class="flex-grow-1">
+                                    {{ choice.content }}
+                                </div>
+                                {% if choice.id in selected_choice_ids %}
+                                    <span class="text-primary">✓ 您的选择</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endwith %}
+                        {% endwith %}
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <hr>
+
+            <!-- 操作按钮 -->
+            <div class="d-flex justify-content-between mt-4">
+                <a href="{% url 'exercise_list' answer_log.exercise.subject.id %}" class="btn btn-outline-secondary">
+                    <i class="fas fa-list me-1"></i>返回列表
+                </a>
+                <div>
+                    <a href="{% url 'take_exercise' answer_log.exercise.id %}" class="btn btn-primary me-2">
+                        <i class="fas fa-redo me-1"></i>重新练习
+                    </a>
+                    {% if next_exercise %}
+                    <a href="{% url 'take_exercise' next_exercise.id %}" class="btn btn-success">
+                        <i class="fas fa-arrow-right me-1"></i>下一题
+                    </a>
+                    {% else %}
+                    <a href="{% url 'exercise_list' answer_log.exercise.subject.id %}" class="btn btn-success">
+                        <i class="fas fa-check me-1"></i>完成练习
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
