@@ -1,5 +1,6 @@
 from django.contrib.auth.decorators import login_required, user_passes_test
 from .models import *
+from django.views.decorators.http import require_POST, require_GET
 from .forms import ExerciseForm, KnowledgePointForm, QMatrixForm
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib import messages
@@ -7,6 +8,7 @@ from .forms import ExerciseForm
 from django.db.models import Count, Q
 from django.db import transaction
 import csv
+import json
 from datetime import datetime
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.decorators import user_passes_test
@@ -352,10 +354,35 @@ def update_knowledge_mastery(student, exercise, is_correct):
 
 
 
-"""题库管理主页面"""
+#"""题库管理主页面"""
 @login_required
 @user_passes_test(is_teacher)
 def exercise_management(request):
+    # 获取当前老师授课的科目ID列表
+    teacher_subjects = TeacherSubject.objects.filter(
+        teacher=request.user
+    ).select_related('subject')
+
+    # 获取科目ID列表
+    teacher_subject_ids = list(teacher_subjects.values_list('subject_id', flat=True))
+
+    # 如果老师没有授课科目，返回特殊页面
+    if not teacher_subject_ids:
+        context = {
+            'no_subjects': True,
+            'message': '您还没有分配授课科目，无法管理习题。'
+        }
+        return render(request, 'teacher/exercise_management.html', context)
+
+    # 获取默认科目（第一个授课科目）
+    default_subject = teacher_subjects.first().subject
+
+    # 基础查询集 - 只查询老师授课科目的习题
+    exercises = Exercise.objects.filter(
+        subject_id__in=teacher_subject_ids
+    ).select_related('subject', 'creator').prefetch_related(
+        'qmatrix_set__knowledge_point'
+    )
 
     # 获取所有筛选参数
     subject_id = request.GET.get('subject')
@@ -366,19 +393,24 @@ def exercise_management(request):
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
 
-    # 基础查询集
-    exercises = Exercise.objects.all().select_related('subject', 'creator').prefetch_related(
-        'qmatrix_set__knowledge_point')
+    # 如果没有指定科目，使用默认科目
+    if not subject_id and default_subject:
+        subject_id = str(default_subject.id)
+        exercises = exercises.filter(subject_id=default_subject.id)
 
     # 应用筛选条件
     if subject_id and subject_id.isdigit():
-        exercises = exercises.filter(subject_id=int(subject_id))
+        # 确保筛选的科目在老师授课范围内
+        if int(subject_id) in teacher_subject_ids:
+            exercises = exercises.filter(subject_id=int(subject_id))
 
     if question_type:
         exercises = exercises.filter(question_type=question_type)
 
     if knowledge_point_id and knowledge_point_id.isdigit():
-        exercises = exercises.filter(qmatrix__knowledge_point_id=int(knowledge_point_id)).distinct()
+        exercises = exercises.filter(
+            qmatrix__knowledge_point_id=int(knowledge_point_id)
+        ).distinct()
 
     if creator_id and creator_id.isdigit():
         exercises = exercises.filter(creator_id=int(creator_id))
@@ -403,13 +435,32 @@ def exercise_management(request):
         except ValueError:
             pass
 
-    # 获取筛选所需的数据
-    subjects = Subject.objects.all()
-    knowledge_points = KnowledgePoint.objects.all()
-    creators = User.objects.filter(user_type='teacher').distinct()
+    # 获取筛选所需的数据 - 只获取老师授课的相关数据
+    subjects = Subject.objects.filter(id__in=teacher_subject_ids)
+
+    # 根据当前筛选的科目获取知识点
+    current_subject_id = subject_id if subject_id and subject_id.isdigit() else default_subject.id if default_subject else None
+    if current_subject_id:
+        knowledge_points = KnowledgePoint.objects.filter(
+            subject_id=current_subject_id
+        )
+    else:
+        knowledge_points = KnowledgePoint.objects.none()
+
+    # 获取在当前筛选科目下创建习题的教师
+    if current_subject_id:
+        creator_ids = Exercise.objects.filter(
+            subject_id=current_subject_id
+        ).values_list('creator_id', flat=True).distinct()
+        creators = User.objects.filter(
+            user_type='teacher',
+            id__in=creator_ids
+        )
+    else:
+        creators = User.objects.none()
 
     # 排序和分页
-    exercises = exercises.order_by('-id')  # 按ID降序，最新的在前面
+    exercises = exercises.order_by('id')  # 按ID降序，最新的在前面
 
     # 分页 - 每页20条
     paginator = Paginator(exercises, 20)
@@ -421,6 +472,9 @@ def exercise_management(request):
         'subjects': subjects,
         'knowledge_points': knowledge_points,
         'creators': creators,
+        'teacher_subjects': teacher_subject_ids,
+        'no_subjects': False,
+        'default_subject_id': default_subject.id if default_subject else None,
         'filters': {
             'subject': subject_id,
             'question_type': question_type,
@@ -437,20 +491,181 @@ def exercise_management(request):
 """查看习题详情"""
 @login_required
 @user_passes_test(is_teacher)
-def exercise_detail(request, exercise_id):
-
+def exercise_detail_json(request, exercise_id):
+    """获取习题详情的JSON数据（用于模态框）"""
     try:
-        exercise = Exercise.objects.select_related('subject', 'creator').prefetch_related(
-            'choices', 'qmatrix_set__knowledge_point'
-        ).get(id=exercise_id)
-    except Exercise.DoesNotExist:
-        messages.error(request, '习题不存在')
-        return redirect('exercise_management')
+        # 获取习题详情
+        exercise = get_object_or_404(
+            Exercise.objects.select_related('subject', 'creator')
+                .prefetch_related('qmatrix_set__knowledge_point'),
+            id=exercise_id
+        )
 
-    context = {
-        'exercise': exercise,
-    }
-    return render(request, 'teacher/exercise_detail.html', context)
+        # 检查权限：老师只能查看自己授课科目的习题
+        teacher_subjects = TeacherSubject.objects.filter(
+            teacher=request.user
+        ).values_list('subject_id', flat=True)
+
+        if teacher_subjects and exercise.subject_id not in teacher_subjects:
+            return JsonResponse({
+                'success': False,
+                'message': '您无权查看此习题。'
+            })
+
+        # 获取关联的知识点
+        knowledge_points = list(exercise.qmatrix_set.select_related('knowledge_point')
+                                .values('knowledge_point__id', 'knowledge_point__name', 'weight'))
+
+        # 手动映射题型
+        question_type_mapping = {
+            'single': '单选题',
+            'multiple': '多选题',
+            'vote': '投票题',
+            'fill': '填空题',
+            'subjective': '主观题',
+            'judgment': '判断题',
+            '1': '单选题',
+            '2': '多选题',
+            '3': '投票题',
+            '4': '填空题',
+            '5': '主观题',
+            '6': '判断题',
+        }
+
+        # 获取题型显示名称
+        question_type_display = question_type_mapping.get(
+            exercise.question_type,
+            exercise.question_type  # 如果不在映射中，使用原值
+        )
+
+        # 获取习题详情数据
+        exercise_data = {
+            'id': exercise.id,
+            'title': exercise.title or '无标题',
+            'content': exercise.content,
+            'answer': exercise.answer or '暂无答案',
+            'option_text': exercise.option_text or '无选项',
+            'question_type': question_type_display,
+            'question_type_code': exercise.question_type,
+            'subject': exercise.subject.name if exercise.subject else '未分类',
+            'creator': exercise.creator.get_full_name() or exercise.creator.username,
+            'created_at': exercise.created_at.strftime('%Y-%m-%d %H:%M') if hasattr(exercise, 'created_at') else '',
+            'knowledge_points': knowledge_points,
+        }
+
+        return JsonResponse({
+            'success': True,
+            'exercise': exercise_data
+        })
+
+    except Exception as e:
+        print(f"获取习题详情JSON错误: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'message': f'获取习题详情时出错: {str(e)}'
+        })
+
+"""编辑习题"""
+@login_required
+@user_passes_test(is_teacher)
+@require_POST
+def exercise_update_json(request, exercise_id):
+    """更新习题的JSON API"""
+    try:
+        # 获取习题
+        exercise = get_object_or_404(Exercise, id=exercise_id)
+
+        # 修正权限逻辑：老师可以编辑所有习题，但科目权限需要检查
+        # 检查科目权限
+        teacher_subjects = TeacherSubject.objects.filter(
+            teacher=request.user
+        ).values_list('subject_id', flat=True)
+
+        # 获取新科目ID
+        new_subject_id = request.POST.get('subject_id')
+
+        # 如果指定了新科目，检查权限
+        if new_subject_id:
+            if int(new_subject_id) not in teacher_subjects:
+                return JsonResponse({
+                    'success': False,
+                    'message': '您无权在此科目下创建或修改习题。'
+                })
+            # 更新科目
+            try:
+                exercise.subject_id = int(new_subject_id)
+            except (ValueError, TypeError):
+                pass
+        else:
+            # 保持原科目，检查原科目权限
+            if exercise.subject_id not in teacher_subjects:
+                return JsonResponse({
+                    'success': False,
+                    'message': '您无权修改此科目的习题。'
+                })
+
+        # 更新基本字段
+        exercise.title = request.POST.get('title', exercise.title)
+        exercise.content = request.POST.get('content', exercise.content)
+
+        # 处理题型
+        question_type = request.POST.get('question_type', exercise.question_type)
+        exercise.question_type = question_type
+
+        # 处理选项
+        option_text = request.POST.get('option_text', exercise.option_text)
+        exercise.option_text = option_text if option_text else None
+
+        exercise.answer = request.POST.get('answer', exercise.answer)
+
+        # 保存习题
+        exercise.save()
+
+        # 处理知识点关联
+        knowledge_points_json = request.POST.get('knowledge_points', '[]')
+        try:
+            knowledge_points_data = json.loads(knowledge_points_json)
+
+            # 删除旧的关联
+            exercise.qmatrix_set.all().delete()
+
+            # 创建新的关联
+            for kp_data in knowledge_points_data:
+                knowledge_point_id = kp_data.get('id')
+                weight = kp_data.get('weight', 1.0)
+
+                try:
+                    knowledge_point = KnowledgePoint.objects.get(id=knowledge_point_id)
+                    # 确保知识点属于当前科目
+                    if knowledge_point.subject_id == exercise.subject_id:
+                        QMatrix.objects.create(
+                            knowledge_point=knowledge_point,
+                            exercise=exercise,
+                            weight=float(weight)
+                        )
+                except (KnowledgePoint.DoesNotExist, ValueError):
+                    continue
+
+        except json.JSONDecodeError:
+            # 如果JSON解析失败，跳过知识点处理
+            pass
+
+        return JsonResponse({
+            'success': True,
+            'message': '习题更新成功！',
+            'exercise_id': exercise.id
+        })
+
+    except Exception as e:
+        print(f"更新习题JSON错误: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'message': f'更新习题时出错: {str(e)}'
+        })
 
 """添加习题"""
 @login_required
@@ -541,110 +756,7 @@ def exercise_add(request):
 
     return render(request, 'teacher/exercise_form.html', context)
 
-"""编辑习题"""
-@login_required
-@user_passes_test(is_teacher)
-def exercise_edit(request, exercise_id):
 
-    try:
-        exercise = Exercise.objects.select_related('subject').prefetch_related(
-            'choices', 'qmatrix_set__knowledge_point'
-        ).get(id=exercise_id)
-    except Exercise.DoesNotExist:
-        messages.error(request, '习题不存在')
-        return redirect('exercise_management')
-
-    if request.method == 'POST':
-        form = ExerciseForm(request.POST, instance=exercise)
-        if form.is_valid():
-            try:
-                with transaction.atomic():
-                    updated_exercise = form.save(commit=False)
-
-                    # 处理不同的题型
-                    question_type = form.cleaned_data.get('question_type', 'single')
-
-                    # 删除旧的选项
-                    exercise.choices.all().delete()
-
-                    if question_type in ['single', 'multiple']:
-                        # 处理选择题
-                        choices_data = request.POST.getlist('choices')
-                        is_correct_data = request.POST.getlist('is_correct')
-
-                        # 设置答案
-                        correct_choices = []
-                        for i, choice_text in enumerate(choices_data):
-                            if choice_text.strip():
-                                is_correct = str(i) in is_correct_data
-                                if is_correct:
-                                    correct_choices.append(choice_text.strip())
-
-                        if question_type == 'single' and len(correct_choices) > 1:
-                            form.add_error(None, '单选题只能有一个正确答案')
-                            return render(request, 'teacher/exercise_form.html', {'form': form})
-
-                        updated_exercise.answer = ', '.join(correct_choices)
-                        updated_exercise.save()
-
-                        # 保存新选项
-                        for i, choice_text in enumerate(choices_data):
-                            if choice_text.strip():
-                                Choice.objects.create(
-                                    exercise=updated_exercise,
-                                    content=choice_text.strip(),
-                                    is_correct=str(i) in is_correct_data,
-                                    order=i
-                                )
-
-                    elif question_type == 'judgment':
-                        # 处理判断题
-                        is_correct = form.cleaned_data.get('judgment_answer')
-                        updated_exercise.answer = '正确' if is_correct else '错误'
-                        updated_exercise.save()
-
-                    elif question_type == 'text':
-                        # 处理文本题
-                        text_answer = form.cleaned_data.get('text_answer', '')
-                        updated_exercise.answer = text_answer
-                        updated_exercise.save()
-
-                    # 更新知识点关联
-                    exercise.qmatrix_set.all().delete()
-                    knowledge_point_ids = request.POST.getlist('knowledge_points')
-                    for kp_id in knowledge_point_ids:
-                        if kp_id:
-                            try:
-                                kp = KnowledgePoint.objects.get(id=int(kp_id))
-                                QMatrix.objects.create(
-                                    exercise=updated_exercise,
-                                    knowledge_point=kp,
-                                    weight=1.0
-                                )
-                            except (ValueError, KnowledgePoint.DoesNotExist):
-                                pass
-
-                    messages.success(request, '习题更新成功')
-                    return redirect('exercise_management')
-
-            except Exception as e:
-                messages.error(request, f'更新习题失败: {str(e)}')
-    else:
-        form = ExerciseForm(instance=exercise)
-
-    # 获取已关联的知识点
-    related_knowledge_points = exercise.qmatrix_set.values_list('knowledge_point_id', flat=True)
-
-    context = {
-        'form': form,
-        'exercise': exercise,
-        'title': '编辑习题',
-        'subjects': Subject.objects.all(),
-        'knowledge_points': KnowledgePoint.objects.all(),
-        'related_knowledge_points': list(related_knowledge_points),
-    }
-
-    return render(request, 'teacher/exercise_form.html', context)
 
 """删除单个习题"""
 @login_required
