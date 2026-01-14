@@ -1,0 +1,150 @@
+{% extends 'base_auth.html' %}
+
+{% block title %}用户登录 - aikgedu{% endblock %}
+
+{% block content %}
+<div class="auth-card">
+    <div class="auth-header">
+        <h4 class="mb-0">用户登录</h4>
+        <p class="mb-0 mt-2">欢迎回到aikgedu</p>
+    </div>
+
+    <div class="auth-body">
+        <!-- 显示 Django 消息 -->
+        {% if messages %}
+        <div class="messages mb-3">
+            {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show" role="alert">
+                <i class="fas fa-{% if message.tags == 'error' %}exclamation-circle{% else %}info-circle{% endif %} me-2"></i>
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <form method="post" id="login-form">
+            {% csrf_token %}
+
+            <!-- 用户名 -->
+            <div class="mb-3">
+                <label for="id_username" class="form-label">用户名</label>
+                {{ form.username }}
+                {% if form.username.errors %}
+                <div class="text-danger small mt-1">{{ form.username.errors.0 }}</div>
+                {% endif %}
+            </div>
+
+            <!-- 密码 -->
+            <div class="mb-3">
+                <label for="id_password" class="form-label">密码</label>
+                {{ form.password }}
+                {% if form.password.errors %}
+                <div class="text-danger small mt-1">{{ form.password.errors.0 }}</div>
+                {% endif %}
+            </div>
+
+            <!-- 身份类型 -->
+            <div class="mb-3">
+                <label for="id_user_type" class="form-label">身份类型</label>
+                {{ form.user_type }}
+                {% if form.user_type.errors %}
+                <div class="text-danger small mt-1">{{ form.user_type.errors.0 }}</div>
+                {% endif %}
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 py-2 mb-3" id="login-btn">
+                <span id="login-text">登录</span>
+                <div id="login-spinner" class="spinner-border spinner-border-sm d-none" role="status">
+                    <span class="visually-hidden">加载中...</span>
+                </div>
+            </button>
+        </form>
+
+        <div class="auth-footer">
+            <div class="mt-3">
+                <p class="text-muted small mb-2">快速登录演示账号</p>
+                <div class="d-flex justify-content-center gap-2">
+                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="fillDemoStudent()">学生演示</button>
+                    <button type="button" class="btn btn-outline-success btn-sm" onclick="fillDemoTeacher()">教师演示</button>
+                    <button type="button" class="btn btn-outline-warning btn-sm" onclick="fillDemoResearcher()">研究员演示</button>
+                </div>
+            </div>
+            <p class="mb-2 mt-3">还没有账号？ <a href="{% url 'register' %}">立即注册</a></p>
+            <p class="mb-0 small text-muted">
+                忘记密码？<a href="#" class="text-muted">请联系管理员</a>
+            </p>
+        </div>
+    </div>
+</div>
+
+<script>
+// 演示账号自动填充
+function fillDemoStudent() {
+    document.getElementById('id_username').value = '238139';
+    document.getElementById('id_password').value = 'demo123';
+    document.getElementById('id_user_type').value = 'student';
+}
+function fillDemoTeacher() {
+    document.getElementById('id_username').value = 'demo_teacher';
+    document.getElementById('id_password').value = 'demo123';
+    document.getElementById('id_user_type').value = 'teacher';
+}
+function fillDemoResearcher() {
+    document.getElementById('id_username').value = 'demo_researcher';
+    document.getElementById('id_password').value = 'demo123';
+    document.getElementById('id_user_type').value = 'researcher';
+}
+
+// 表单提交时的加载状态
+document.getElementById('login-form').addEventListener('submit', function() {
+    const btn = document.getElementById('login-btn');
+    const text = document.getElementById('login-text');
+    const spinner = document.getElementById('login-spinner');
+
+    btn.disabled = true;
+    text.textContent = '登录中...';
+    spinner.classList.remove('d-none');
+});
+
+// 页面加载时自动聚焦用户名输入框
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('id_username').focus();
+});
+
+// 实时验证表单
+document.getElementById('login-form').addEventListener('input', function() {
+    const username = document.getElementById('id_username').value;
+    const password = document.getElementById('id_password').value;
+    const userType = document.getElementById('id_user_type').value;
+    const submitBtn = document.getElementById('login-btn');
+
+    // 启用/禁用提交按钮
+    submitBtn.disabled = !(username && password && userType);
+});
+</script>
+
+<style>
+.form-control:focus {
+    border-color: #1e88e5;
+    box-shadow: 0 0 0 0.2rem rgba(30, 136, 229, 0.25);
+}
+
+.alert-danger {
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+    color: #721c24;
+}
+
+.alert-success {
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+    color: #155724;
+}
+.alert-researcher {
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+    color: #155724;
+}
+</style>
+{% endblock %}
