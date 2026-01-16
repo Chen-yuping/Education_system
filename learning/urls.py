@@ -47,6 +47,7 @@ urlpatterns = [
     # 题库管理
     path('exercise-management/', views_teacher.exercise_management, name='exercise_management'),
     path('exercise-management/add/', views_teacher.exercise_add, name='exercise_add'),
+    path('exercise-management/add-json/', views_teacher.exercise_add_json, name='exercise_add_json'),
     path('exercise-management/delete/<int:exercise_id>/', views_teacher.exercise_delete, name='exercise_delete'),
     path('exercise-management/detail/<int:exercise_id>/', views_teacher.exercise_detail_json,name='exercise_detail_json'),
     path('exercise-management/update/<int:exercise_id>/', views_teacher.exercise_update_json, name='exercise_update_json'),
@@ -61,6 +62,11 @@ urlpatterns = [
     path('teacher/api/diagnosis/<int:diagnosis_id>/', views_diagnosis.get_diagnosis_result, name='get_diagnosis_result'),
     path('teacher/api/student/<int:student_id>/diagnosis/<int:subject_id>/', views_diagnosis.get_student_diagnosis_detail, name='student_diagnosis_detail'),
     path('teacher/api/diagnosis/summary/<int:subject_id>/', views_diagnosis.get_diagnosis_summary,name='get_diagnosis_summary'),
+
+    # 批改作业
+    path('teacher/grade-subjective/', views_teacher.grade_subjective, name='grade_subjective'),
+    path('teacher/api/answer/<int:log_id>/', views_teacher.get_answer_detail, name='get_answer_detail'),
+    path('teacher/api/answer/<int:log_id>/grade/', views_teacher.grade_answer, name='grade_answer'),
 
     #研究者功能
     path('researcher/dashboard/', views_researcher.researcher_dashboard, name='researcher_dashboard'),

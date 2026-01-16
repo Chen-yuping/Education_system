@@ -93,6 +93,7 @@
     input:checked + .toggle-slider:before {
         transform: translateX(24px);
     }
+
 </style>
 
 <!-- 页面标题 -->
@@ -711,7 +712,7 @@ function updateStatsSummaryFromDiagnosis(data) {
                 <div class="progress-circle mb-2" style="background: linear-gradient(135deg, #1cc88a 0%, #13855c 100%);">
                     ${summary.diagnosed_students}
                 </div>
-                <div class="fw-bold">诊断学生数</div>
+                <div class="fw-bold">选课学生数</div>
                 <small class="text-muted">共${summary.total_students}人有记录</small>
             </div>
             <div class="col-6">
@@ -848,6 +849,201 @@ function renderOverallChart(diagnosisData) {
     if (overallChart) {
         overallChart.setOption(option);
     }
+
+    // 同时渲染D3知识点节点图
+    renderKnowledgeGraph(diagnosisData, kpAverages);
+}
+
+// 渲染D3.js知识点节点图
+function renderKnowledgeGraph(diagnosisData, kpAverages) {
+    const container = document.getElementById('knowledgeGraphContainer');
+    const chartDiv = document.getElementById('knowledgeGraphChart');
+    const initialMessage = document.getElementById('graphInitialMessage');
+    
+    if (!container || !chartDiv) return;
+    
+    // 隐藏初始提示
+    if (initialMessage) {
+        initialMessage.style.display = 'none';
+    }
+    
+    // 清空之前的图表
+    d3.select('#knowledgeGraphChart').html('');
+    
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    
+    if (!diagnosisData.knowledge_points || diagnosisData.knowledge_points.length === 0) {
+        return;
+    }
+    
+    // 准备节点数据
+    const nodes = diagnosisData.knowledge_points.map(kp => {
+        const mastery = kpAverages[kp.id.toString()] || 0;
+        return {
+            id: kp.id,
+            name: kp.name,
+            mastery: mastery,
+            exercise_count: kp.exercise_count || 0
+        };
+    });
+    
+    // 准备连接数据（基于知识点关系，如果没有则创建简单连接）
+    const links = [];
+    // 如果有知识点关系数据，使用它；否则创建基于相似度的连接
+    if (diagnosisData.knowledge_relations && diagnosisData.knowledge_relations.length > 0) {
+        diagnosisData.knowledge_relations.forEach(rel => {
+            links.push({
+                source: rel.source,
+                target: rel.target,
+                arrow: true
+            });
+        });
+    }
+    
+    // 创建SVG
+    const svg = d3.select('#knowledgeGraphChart')
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height)
+        .call(d3.zoom()
+            .scaleExtent([0.3, 3])
+            .on('zoom', function(event) {
+                g.attr('transform', event.transform);
+            }));
+    
+    const g = svg.append('g');
+    
+    // 添加箭头定义
+    const defs = svg.append('defs');
+    defs.append('marker')
+        .attr('id', 'arrowhead-diagnosis')
+        .attr('viewBox', '0 -5 10 10')
+        .attr('refX', 25)
+        .attr('refY', 0)
+        .attr('markerWidth', 6)
+        .attr('markerHeight', 6)
+        .attr('orient', 'auto')
+        .append('path')
+        .attr('d', 'M0,-5L10,0L0,5')
+        .attr('fill', '#999');
+    
+    // 创建力导向图
+    graphSimulation = d3.forceSimulation(nodes)
+        .force('link', d3.forceLink(links).id(d => d.id).distance(120))
+        .force('charge', d3.forceManyBody().strength(-300))
+        .force('center', d3.forceCenter(width / 2, height / 2))
+        .force('collision', d3.forceCollide().radius(d => getNodeRadius(d) + 10));
+    
+    // 绘制链接
+    const link = g.append('g')
+        .attr('class', 'links')
+        .selectAll('line')
+        .data(links)
+        .enter().append('line')
+        .attr('class', d => `link ${d.arrow ? 'arrow' : ''}`)
+        .attr('stroke', '#999')
+        .attr('stroke-width', 2)
+        .attr('stroke-dasharray', d => d.arrow ? 'none' : '5,5')
+        .attr('marker-end', d => d.arrow ? 'url(#arrowhead-diagnosis)' : null);
+    
+    // 绘制节点
+    const node = g.append('g')
+        .attr('class', 'nodes')
+        .selectAll('g')
+        .data(nodes)
+        .enter().append('g')
+        .attr('class', 'node')
+        .call(d3.drag()
+            .on('start', dragstarted)
+            .on('drag', dragged)
+            .on('end', dragended));
+    
+    // 节点圆圈
+    node.append('circle')
+        .attr('r', d => getNodeRadius(d))
+        .attr('fill', d => getMasteryColor(d.mastery))
+        .attr('stroke', d => d3.color(getMasteryColor(d.mastery)).darker(0.5))
+        .attr('stroke-width', 2);
+    
+    // 节点文字
+    node.append('text')
+        .text(d => d.name.length > 5 ? d.name.substring(0, 5) + '...' : d.name)
+        .attr('x', 0)
+        .attr('y', 0)
+        .attr('text-anchor', 'middle')
+        .attr('fill', 'white')
+        .style('font-size', '11px')
+        .style('font-weight', 'bold')
+        .style('pointer-events', 'none');
+    
+    // 节点悬停事件
+    node.on('mouseover', function(event, d) {
+        // 高亮当前节点
+        d3.select(this).select('circle')
+            .attr('stroke-width', 4)
+            .attr('filter', 'brightness(1.2)');
+        
+        // 高亮相关链接
+        link.style('stroke', function(linkData) {
+            return (linkData.source.id === d.id || linkData.target.id === d.id) ? getMasteryColor(d.mastery) : '#999';
+        }).style('stroke-width', function(linkData) {
+            return (linkData.source.id === d.id || linkData.target.id === d.id) ? 3 : 2;
+        });
+        
+        // 显示工具提示
+        const tooltip = document.getElementById('graphTooltip');
+        const statusText = d.mastery >= 80 ? '优秀' : (d.mastery >= 60 ? '良好' : '需加强');
+        const statusColor = d.mastery >= 80 ? '#52c41a' : (d.mastery >= 60 ? '#faad14' : '#f5222d');
+        
+        tooltip.innerHTML = `
+            <h6>${d.name}</h6>
+            <p><strong>掌握度:</strong> <span style="color: ${statusColor}">${d.mastery.toFixed(1)}%</span></p>
+            <p><strong>状态:</strong> <span style="color: ${statusColor}">${statusText}</span></p>
+            <p><strong>习题数量:</strong> ${d.exercise_count}</p>
+            <p class="text-warning small mt-2"><i class="fas fa-lightbulb me-1"></i>拖拽可移动节点</p>
+        `;
+        
+        // 定位工具提示
+        const rect = container.getBoundingClientRect();
+        tooltip.style.left = (event.clientX - rect.left + 15) + 'px';
+        tooltip.style.top = (event.clientY - rect.top - 80) + 'px';
+        tooltip.style.display = 'block';
+    });
+    
+    node.on('mousemove', function(event) {
+        const tooltip = document.getElementById('graphTooltip');
+        const rect = container.getBoundingClientRect();
+        tooltip.style.left = (event.clientX - rect.left + 15) + 'px';
+        tooltip.style.top = (event.clientY - rect.top - 80) + 'px';
+    });
+    
+    node.on('mouseout', function(event, d) {
+        // 恢复节点样式
+        d3.select(this).select('circle')
+            .attr('stroke-width', 2)
+            .attr('filter', null);
+        
+        // 恢复链接样式
+        link.style('stroke', '#999')
+            .style('stroke-width', 2);
+        
+        // 隐藏工具提示
+        document.getElementById('graphTooltip').style.display = 'none';
+    });
+    
+    // 力导向图更新
+    graphSimulation.on('tick', () => {
+        link
+            .attr('x1', d => d.source.x)
+            .attr('y1', d => d.source.y)
+            .attr('x2', d => d.target.x)
+            .attr('y2', d => d.target.y);
+        
+        node.attr('transform', d => `translate(${d.x},${d.y})`);
+    });
+    
+    console.log('知识点节点图绘制完成');
 }
 
 // 更新统计摘要

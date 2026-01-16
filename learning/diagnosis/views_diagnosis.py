@@ -168,6 +168,9 @@ def get_student_diagnosis_detail(request, student_id, subject_id):
         student = get_object_or_404(User, id=student_id, user_type='student')
         subject = get_object_or_404(Subject, id=subject_id)
 
+        # 获取模型ID参数（可选）
+        model_id = request.GET.get('model_id')
+
         # 验证教师权限
         teacher = request.user
         if not TeacherSubject.objects.filter(
@@ -185,8 +188,18 @@ def get_student_diagnosis_detail(request, student_id, subject_id):
             knowledge_point__subject=subject
         ).select_related('knowledge_point', 'diagnosis_model').order_by('-last_practiced')
 
-        # 获取最新的诊断模型
-        latest_diagnosis = student_diagnoses.first()
+        # 如果指定了模型ID，只获取该模型的诊断结果
+        if model_id:
+            student_diagnoses_filtered = student_diagnoses.filter(diagnosis_model_id=model_id)
+        else:
+            # 没有指定模型ID，获取最新的诊断模型
+            latest_diagnosis = student_diagnoses.first()
+            if latest_diagnosis:
+                student_diagnoses_filtered = student_diagnoses.filter(
+                    diagnosis_model=latest_diagnosis.diagnosis_model
+                )
+            else:
+                student_diagnoses_filtered = student_diagnoses.none()
 
         # 获取知识点详细信息
         knowledge_points = KnowledgePoint.objects.filter(
@@ -196,12 +209,14 @@ def get_student_diagnosis_detail(request, student_id, subject_id):
         # 构建知识点掌握度数据
         knowledge_data = []
         for kp in knowledge_points:
-            try:
-                diagnosis = student_diagnoses.get(knowledge_point=kp)
+            # 使用filter().first()代替get()，避免多条记录错误
+            diagnosis = student_diagnoses_filtered.filter(knowledge_point=kp).first()
+            
+            if diagnosis:
                 mastery = diagnosis.mastery_level
                 practice_count = diagnosis.practice_count
                 correct_count = diagnosis.correct_count
-            except StudentDiagnosis.DoesNotExist:
+            else:
                 mastery = 0
                 practice_count = 0
                 correct_count = 0
@@ -238,16 +253,16 @@ def get_student_diagnosis_detail(request, student_id, subject_id):
         else:
             correct_rate = 0
 
-        # 获取使用的诊断模型
-        used_models = student_diagnoses.values('diagnosis_model__name').distinct()
-        model_names = [model['diagnosis_model__name'] for model in used_models]
+        # 获取当前使用的诊断模型名称
+        current_model = student_diagnoses_filtered.first()
+        model_name = current_model.diagnosis_model.name if current_model else '暂无'
 
         result = {
             'status': 'success',
             'student': {
                 'id': student.id,
                 'username': student.username,
-                'first_name': student.first_name or student.username,
+                'first_name': f"{student.first_name or ''} {student.last_name or ''}".strip() or student.username,
                 'email': student.email if hasattr(student, 'email') else '',
                 'total_answers': answer_stats['total_answers'] or 0,
                 'correct_rate': correct_rate,
@@ -255,7 +270,7 @@ def get_student_diagnosis_detail(request, student_id, subject_id):
             },
             'subject_name': subject.name,
             'overall_score': overall_score,
-            'model_used': model_names[0] if model_names else '暂无',
+            'model_used': model_name,
             'knowledge_data': knowledge_data,
             'weak_points': [kp for kp in knowledge_data if kp['mastery'] < 60],
             'strong_points': [kp for kp in knowledge_data if kp['mastery'] >= 80],
@@ -268,7 +283,7 @@ def get_student_diagnosis_detail(request, student_id, subject_id):
                     'correct_count': diagnosis.correct_count,
                     'last_practiced': diagnosis.last_practiced.strftime('%Y-%m-%d %H:%M')
                 }
-                for diagnosis in student_diagnoses[:10]  # 显示最近10条
+                for diagnosis in student_diagnoses[:10]  # 显示最近10条（所有模型）
             ]
         }
 

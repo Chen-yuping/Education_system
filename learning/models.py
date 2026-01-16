@@ -92,6 +92,9 @@ class Exercise(models.Model):
     creator = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="创建者",default=1)
     option_text = models.CharField(max_length=1000,verbose_name="选项内容",default=None)
     answer = models.CharField(max_length=500, verbose_name="答案",default=None)
+    solution = models.TextField(blank=True, null=True, verbose_name="答案解析")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间", null=True)
+    
     class Meta:
         verbose_name = "习题"
         verbose_name_plural = "习题"

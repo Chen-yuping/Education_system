@@ -1,0 +1,324 @@
+{% extends 'teacher/base.html' %}
+{% load static %}
+
+{% block title %}批改作业{% endblock %}
+
+{% block content %}
+
+{% if no_subjects %}
+<div class="alert alert-warning" role="alert">
+    <h4 class="alert-heading">您还没有分配授课科目</h4>
+    <p>您目前没有分配任何授课科目，无法批改作业。</p>
+    <hr>
+    <p class="mb-0">
+        <a href="{% url 'teacher_subject_management' %}" class="btn btn-primary">
+            去分配授课科目
+        </a>
+    </p>
+</div>
+{% else %}
+
+<div class="container-fluid">
+    <!-- 页面标题 -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800">批改作业</h1>
+            <p class="text-muted mb-0">批改学生的主观题答案</p>
+        </div>
+        <div>
+            <span class="badge bg-warning text-dark me-2">待批改: {{ pending_count }}</span>
+            <span class="badge bg-success">已批改: {{ graded_count }}</span>
+        </div>
+    </div>
+
+    <!-- 筛选区域 -->
+    <div class="card shadow mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-4">
+                    <label for="subjectFilter" class="form-label">科目</label>
+                    <select class="form-select" id="subjectFilter" name="subject">
+                        <option value="">全部科目</option>
+                        {% for subject in subjects %}
+                        <option value="{{ subject.id }}" {% if current_subject == subject.id|stringformat:'s' %}selected{% endif %}>
+                            {{ subject.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="statusFilter" class="form-label">状态</label>
+                    <select class="form-select" id="statusFilter" name="status">
+                        <option value="pending" {% if current_status == 'pending' %}selected{% endif %}>待批改</option>
+                        <option value="graded" {% if current_status == 'graded' %}selected{% endif %}>已批改</option>
+                        <option value="">全部</option>
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-filter"></i> 筛选
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 答题记录列表 -->
+    <div class="card shadow">
+        <div class="card-body">
+            {% if answer_logs %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>学生</th>
+                            <th>科目</th>
+                            <th>题目</th>
+                            <th>提交时间</th>
+                            <th>状态</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in answer_logs %}
+                        <tr>
+                            <td>
+                                {% if log.student.first_name %}
+                                    {{ log.student.first_name }}{{ log.student.last_name }}
+                                {% else %}
+                                    {{ log.student.username }}
+                                {% endif %}
+                            </td>
+                            <td>{{ log.exercise.subject.name }}</td>
+                            <td>
+                                <span title="{{ log.exercise.content }}">
+                                    {{ log.exercise.title|truncatechars:30 }}
+                                </span>
+                            </td>
+                            <td>{{ log.submitted_at|date:"Y-m-d H:i" }}</td>
+                            <td>
+                                {% if log.is_correct is None %}
+                                    <span class="badge bg-warning text-dark">待批改</span>
+                                {% elif log.is_correct %}
+                                    <span class="badge bg-success">正确</span>
+                                {% else %}
+                                    <span class="badge bg-danger">错误</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-primary" 
+                                        onclick="showGradeModal({{ log.id }})">
+                                    <i class="fas fa-pen"></i> 
+                                    {% if log.is_correct is None %}批改{% else %}查看{% endif %}
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 分页 -->
+            {% if answer_logs.has_other_pages %}
+            <nav aria-label="Page navigation" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if answer_logs.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ answer_logs.previous_page_number }}{% if current_subject %}&subject={{ current_subject }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    {% for num in answer_logs.paginator.page_range %}
+                        {% if num >= answer_logs.number|add:"-2" and num <= answer_logs.number|add:"2" %}
+                            <li class="page-item {% if answer_logs.number == num %}active{% endif %}">
+                                <a class="page-link" href="?page={{ num }}{% if current_subject %}&subject={{ current_subject }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}">
+                                    {{ num }}
+                                </a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if answer_logs.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ answer_logs.next_page_number }}{% if current_subject %}&subject={{ current_subject }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+
+            {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
+                <h5 class="text-muted">暂无需要批改的作业</h5>
+                <p class="text-muted">当前筛选条件下没有主观题答题记录</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- 批改模态框 -->
+<div class="modal fade" id="gradeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-pen me-2"></i>批改作业
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="gradeModalBody">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" id="gradeModalFooter" style="display: none;">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-danger" onclick="submitGrade(false)">
+                    <i class="fas fa-times me-1"></i>错误
+                </button>
+                <button type="button" class="btn btn-success" onclick="submitGrade(true)">
+                    <i class="fas fa-check me-1"></i>正确
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endif %}
+
+<script>
+let currentLogId = null;
+
+function showGradeModal(logId) {
+    currentLogId = logId;
+    const modal = new bootstrap.Modal(document.getElementById('gradeModal'));
+    modal.show();
+    
+    // 加载详情
+    const bodyDiv = document.getElementById('gradeModalBody');
+    const footerDiv = document.getElementById('gradeModalFooter');
+    
+    bodyDiv.innerHTML = `
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">加载中...</span>
+            </div>
+        </div>
+    `;
+    footerDiv.style.display = 'none';
+    
+    fetch(`/learning/teacher/api/answer/${logId}/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                renderGradeContent(data.log);
+            } else {
+                bodyDiv.innerHTML = `<div class="alert alert-danger">${data.message}</div>`;
+            }
+        })
+        .catch(error => {
+            bodyDiv.innerHTML = `<div class="alert alert-danger">加载失败，请重试</div>`;
+        });
+}
+
+function renderGradeContent(log) {
+    const bodyDiv = document.getElementById('gradeModalBody');
+    const footerDiv = document.getElementById('gradeModalFooter');
+    
+    let statusBadge = '';
+    if (log.is_correct === null) {
+        statusBadge = '<span class="badge bg-warning text-dark">待批改</span>';
+        footerDiv.style.display = 'flex';
+    } else if (log.is_correct) {
+        statusBadge = '<span class="badge bg-success">已批改：正确</span>';
+        footerDiv.style.display = 'none';
+    } else {
+        statusBadge = '<span class="badge bg-danger">已批改：错误</span>';
+        footerDiv.style.display = 'none';
+    }
+    
+    bodyDiv.innerHTML = `
+        <div class="mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="mb-0"><i class="fas fa-user me-1"></i> 学生：${log.student_name}</h6>
+                ${statusBadge}
+            </div>
+            <small class="text-muted">
+                <i class="fas fa-book me-1"></i>${log.subject_name} | 
+                <i class="fas fa-clock me-1"></i>${log.submitted_at}
+            </small>
+        </div>
+        
+        <div class="mb-4">
+            <h6><i class="fas fa-question-circle me-1"></i> 题目</h6>
+            <div class="border rounded p-3 bg-light">
+                <strong>${log.exercise_title}</strong>
+                <hr class="my-2">
+                ${log.exercise_content.replace(/\n/g, '<br>')}
+            </div>
+        </div>
+        
+        <div class="mb-4">
+            <h6><i class="fas fa-edit me-1"></i> 学生答案</h6>
+            <div class="border rounded p-3 bg-info bg-opacity-10">
+                ${log.text_answer ? log.text_answer.replace(/\n/g, '<br>') : '<span class="text-muted">学生未作答</span>'}
+            </div>
+        </div>
+        
+        ${log.exercise_answer ? `
+        <div class="mb-4">
+            <h6><i class="fas fa-check-circle me-1"></i> 参考答案</h6>
+            <div class="border rounded p-3 bg-success bg-opacity-10">
+                ${log.exercise_answer.replace(/\n/g, '<br>')}
+            </div>
+        </div>
+        ` : ''}
+        
+        ${log.exercise_solution ? `
+        <div class="mb-4">
+            <h6><i class="fas fa-lightbulb me-1"></i> 答案解析</h6>
+            <div class="border rounded p-3 bg-warning bg-opacity-10">
+                ${log.exercise_solution.replace(/\n/g, '<br>')}
+            </div>
+        </div>
+        ` : ''}
+    `;
+}
+
+function submitGrade(isCorrect) {
+    if (!currentLogId) return;
+    
+    const formData = new FormData();
+    formData.append('is_correct', isCorrect);
+    
+    fetch(`/learning/teacher/api/answer/${currentLogId}/grade/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('批改成功！');
+            location.reload();
+        } else {
+            alert('批改失败：' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('网络错误，请重试');
+    });
+}
+</script>
+
+{% endblock %}

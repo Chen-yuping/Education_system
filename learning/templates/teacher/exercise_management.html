@@ -27,17 +27,11 @@
             <h1 class="h3 mb-0 text-gray-800">题库管理</h1>
             <p class="text-muted mb-0">管理所有习题，支持增删改查、批量操作</p>
         </div>
-<!--        <div>-->
-<!--            <button type="button" class="btn btn-danger mr-2" id="batchDeleteBtn" disabled>-->
-<!--                <i class="fas fa-trash-alt"></i> 批量删除-->
-<!--            </button>-->
-<!--            <a href="{% url 'export_exercises' %}?{{ request.GET.urlencode }}" class="btn btn-success mr-2" id="exportBtn">-->
-<!--                <i class="fas fa-download"></i> 导出习题-->
-<!--            </a>-->
-<!--            <a href="{% url 'exercise_add' %}" class="btn btn-primary">-->
-<!--                <i class="fas fa-plus"></i> 添加习题-->
-<!--            </a>-->
-<!--        </div>-->
+        <div>
+            <button type="button" class="btn btn-primary" onclick="showAddExercise()">
+                <i class="fas fa-plus"></i> 添加习题
+            </button>
+        </div>
     </div>
 
     <!-- 筛选和搜索区域 -->
@@ -227,20 +221,13 @@
                                        title="查看详情">
                                         <i class="fas fa-eye"></i>
                                     </a>
-                                    <a href="{% url 'exercise_update_json' exercise.id %}"
+                                    <a href="javascript:void(0);"
+                                       onclick="showExerciseEdit({{ exercise.id }})"
                                        class="btn btn-outline-warning"
                                        data-bs-toggle="tooltip"
                                        title="编辑">
                                         <i class="fas fa-edit"></i>
                                     </a>
-                                    <button type="button"
-                                            class="btn btn-outline-danger delete-exercise"
-                                            data-id="{{ exercise.id }}"
-                                            data-title="{{ exercise.title }}"
-                                            data-bs-toggle="tooltip"
-                                            title="删除">
-                                        <i class="fas fa-trash-alt"></i>
-                                    </button>
                                 </div>
                             </td>
                         </tr>
@@ -335,11 +322,8 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
-                    <a id="edit-exercise-btn" href="#" class="btn btn-warning">
-                        <i class="fas fa-edit me-1"></i>编辑
-                    </a>
-                <button type="button" class="btn btn-danger" onclick="deleteExercise()">
-                    <i class="fas fa-trash-alt me-1"></i>删除
+                <button type="button" class="btn btn-warning" onclick="openEditFromDetail()">
+                    <i class="fas fa-edit me-1"></i>编辑
                 </button>
             </div>
         </div>
@@ -347,66 +331,142 @@
 </div>
 <!-- 习题编辑模态框 -->
 <div class="modal fade" id="exerciseEditModal" tabindex="-1" aria-labelledby="exerciseEditModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header bg-warning text-white">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content" style="max-height: 90vh;">
+            <div class="modal-header bg-warning text-dark">
                 <h5 class="modal-title" id="exerciseEditModalLabel">
                     <i class="fas fa-edit me-2"></i>编辑习题
                     <span id="edit-exercise-id-badge" class="badge bg-light text-dark ms-2"></span>
                 </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form id="exerciseEditForm">
-                <div class="modal-body">
-                    <!-- 内容将通过JavaScript动态加载 -->
-                    <div class="text-center py-5">
-                        <div class="spinner-border text-warning" role="status">
-                            <span class="visually-hidden">加载中...</span>
-                        </div>
-                        <p class="mt-2">正在加载编辑表单...</p>
+            <div class="modal-body" id="exerciseEditModalBody" style="overflow-y: auto; max-height: calc(90vh - 130px);">
+                <!-- 内容将通过JavaScript动态加载 -->
+                <div class="text-center py-5">
+                    <div class="spinner-border text-warning" role="status">
+                        <span class="visually-hidden">加载中...</span>
                     </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                    <button type="submit" class="btn btn-warning" id="save-edit-btn">
-                        <i class="fas fa-save me-1"></i>保存更改
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-<!-- 删除确认模态框 -->
-<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">确认删除</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <p>确定要删除习题 "<span id="exerciseTitle" class="fw-bold"></span>" 吗？</p>
-                <div class="alert alert-warning">
-                    <i class="fas fa-exclamation-triangle me-2"></i>
-                    此操作将永久删除该习题及其所有相关数据，包括：
-                    <ul class="mb-0 mt-2">
-                        <li>习题基本信息</li>
-                        <li>所有选项</li>
-                        <li>Q矩阵关联关系</li>
-                        <li>学生的答题记录</li>
-                    </ul>
+                    <p class="mt-2">正在加载编辑表单...</p>
                 </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                <form id="deleteForm" method="post" style="display: inline;">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-danger">确认删除</button>
-                </form>
+                <button type="button" class="btn btn-warning" id="save-edit-btn">
+                    <i class="fas fa-save me-1"></i>保存更改
+                </button>
             </div>
         </div>
     </div>
 </div>
+
+<!-- 添加习题模态框 -->
+<div class="modal fade" id="exerciseAddModal" tabindex="-1" aria-labelledby="exerciseAddModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content" style="max-height: 90vh;">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="exerciseAddModalLabel">
+                    <i class="fas fa-plus me-2"></i>添加习题
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="exerciseAddModalBody" style="overflow-y: auto; max-height: calc(90vh - 130px);">
+                <div class="row">
+                    <div class="col-md-6">
+                        <!-- 科目 -->
+                        <div class="mb-3">
+                            <label for="add_subject" class="form-label fw-bold">所属科目 *</label>
+                            <select class="form-select" id="add_subject" name="subject_id" required>
+                                {% for subject in subjects %}
+                                <option value="{{ subject.id }}">{{ subject.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- 标题 -->
+                        <div class="mb-3">
+                            <label for="add_title" class="form-label fw-bold">习题标题 *</label>
+                            <input type="text" class="form-control" id="add_title" name="title" required placeholder="输入习题标题">
+                        </div>
+
+                        <!-- 题型 -->
+                        <div class="mb-3">
+                            <label for="add_question_type" class="form-label fw-bold">题型 *</label>
+                            <select class="form-select" id="add_question_type" name="question_type" required>
+                                <option value="single">单选题</option>
+                                <option value="multiple">多选题</option>
+                                <option value="judgment">判断题</option>
+                                <option value="fill">填空题</option>
+                                <option value="subjective">主观题</option>
+                            </select>
+                        </div>
+
+                        <!-- 答案 -->
+                        <div class="mb-3">
+                            <label for="add_answer" class="form-label fw-bold">参考答案 *</label>
+                            <input type="text" class="form-control" id="add_answer" name="answer" required placeholder="输入参考答案，如：A 或 A,B,C">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <!-- 内容 -->
+                        <div class="mb-3">
+                            <label for="add_content" class="form-label fw-bold">习题内容 *</label>
+                            <textarea class="form-control" id="add_content" name="content" rows="4" required placeholder="输入习题内容"></textarea>
+                        </div>
+
+                        <!-- 选项 -->
+                        <div class="mb-3" id="add_options_section">
+                            <label class="form-label fw-bold">选项内容</label>
+                            <div id="add_choices_container">
+                                <div class="input-group mb-2">
+                                    <span class="input-group-text">A</span>
+                                    <input type="text" class="form-control add-choice-input" placeholder="选项A内容">
+                                    <div class="input-group-text">
+                                        <input type="checkbox" class="form-check-input add-choice-correct" title="设为正确答案">
+                                    </div>
+                                </div>
+                                <div class="input-group mb-2">
+                                    <span class="input-group-text">B</span>
+                                    <input type="text" class="form-control add-choice-input" placeholder="选项B内容">
+                                    <div class="input-group-text">
+                                        <input type="checkbox" class="form-check-input add-choice-correct" title="设为正确答案">
+                                    </div>
+                                </div>
+                                <div class="input-group mb-2">
+                                    <span class="input-group-text">C</span>
+                                    <input type="text" class="form-control add-choice-input" placeholder="选项C内容">
+                                    <div class="input-group-text">
+                                        <input type="checkbox" class="form-check-input add-choice-correct" title="设为正确答案">
+                                    </div>
+                                </div>
+                                <div class="input-group mb-2">
+                                    <span class="input-group-text">D</span>
+                                    <input type="text" class="form-control add-choice-input" placeholder="选项D内容">
+                                    <div class="input-group-text">
+                                        <input type="checkbox" class="form-check-input add-choice-correct" title="设为正确答案">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-text">勾选复选框表示正确答案</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 答案解析 -->
+                <div class="mb-3">
+                    <label for="add_solution" class="form-label fw-bold">答案解析</label>
+                    <textarea class="form-control" id="add_solution" name="solution" rows="2" placeholder="输入答案解析（可选）"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="save-add-btn" onclick="submitAddExercise()">
+                    <i class="fas fa-save me-1"></i>保存习题
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 
 {% endif %}
 
@@ -416,13 +476,107 @@
 // 全局变量，存储当前选中的习题ID
 let currentExerciseId = null;
 
+// 显示添加习题模态框
+function showAddExercise() {
+    // 清空表单
+    document.getElementById('add_title').value = '';
+    document.getElementById('add_content').value = '';
+    document.getElementById('add_answer').value = '';
+    document.getElementById('add_solution').value = '';
+    
+    // 清空选项
+    document.querySelectorAll('.add-choice-input').forEach(input => input.value = '');
+    document.querySelectorAll('.add-choice-correct').forEach(checkbox => checkbox.checked = false);
+    
+    // 显示模态框
+    const modal = new bootstrap.Modal(document.getElementById('exerciseAddModal'));
+    modal.show();
+}
+
+// 提交添加习题
+function submitAddExercise() {
+    const saveBtn = document.getElementById('save-add-btn');
+    
+    // 验证必填字段
+    const title = document.getElementById('add_title').value.trim();
+    const content = document.getElementById('add_content').value.trim();
+    const answer = document.getElementById('add_answer').value.trim();
+    const subjectId = document.getElementById('add_subject').value;
+    const questionType = document.getElementById('add_question_type').value;
+    
+    if (!title) {
+        alert('请输入习题标题');
+        return;
+    }
+    if (!content) {
+        alert('请输入习题内容');
+        return;
+    }
+    if (!answer) {
+        alert('请输入参考答案');
+        return;
+    }
+    
+    // 收集选项数据
+    const choices = [];
+    document.querySelectorAll('.add-choice-input').forEach((input, index) => {
+        const choiceContent = input.value.trim();
+        const isCorrect = document.querySelectorAll('.add-choice-correct')[index].checked;
+        if (choiceContent) {
+            choices.push({
+                content: choiceContent,
+                is_correct: isCorrect,
+                order: index
+            });
+        }
+    });
+    
+    // 构建表单数据
+    const formData = new FormData();
+    formData.append('subject_id', subjectId);
+    formData.append('title', title);
+    formData.append('content', content);
+    formData.append('question_type', questionType);
+    formData.append('answer', answer);
+    formData.append('solution', document.getElementById('add_solution').value);
+    formData.append('choices', JSON.stringify(choices));
+    
+    // 显示加载状态
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>保存中...';
+    
+    // 发送请求
+    fetch('/learning/exercise-management/add-json/', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('习题添加成功！');
+            const modal = bootstrap.Modal.getInstance(document.getElementById('exerciseAddModal'));
+            if (modal) modal.hide();
+            location.reload();
+        } else {
+            alert('添加失败：' + (data.message || '未知错误'));
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<i class="fas fa-save me-1"></i>保存习题';
+        }
+    })
+    .catch(error => {
+        console.error('添加习题失败:', error);
+        alert('网络错误，请重试。');
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="fas fa-save me-1"></i>保存习题';
+    });
+}
+
 // 显示习题详情模态框
 function showExerciseDetail(exerciseId) {
     currentExerciseId = exerciseId;
-
-    // 更新编辑按钮的链接
-    const editBtn = document.getElementById('edit-exercise-btn');
-    editBtn.href = `/learning/exercise-management/edit/${exerciseId}/`;
 
     // 显示模态框
     const modal = new bootstrap.Modal(document.getElementById('exerciseDetailModal'));
@@ -617,7 +771,7 @@ function showExerciseEdit(exerciseId) {
 
 // 加载习题数据用于编辑
 function loadExerciseForEdit(exerciseId) {
-    const contentDiv = document.getElementById('exerciseEditModal').querySelector('.modal-body');
+    const contentDiv = document.getElementById('exerciseEditModalBody');
 
     // 显示加载中
     contentDiv.innerHTML = `
@@ -662,42 +816,39 @@ function loadExerciseForEdit(exerciseId) {
 
 // 渲染编辑表单
 function renderExerciseEditForm(exercise) {
-    const contentDiv = document.getElementById('exerciseEditModal').querySelector('.modal-body');
+    const contentDiv = document.getElementById('exerciseEditModalBody');
     const idBadge = document.getElementById('edit-exercise-id-badge');
 
     // 更新ID徽章
     idBadge.textContent = `ID: ${exercise.id}`;
 
-    // 题型选项 - 与您的模型保持一致
-    const questionTypeOptions = {
-        'single': '单选题',
-        'multiple': '多选题',
-        'judgment': '判断题',
-        'fill': '填空题',
-        'subjective': '主观题'
-    };
+    // 处理内容，转义特殊字符
+    let contentText = exercise.content || '';
+    contentText = contentText.replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-    // 生成题型选择HTML
-    let questionTypeOptionsHtml = '';
-    for (const [value, label] of Object.entries(questionTypeOptions)) {
-        const selected = exercise.question_type === value ? 'selected' : '';
-        questionTypeOptionsHtml += `<option value="${value}" ${selected}>${label}</option>`;
-    }
-
-    // 生成科目选择HTML
-    let subjectOptionsHtml = '';
-    if (exercise.teacher_subjects && exercise.teacher_subjects.length > 0) {
-        exercise.teacher_subjects.forEach(subject => {
-            const selected = exercise.subject_id === subject.id ? 'selected' : '';
-            subjectOptionsHtml += `<option value="${subject.id}" ${selected}>${subject.name}</option>`;
+    // 生成选项编辑HTML
+    let choicesHtml = '';
+    if (exercise.choices && exercise.choices.length > 0) {
+        exercise.choices.forEach((choice, index) => {
+            const choiceContent = (choice.content || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const optionLabel = String.fromCharCode(65 + index); // A, B, C, D...
+            choicesHtml += `
+                <div class="input-group mb-2">
+                    <span class="input-group-text">${optionLabel}</span>
+                    <input type="text" class="form-control choice-input" 
+                           data-choice-id="${choice.id}"
+                           value="${choiceContent}">
+                    ${choice.is_correct ? '<span class="input-group-text text-success"><i class="fas fa-check"></i></span>' : ''}
+                </div>
+            `;
         });
     } else {
-        subjectOptionsHtml = '<option value="">无可用科目</option>';
+        choicesHtml = '<p class="text-muted">该题目没有选项</p>';
     }
 
-    // 生成知识点选择HTML（带权重）
+    // 生成知识点选择HTML
     let knowledgePointsHtml = '';
-    if (exercise.subject_knowledge_points && exercise.subject_knowledge_points.length > 0) {
+    if (exercise.all_knowledge_points && exercise.all_knowledge_points.length > 0) {
         // 创建已选知识点的映射
         const selectedKnowledgePoints = {};
         if (exercise.knowledge_points) {
@@ -706,7 +857,7 @@ function renderExerciseEditForm(exercise) {
             });
         }
 
-        exercise.subject_knowledge_points.forEach(kp => {
+        exercise.all_knowledge_points.forEach(kp => {
             const isSelected = selectedKnowledgePoints.hasOwnProperty(kp.id);
             const weight = isSelected ? selectedKnowledgePoints[kp.id] : '1.0';
             knowledgePointsHtml += `
@@ -741,73 +892,70 @@ function renderExerciseEditForm(exercise) {
 
     // 生成表单HTML
     contentDiv.innerHTML = `
-        <div class="container-fluid">
-            <form id="exerciseEditForm">
-                <div class="row">
-                    <div class="col-12">
-                        <!-- 科目 -->
-                        <div class="mb-3">
-                            <label for="edit_subject" class="form-label fw-bold">所属科目 *</label>
-                            <select class="form-select" id="edit_subject" name="subject_id" required>
-                                ${subjectOptionsHtml}
-                            </select>
-                        </div>
-
-                        <!-- 标题 -->
-                        <div class="mb-3">
-                            <label for="edit_title" class="form-label fw-bold">习题标题 *</label>
-                            <input type="text" class="form-control" id="edit_title"
-                                   name="title" value="${exercise.title || ''}" required>
-                        </div>
-
-                        <!-- 题型 -->
-                        <div class="mb-3">
-                            <label for="edit_question_type" class="form-label fw-bold">题型 *</label>
-                            <select class="form-select" id="edit_question_type" name="question_type" required>
-                                ${questionTypeOptionsHtml}
-                            </select>
-                        </div>
-
-                        <!-- 内容 -->
-                        <div class="mb-3">
-                            <label for="edit_content" class="form-label fw-bold">习题内容 *</label>
-                            <textarea class="form-control" id="edit_content" name="content"
-                                      rows="4" required>${exercise.content || ''}</textarea>
-                        </div>
-
-                        <!-- 选项 -->
-                        <div class="mb-3" id="edit_options_section">
-                            <label for="edit_option_text" class="form-label fw-bold">选项内容</label>
-                            <textarea class="form-control" id="edit_option_text" name="option_text"
-                                      rows="3" placeholder="每行一个选项，例如：A. 选项一">${exercise.option_text || ''}</textarea>
-                            <div class="form-text">每行一个选项，例如：A. 选项一</div>
-                        </div>
-
-                        <!-- 答案 -->
-                        <div class="mb-3">
-                            <label for="edit_answer" class="form-label fw-bold">参考答案 *</label>
-                            <input type="text" class="form-control" id="edit_answer"
-                                   name="answer" value="${exercise.answer || ''}" required>
-                            <div class="form-text" id="edit_answer_hint"></div>
-                        </div>
-
-                        <!-- 知识点 -->
-                        <div class="mb-3">
-                            <label class="form-label fw-bold">关联知识点</label>
-                            <div class="border rounded p-3 bg-light">
-                                <div class="row mb-2">
-                                    <div class="col fw-bold">知识点</div>
-                                    <div class="col-3 fw-bold">权重</div>
-                                </div>
-                                ${knowledgePointsHtml}
-                            </div>
-                        </div>
-
-                        <!-- 隐藏字段 -->
-                        <input type="hidden" id="edit_knowledge_points" name="knowledge_points" value="">
+        <div class="row">
+            <div class="col-12">
+                <!-- 基本信息（只读） -->
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">所属科目</label>
+                        <input type="text" class="form-control" value="${exercise.subject || ''}" readonly disabled>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">习题标题</label>
+                        <input type="text" class="form-control" value="${exercise.title || ''}" readonly disabled>
                     </div>
                 </div>
-            </form>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">题型</label>
+                    <input type="text" class="form-control" value="${exercise.question_type || ''}" readonly disabled style="max-width: 200px;">
+                </div>
+
+                <hr>
+
+                <!-- 题目内容（可编辑） -->
+                <div class="mb-3">
+                    <label for="edit_content" class="form-label fw-bold">
+                        <i class="fas fa-edit text-warning me-1"></i>题目内容
+                    </label>
+                    <textarea class="form-control" id="edit_content" name="content"
+                              rows="4">${contentText}</textarea>
+                </div>
+
+                <!-- 选项（可编辑） -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">
+                        <i class="fas fa-edit text-warning me-1"></i>选项内容
+                    </label>
+                    <div class="border rounded p-3 bg-light">
+                        ${choicesHtml}
+                    </div>
+                    <div class="form-text">绿色勾号表示正确答案</div>
+                </div>
+
+                <!-- 参考答案（可编辑） -->
+                <div class="mb-3">
+                    <label for="edit_solution" class="form-label fw-bold">
+                        <i class="fas fa-edit text-warning me-1"></i>答案解析
+                    </label>
+                    <textarea class="form-control" id="edit_solution" name="solution"
+                              rows="3" placeholder="输入答案解析">${exercise.solution || ''}</textarea>
+                </div>
+
+                <!-- 知识点关联（可编辑） -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">
+                        <i class="fas fa-edit text-warning me-1"></i>关联知识点（Q矩阵）
+                    </label>
+                    <div class="border rounded p-3 bg-light" style="max-height: 200px; overflow-y: auto;">
+                        <div class="row mb-2">
+                            <div class="col fw-bold">知识点</div>
+                            <div class="col-3 fw-bold">权重</div>
+                        </div>
+                        ${knowledgePointsHtml}
+                    </div>
+                </div>
+            </div>
         </div>
     `;
 
@@ -822,32 +970,112 @@ function renderExerciseEditForm(exercise) {
     // 初始化表单交互
     initEditFormEvents();
 }
-// 删除习题
-function deleteExercise() {
-    if (!currentExerciseId) return;
 
-    if (confirm('确定要删除这个习题吗？此操作不可恢复。')) {
-        // 这里可以添加删除逻辑
-        fetch(`/learning/exercise-management/delete/${currentExerciseId}/`, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': '{{ csrf_token }}',
-                'Content-Type': 'application/x-www-form-urlencoded',
+// 从详情模态框打开编辑模态框
+function openEditFromDetail() {
+    if (!currentExerciseId) return;
+    // 关闭详情模态框
+    const detailModal = bootstrap.Modal.getInstance(document.getElementById('exerciseDetailModal'));
+    if (detailModal) detailModal.hide();
+    // 打开编辑模态框
+    setTimeout(() => showExerciseEdit(currentExerciseId), 300);
+}
+
+// 初始化编辑表单事件
+function initEditFormEvents() {
+    // 知识点复选框切换权重输入
+    document.querySelectorAll('.knowledge-point-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const kpId = this.value;
+            const weightInput = document.querySelector(`.weight-input[data-kp-id="${kpId}"]`);
+            if (weightInput) {
+                weightInput.disabled = !this.checked;
+                if (!this.checked) {
+                    weightInput.value = '1.0';
+                }
             }
-        })
-        .then(response => {
-            if (response.ok) {
-                alert('删除成功！');
-                location.reload();
-            } else {
-                alert('删除失败，请重试。');
-            }
-        })
-        .catch(error => {
-            console.error('删除错误:', error);
-            alert('删除失败，请重试。');
         });
+    });
+
+    // 表单提交处理
+    const saveBtn = document.getElementById('save-edit-btn');
+
+    if (saveBtn) {
+        saveBtn.onclick = function(e) {
+            e.preventDefault();
+            submitEditForm();
+        };
     }
+}
+
+// 提交编辑表单
+function submitEditForm() {
+    const saveBtn = document.getElementById('save-edit-btn');
+
+    // 收集表单数据
+    const formData = new FormData();
+    formData.append('content', document.getElementById('edit_content').value);
+
+    // 收集选项数据
+    const choices = [];
+    document.querySelectorAll('.choice-input').forEach(input => {
+        const choiceId = input.dataset.choiceId;
+        const content = input.value;
+        if (choiceId && content) {
+            choices.push({ id: parseInt(choiceId), content: content });
+        }
+    });
+    formData.append('choices', JSON.stringify(choices));
+
+    // 收集答案解析
+    const solutionInput = document.getElementById('edit_solution');
+    if (solutionInput) {
+        formData.append('solution', solutionInput.value);
+    }
+
+    // 收集知识点数据
+    const knowledgePoints = [];
+    document.querySelectorAll('.knowledge-point-checkbox:checked').forEach(checkbox => {
+        const kpId = checkbox.value;
+        const weightInput = document.querySelector(`.weight-input[data-kp-id="${kpId}"]`);
+        const weight = weightInput ? weightInput.value : '1.0';
+        knowledgePoints.push({ id: parseInt(kpId), weight: parseFloat(weight) });
+    });
+    formData.append('knowledge_points', JSON.stringify(knowledgePoints));
+
+    // 显示加载状态
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>保存中...';
+
+    // 发送请求
+    fetch(`/learning/exercise-management/update/${currentEditExerciseId}/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('习题更新成功！');
+            // 关闭模态框
+            const modal = bootstrap.Modal.getInstance(document.getElementById('exerciseEditModal'));
+            if (modal) modal.hide();
+            // 刷新页面
+            location.reload();
+        } else {
+            alert('更新失败：' + (data.message || '未知错误'));
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<i class="fas fa-save me-1"></i>保存更改';
+        }
+    })
+    .catch(error => {
+        console.error('更新习题失败:', error);
+        alert('网络错误，请重试。');
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="fas fa-save me-1"></i>保存更改';
+    });
 }
 </script>
 
@@ -873,73 +1101,6 @@ $(document).ready(function() {
     $(document).on('change', '.exercise-checkbox', function() {
         const allChecked = $('.exercise-checkbox').length === $('.exercise-checkbox:checked').length;
         $('#selectAll').prop('checked', allChecked);
-        updateBatchDeleteButton();
-    });
-
-    // 更新批量删除按钮状态
-    function updateBatchDeleteButton() {
-        const checkedCount = $('.exercise-checkbox:checked').length;
-        const btn = $('#batchDeleteBtn');
-
-        if (checkedCount > 0) {
-            btn.prop('disabled', false);
-            btn.html(`<i class="fas fa-trash-alt"></i> 批量删除 (${checkedCount})`);
-        } else {
-            btn.prop('disabled', true);
-            btn.html(`<i class="fas fa-trash-alt"></i> 批量删除`);
-        }
-    }
-
-    // 批量删除
-    $('#batchDeleteBtn').click(function() {
-        const selectedIds = [];
-        $('.exercise-checkbox:checked').each(function() {
-            selectedIds.push($(this).val());
-        });
-
-        if (selectedIds.length > 0) {
-            if (confirm(`确定要删除选中的 ${selectedIds.length} 个习题吗？此操作不可恢复。`)) {
-                // 显示加载状态
-                const originalHtml = $(this).html();
-                $(this).html('<i class="fas fa-spinner fa-spin"></i> 删除中...');
-                $(this).prop('disabled', true);
-
-                // 发送批量删除请求
-                $.ajax({
-                    url: "{% url 'exercise_batch_delete' %}",
-                    type: 'POST',
-                    data: {
-                        'exercise_ids': selectedIds,
-                        'csrfmiddlewaretoken': '{{ csrf_token }}'
-                    },
-                    success: function(response) {
-                        if (response.success) {
-                            alert('成功删除 ' + response.deleted_count + ' 个习题！');
-                            location.reload();
-                        } else {
-                            alert('删除失败：' + response.message);
-                            $('#batchDeleteBtn').html(originalHtml).prop('disabled', false);
-                        }
-                    },
-                    error: function(xhr, status, error) {
-                        alert('请求失败，请重试！');
-                        $('#batchDeleteBtn').html(originalHtml).prop('disabled', false);
-                        console.error('删除错误:', error);
-                    }
-                });
-            }
-        }
-    });
-
-    // 单个删除
-    $(document).on('click', '.delete-exercise', function() {
-        const exerciseId = $(this).data('id');
-        const exerciseTitle = $(this).data('title');
-
-        $('#exerciseTitle').text(exerciseTitle);
-        $('#deleteForm').attr('action', `/teacher/exercise-management/delete/${exerciseId}/`);
-
-        $('#deleteModal').modal('show');
     });
 
     // 重置筛选条件

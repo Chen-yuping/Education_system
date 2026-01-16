@@ -497,7 +497,7 @@ def exercise_detail_json(request, exercise_id):
         # 获取习题详情
         exercise = get_object_or_404(
             Exercise.objects.select_related('subject', 'creator')
-                .prefetch_related('qmatrix_set__knowledge_point'),
+                .prefetch_related('qmatrix_set__knowledge_point', 'choices'),
             id=exercise_id
         )
 
@@ -515,6 +515,14 @@ def exercise_detail_json(request, exercise_id):
         # 获取关联的知识点
         knowledge_points = list(exercise.qmatrix_set.select_related('knowledge_point')
                                 .values('knowledge_point__id', 'knowledge_point__name', 'weight'))
+
+        # 获取选项列表
+        choices = list(exercise.choices.order_by('order').values('id', 'content', 'is_correct', 'order'))
+
+        # 获取当前科目的所有知识点
+        all_knowledge_points = list(KnowledgePoint.objects.filter(
+            subject_id=exercise.subject_id
+        ).values('id', 'name'))
 
         # 手动映射题型
         question_type_mapping = {
@@ -544,13 +552,17 @@ def exercise_detail_json(request, exercise_id):
             'title': exercise.title or '无标题',
             'content': exercise.content,
             'answer': exercise.answer or '暂无答案',
-            'option_text': exercise.option_text or '无选项',
+            'solution': exercise.solution or '',
+            'option_text': exercise.option_text or '',
+            'choices': choices,
             'question_type': question_type_display,
             'question_type_code': exercise.question_type,
             'subject': exercise.subject.name if exercise.subject else '未分类',
+            'subject_id': exercise.subject_id,
             'creator': exercise.creator.get_full_name() or exercise.creator.username,
-            'created_at': exercise.created_at.strftime('%Y-%m-%d %H:%M') if hasattr(exercise, 'created_at') else '',
+            'created_at': exercise.created_at.strftime('%Y-%m-%d %H:%M') if hasattr(exercise, 'created_at') and exercise.created_at else '',
             'knowledge_points': knowledge_points,
+            'all_knowledge_points': all_knowledge_points,
         }
 
         return JsonResponse({
@@ -593,11 +605,6 @@ def exercise_update_json(request, exercise_id):
                     'success': False,
                     'message': '您无权在此科目下创建或修改习题。'
                 })
-            # 更新科目
-            try:
-                exercise.subject_id = int(new_subject_id)
-            except (ValueError, TypeError):
-                pass
         else:
             # 保持原科目，检查原科目权限
             if exercise.subject_id not in teacher_subjects:
@@ -606,24 +613,33 @@ def exercise_update_json(request, exercise_id):
                     'message': '您无权修改此科目的习题。'
                 })
 
-        # 更新基本字段
-        exercise.title = request.POST.get('title', exercise.title)
+        # 更新题目内容
         exercise.content = request.POST.get('content', exercise.content)
-
-        # 处理题型
-        question_type = request.POST.get('question_type', exercise.question_type)
-        exercise.question_type = question_type
-
-        # 处理选项
-        option_text = request.POST.get('option_text', exercise.option_text)
-        exercise.option_text = option_text if option_text else None
-
-        exercise.answer = request.POST.get('answer', exercise.answer)
+        
+        # 更新答案解析
+        exercise.solution = request.POST.get('solution', exercise.solution)
 
         # 保存习题
         exercise.save()
 
-        # 处理知识点关联
+        # 处理选项更新
+        choices_json = request.POST.get('choices', '[]')
+        try:
+            choices_data = json.loads(choices_json)
+            for choice_item in choices_data:
+                choice_id = choice_item.get('id')
+                choice_content = choice_item.get('content', '')
+                if choice_id and choice_content:
+                    try:
+                        choice = Choice.objects.get(id=choice_id, exercise=exercise)
+                        choice.content = choice_content
+                        choice.save()
+                    except Choice.DoesNotExist:
+                        continue
+        except json.JSONDecodeError:
+            pass
+
+        # 处理知识点关联（Q矩阵）
         knowledge_points_json = request.POST.get('knowledge_points', '[]')
         try:
             knowledge_points_data = json.loads(knowledge_points_json)
@@ -647,9 +663,7 @@ def exercise_update_json(request, exercise_id):
                         )
                 except (KnowledgePoint.DoesNotExist, ValueError):
                     continue
-
         except json.JSONDecodeError:
-            # 如果JSON解析失败，跳过知识点处理
             pass
 
         return JsonResponse({
@@ -665,6 +679,80 @@ def exercise_update_json(request, exercise_id):
         return JsonResponse({
             'success': False,
             'message': f'更新习题时出错: {str(e)}'
+        })
+
+"""添加习题 - JSON API"""
+@login_required
+@user_passes_test(is_teacher)
+@require_POST
+def exercise_add_json(request):
+    """通过JSON API添加习题"""
+    try:
+        # 获取表单数据
+        subject_id = request.POST.get('subject_id')
+        title = request.POST.get('title', '').strip()
+        content = request.POST.get('content', '').strip()
+        question_type = request.POST.get('question_type', 'single')
+        answer = request.POST.get('answer', '').strip()
+        solution = request.POST.get('solution', '').strip()
+        choices_json = request.POST.get('choices', '[]')
+
+        # 验证必填字段
+        if not subject_id:
+            return JsonResponse({'success': False, 'message': '请选择科目'})
+        if not title:
+            return JsonResponse({'success': False, 'message': '请输入习题标题'})
+        if not content:
+            return JsonResponse({'success': False, 'message': '请输入习题内容'})
+
+        # 检查科目权限
+        teacher_subjects = TeacherSubject.objects.filter(
+            teacher=request.user
+        ).values_list('subject_id', flat=True)
+
+        if int(subject_id) not in teacher_subjects:
+            return JsonResponse({'success': False, 'message': '您无权在此科目下添加习题'})
+
+        with transaction.atomic():
+            # 创建习题
+            exercise = Exercise.objects.create(
+                subject_id=int(subject_id),
+                title=title,
+                content=content,
+                question_type=question_type,
+                answer=answer,
+                solution=solution,
+                creator=request.user
+            )
+
+            # 处理选项
+            try:
+                choices_data = json.loads(choices_json)
+                for choice_item in choices_data:
+                    choice_content = choice_item.get('content', '').strip()
+                    if choice_content:
+                        Choice.objects.create(
+                            exercise=exercise,
+                            content=choice_content,
+                            is_correct=choice_item.get('is_correct', False),
+                            order=choice_item.get('order', 0)
+                        )
+            except json.JSONDecodeError:
+                pass
+
+            return JsonResponse({
+                'success': True,
+                'message': '习题添加成功！',
+                'exercise_id': exercise.id
+            })
+
+    except Exception as e:
+        print(f"添加习题JSON错误: {e}")
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'message': f'添加习题时出错: {str(e)}'
         })
 
 """添加习题"""
@@ -947,3 +1035,150 @@ def export_exercises(request):
         ])
 
     return response
+
+
+"""批改主观题作业"""
+@login_required
+@user_passes_test(is_teacher)
+def grade_subjective(request):
+    """主观题批改页面"""
+    teacher = request.user
+    
+    # 获取教师授课的科目
+    teacher_subjects = TeacherSubject.objects.filter(
+        teacher=teacher
+    ).select_related('subject')
+    
+    teacher_subject_ids = list(teacher_subjects.values_list('subject_id', flat=True))
+    
+    if not teacher_subject_ids:
+        return render(request, 'teacher/grade_subjective.html', {
+            'no_subjects': True
+        })
+    
+    # 获取筛选参数
+    subject_id = request.GET.get('subject')
+    status = request.GET.get('status', 'pending')  # pending: 待批改, graded: 已批改
+    
+    # 基础查询：主观题的答题记录 (question_type = '5' 或 'subjective')
+    answer_logs = AnswerLog.objects.filter(
+        exercise__subject_id__in=teacher_subject_ids,
+        exercise__question_type__in=['5', 'subjective']
+    ).select_related('student', 'exercise', 'exercise__subject').order_by('-submitted_at')
+    
+    # 按科目筛选
+    if subject_id and subject_id.isdigit():
+        if int(subject_id) in teacher_subject_ids:
+            answer_logs = answer_logs.filter(exercise__subject_id=int(subject_id))
+    
+    # 按状态筛选
+    if status == 'pending':
+        answer_logs = answer_logs.filter(is_correct__isnull=True)
+    elif status == 'graded':
+        answer_logs = answer_logs.filter(is_correct__isnull=False)
+    
+    # 统计数量
+    pending_count = AnswerLog.objects.filter(
+        exercise__subject_id__in=teacher_subject_ids,
+        exercise__question_type__in=['5', 'subjective'],
+        is_correct__isnull=True
+    ).count()
+    
+    graded_count = AnswerLog.objects.filter(
+        exercise__subject_id__in=teacher_subject_ids,
+        exercise__question_type__in=['5', 'subjective'],
+        is_correct__isnull=False
+    ).count()
+    
+    # 分页
+    paginator = Paginator(answer_logs, 20)
+    page_number = request.GET.get('page')
+    page_logs = paginator.get_page(page_number)
+    
+    context = {
+        'answer_logs': page_logs,
+        'subjects': Subject.objects.filter(id__in=teacher_subject_ids),
+        'current_subject': subject_id,
+        'current_status': status,
+        'pending_count': pending_count,
+        'graded_count': graded_count,
+        'no_subjects': False
+    }
+    
+    return render(request, 'teacher/grade_subjective.html', context)
+
+
+@login_required
+@user_passes_test(is_teacher)
+def get_answer_detail(request, log_id):
+    """获取答题详情"""
+    try:
+        log = get_object_or_404(
+            AnswerLog.objects.select_related('student', 'exercise', 'exercise__subject'),
+            id=log_id
+        )
+        
+        # 检查权限
+        teacher_subjects = TeacherSubject.objects.filter(
+            teacher=request.user
+        ).values_list('subject_id', flat=True)
+        
+        if log.exercise.subject_id not in teacher_subjects:
+            return JsonResponse({'success': False, 'message': '无权查看此记录'})
+        
+        data = {
+            'success': True,
+            'log': {
+                'id': log.id,
+                'student_name': f"{log.student.first_name}{log.student.last_name}" if log.student.first_name else log.student.username,
+                'exercise_title': log.exercise.title,
+                'exercise_content': log.exercise.content,
+                'exercise_answer': log.exercise.answer or '',
+                'exercise_solution': log.exercise.solution or '',
+                'text_answer': log.text_answer or '',
+                'is_correct': log.is_correct,
+                'submitted_at': log.submitted_at.strftime('%Y-%m-%d %H:%M:%S'),
+                'subject_name': log.exercise.subject.name
+            }
+        }
+        return JsonResponse(data)
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)})
+
+
+@login_required
+@user_passes_test(is_teacher)
+@require_POST
+def grade_answer(request, log_id):
+    """批改答题"""
+    try:
+        log = get_object_or_404(AnswerLog, id=log_id)
+        
+        # 检查权限
+        teacher_subjects = TeacherSubject.objects.filter(
+            teacher=request.user
+        ).values_list('subject_id', flat=True)
+        
+        if log.exercise.subject_id not in teacher_subjects:
+            return JsonResponse({'success': False, 'message': '无权批改此记录'})
+        
+        # 获取批改结果
+        is_correct = request.POST.get('is_correct')
+        
+        if is_correct == 'true':
+            log.is_correct = True
+        elif is_correct == 'false':
+            log.is_correct = False
+        else:
+            return JsonResponse({'success': False, 'message': '请选择批改结果'})
+        
+        log.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': '批改成功！'
+        })
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)})

@@ -34,6 +34,12 @@
                 </a>
             </li>
             <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'grade_subjective' %}active{% endif %}"
+                   href="{% url 'grade_subjective' %}">
+                    <i class="fas fa-pen-square"></i> 批改作业
+                </a>
+            </li>
+            <li class="nav-item">
                 <a class="nav-link {% if request.resolver_match.url_name == 'student_info' %}active{% endif %}"
                    href="{% url 'student_info' %}">
                     <i class="fas fa-users"></i> 授课信息查看

@@ -93,7 +93,7 @@ class DiagnosisService:
             student_data[student.id] = {
                 'id': student.id,
                 'username': student.username,
-                'first_name': student.first_name or student.username,
+                'first_name': f"{student.first_name or ''} {student.last_name or ''}".strip() or student.username,
                 'answer_logs': [],
                 'exercise_scores': {}
             }
