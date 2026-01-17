@@ -1,0 +1,208 @@
+{% extends 'student/base.html' %}
+
+{% block title %}我的收藏 - 在线学习诊断系统{% endblock %}
+
+{% block content %}
+<style>
+    .favorite-card {
+        border: none;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        margin-bottom: 20px;
+        transition: all 0.3s ease;
+    }
+
+    .favorite-card:hover {
+        box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+        transform: translateY(-2px);
+    }
+
+    .exercise-item {
+        border-bottom: 1px solid #e9ecef;
+        padding: 15px 0;
+    }
+
+    .exercise-item:last-child {
+        border-bottom: none;
+    }
+
+    .exercise-title {
+        font-size: 1.1rem;
+        font-weight: 500;
+        color: #333;
+        margin-bottom: 8px;
+    }
+
+    .exercise-meta {
+        font-size: 0.9rem;
+        color: #6c757d;
+    }
+
+    .btn-remove-favorite {
+        transition: all 0.3s ease;
+    }
+
+    .btn-remove-favorite:hover {
+        transform: scale(1.05);
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #6c757d;
+    }
+
+    .empty-state i {
+        font-size: 4rem;
+        margin-bottom: 20px;
+        opacity: 0.5;
+    }
+
+    .subject-badge {
+        font-size: 0.85rem;
+        padding: 5px 12px;
+    }
+</style>
+
+<div class="container-fluid px-4">
+    <!-- 页面标题 -->
+    <div class="d-flex justify-content-between align-items-center pb-3 mb-4 border-bottom">
+        <div>
+            <h1 class="h2 mb-1">
+                <i class="fas fa-star text-warning me-2"></i>我的收藏
+            </h1>
+            <p class="text-muted mb-0">共收藏 {{ total_count }} 道习题</p>
+        </div>
+    </div>
+
+    {% if favorites %}
+        <!-- 按科目分组显示 -->
+        {% for subject_name, subject_favorites in favorites_by_subject.items %}
+        <div class="favorite-card card mb-4">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0">
+                    <i class="fas fa-book text-primary me-2"></i>
+                    {{ subject_name }}
+                    <span class="badge subject-badge bg-primary ms-2">{{ subject_favorites|length }} 道</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                {% for favorite in subject_favorites %}
+                <div class="exercise-item">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <div class="exercise-title">
+                                {{ forloop.counter }}. {{ favorite.exercise.title }}
+                            </div>
+                            <div class="exercise-content text-muted mb-2">
+                                {{ favorite.exercise.content|truncatechars:150 }}
+                            </div>
+                            <div class="exercise-meta">
+                                <span class="me-3">
+                                    <i class="fas fa-calendar-alt me-1"></i>
+                                    收藏时间: {{ favorite.created_at|date:"Y-m-d H:i" }}
+                                </span>
+                                <span class="me-3">
+                                    <i class="fas fa-tag me-1"></i>
+                                    题型: 
+                                    {% if favorite.exercise.question_type == '1' %}单选题
+                                    {% elif favorite.exercise.question_type == '2' %}多选题
+                                    {% elif favorite.exercise.question_type == '4' %}填空题
+                                    {% elif favorite.exercise.question_type == '5' %}主观题
+                                    {% elif favorite.exercise.question_type == '6' %}判断题
+                                    {% else %}其他{% endif %}
+                                </span>
+                            </div>
+                            {% if favorite.note %}
+                            <div class="mt-2">
+                                <span class="badge bg-info">
+                                    <i class="fas fa-sticky-note me-1"></i>{{ favorite.note }}
+                                </span>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="d-flex flex-column gap-2 ms-3" style="min-width: 100px;">
+                            <a href="{% url 'take_exercise' favorite.exercise.id %}" 
+                               class="btn btn-sm btn-primary">
+                                <i class="fas fa-play me-1"></i>开始练习
+                            </a>
+                            <button type="button" class="btn btn-sm btn-outline-danger btn-remove-favorite"
+                                    data-exercise-id="{{ favorite.exercise.id }}"
+                                    data-favorite-id="{{ favorite.id }}">
+                                <i class="fas fa-trash me-1"></i>取消收藏
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <!-- 空状态 -->
+        <div class="favorite-card card">
+            <div class="card-body">
+                <div class="empty-state">
+                    <i class="fas fa-star"></i>
+                    <h4>还没有收藏任何习题</h4>
+                    <p class="text-muted">在答题结果页面点击"收藏"按钮，将喜欢的习题加入收藏夹</p>
+                    <a href="{% url 'student_dashboard' %}" class="btn btn-primary mt-3">
+                        <i class="fas fa-home me-2"></i>返回学习面板
+                    </a>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+// 取消收藏功能
+document.querySelectorAll('.btn-remove-favorite').forEach(btn => {
+    btn.addEventListener('click', function() {
+        if (!confirm('确定要取消收藏这道习题吗？')) {
+            return;
+        }
+        
+        const exerciseId = this.dataset.exerciseId;
+        const favoriteId = this.dataset.favoriteId;
+        
+        fetch('/learning/favorite/remove/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({ exercise_id: exerciseId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // 刷新页面
+                location.reload();
+            } else {
+                alert(data.message || '操作失败');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('操作失败，请重试');
+        });
+    });
+});
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %}

@@ -1,0 +1,256 @@
+{% extends 'student/learning_base.html' %}
+
+{% block title %}{{ subject.name }} - 在线学习{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* 顶部进度条 */
+    .progress-header {
+        background: #f8f9fa;
+        padding: 15px 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        border: 1px solid #dee2e6;
+    }
+
+    .progress-icon {
+        width: 30px;
+        height: 30px;
+        background-color: #ffa726;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 14px;
+    }
+
+    .progress-info {
+        flex: 1;
+    }
+
+    .progress-text {
+        font-size: 13px;
+        color: #666;
+        margin-bottom: 5px;
+    }
+
+    .progress-bar-container {
+        height: 8px;
+        background-color: #e0e0e0;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .progress-bar-fill {
+        height: 100%;
+        background-color: #2196f3;
+        border-radius: 4px;
+        transition: width 0.3s;
+    }
+
+    /* 章节列表 */
+    .chapter-list {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    /* 章节卡片 */
+    .chapter-card {
+        background: white;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid #dee2e6;
+    }
+
+    .chapter-header {
+        padding: 15px 20px;
+        background-color: #f8f9fa;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        transition: background-color 0.2s;
+    }
+
+    .chapter-header:hover {
+        background-color: #e9ecef;
+    }
+
+    .chapter-number {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        color: white;
+        flex-shrink: 0;
+        font-weight: 600;
+    }
+
+    .chapter-number.completed {
+        background-color: #4caf50;
+    }
+
+    .chapter-number.incomplete {
+        background-color: #dc3545;
+    }
+
+    .chapter-title {
+        flex: 1;
+        font-size: 15px;
+        font-weight: 600;
+        color: #333;
+    }
+
+    .chapter-toggle {
+        color: #999;
+        transition: transform 0.3s;
+    }
+
+    .chapter-toggle.expanded {
+        transform: rotate(180deg);
+    }
+
+    /* 小节列表 */
+    .section-list {
+        padding: 10px 0;
+        display: none;
+        background-color: #fff;
+    }
+
+    .section-list.show {
+        display: block;
+    }
+
+    .section-item {
+        padding: 12px 20px 12px 65px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        border-left: 3px solid transparent;
+    }
+
+    .section-item:hover {
+        background-color: #f8f9fa;
+        border-left-color: #007bff;
+    }
+
+    .section-status {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .section-status.completed {
+        background-color: #4caf50;
+        color: white;
+    }
+
+    .section-status.not-started {
+        background-color: #e0e0e0;
+        color: #999;
+    }
+
+    .section-status i {
+        font-size: 12px;
+    }
+
+    .section-title {
+        flex: 1;
+        font-size: 14px;
+        color: #333;
+    }
+
+    .section-item.completed .section-title {
+        color: #666;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- 进度条 -->
+<div class="progress-header">
+    <div class="progress-icon">
+        <i class="fas fa-chart-line"></i>
+    </div>
+    <div class="progress-info">
+        <div class="progress-text">已完成任务数: {{ progress.completed }}/{{ progress.total }}</div>
+        <div class="progress-bar-container">
+            <div class="progress-bar-fill" style="width: {{ progress.percentage }}%"></div>
+        </div>
+    </div>
+</div>
+
+<!-- 章节列表 -->
+<div class="chapter-list">
+    {% for exercise_set in grouped_exercises %}
+    <div class="chapter-card">
+        <div class="chapter-header" onclick="toggleChapter({{ forloop.counter }})">
+            <div class="chapter-number {% if exercise_set.completed %}completed{% else %}incomplete{% endif %}">{{ forloop.counter }}</div>
+            <div class="chapter-title">{{ exercise_set.title }}</div>
+            <i class="fas fa-chevron-down chapter-toggle" id="toggle-{{ forloop.counter }}"></i>
+        </div>
+        <div class="section-list" id="chapter-{{ forloop.counter }}">
+            {% for exercise in exercise_set.exercises %}
+            <div class="section-item {% if exercise.completed %}completed{% endif %}" 
+                 onclick="window.location.href='{% url 'take_exercise' exercise_id=exercise.id %}'">
+                <div class="section-status {% if exercise.completed %}completed{% else %}not-started{% endif %}">
+                    {% if exercise.completed %}
+                    <i class="fas fa-check"></i>
+                    {% else %}
+                    <i class="fas fa-circle"></i>
+                    {% endif %}
+                </div>
+                <div class="section-title">
+                    {{ forloop.parentloop.counter }}.{{ forloop.counter }} 
+                    {% if exercise.question_type == '1' %}单选题
+                    {% elif exercise.question_type == '2' %}多选题
+                    {% elif exercise.question_type == '3' %}填空题
+                    {% elif exercise.question_type == '4' %}简答题
+                    {% elif exercise.question_type == '5' %}编程题
+                    {% elif exercise.question_type == '6' %}判断题
+                    {% else %}习题{% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 切换章节展开/收起
+function toggleChapter(chapterId) {
+    const sectionList = document.getElementById('chapter-' + chapterId);
+    const toggle = document.getElementById('toggle-' + chapterId);
+    
+    if (sectionList.classList.contains('show')) {
+        sectionList.classList.remove('show');
+        toggle.classList.remove('expanded');
+    } else {
+        sectionList.classList.add('show');
+        toggle.classList.add('expanded');
+    }
+}
+
+// 页面加载完成后的初始化
+document.addEventListener('DOMContentLoaded', function() {
+    // 默认所有章节都是关闭状态，不需要额外操作
+});
+</script>
+{% endblock %}

@@ -52,6 +52,7 @@ def personalized_recommendations(request, subject_id=None):
     context = {
         'subjects': enrolled_subjects,
         'current_subject': current_subject,
+        'subject': current_subject,  # 添加这个以保持与其他页面一致
         'exercises': recommended_exercises,
         'weak_points': weak_points,
         'title': '个性化推荐习题',

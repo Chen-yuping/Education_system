@@ -8,6 +8,13 @@
                     <i class="fas fa-tachometer-alt"></i> 学习面板
                 </a>
             </li>
+            
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'my_subjects' %}active{% endif %}"
+                   href="{% url 'my_subjects' %}">
+                    <i class="fas fa-book"></i> 在线学习
+                </a>
+            </li>
             <li class="nav-item">
                 <a class="nav-link {% if request.resolver_match.url_name == 'student_diagnosis' %}active{% endif %}"
                    href="{% url 'student_diagnosis' %}">
@@ -15,21 +22,9 @@
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if request.resolver_match.url_name == 'my_subjects' %}active{% endif %}"
-                   href="{% url 'my_subjects' %}">
-                    <i class="fas fa-book"></i> 我的科目
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.resolver_match.url_name == 'student_subject' %}active{% endif %}"
-                   href="{% url 'student_subject' %}">
-                    <i class="fas fa-chart-line"></i> 所有课程
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.resolver_match.url_name == 'student_subject_selection' %}active{% endif %}"
-                   href="{% url 'student_subject_selection' %}">
-                    <i class="fas fa-graduation-cap"></i> 课程选择
+                <a class="nav-link {% if request.resolver_match.url_name == 'student_course_management' %}active{% endif %}"
+                   href="{% url 'student_course_management' %}">
+                    <i class="fas fa-book-open"></i> 课程管理
                 </a>
             </li>
         </ul>

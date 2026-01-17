@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.http import JsonResponse
 from django.db.models import Count, Avg, Q
 from django.contrib import messages
+from django.views.decorators.http import require_http_methods
 import json
 from itertools import groupby
 from .models import *
@@ -129,6 +130,50 @@ def student_subject_selection(request):
         'enrolled_subject_ids': enrolled_subject_ids,  # 传递预处理后的ID列表
     }
     return render(request, 'student/subject_selection.html', context)
+
+# 课程管理页面
+@login_required
+@user_passes_test(is_student)
+def student_course_management(request):
+    """学生课程管理页面 - 选课和查看课程详情"""
+    # 获取学生已选课程
+    my_subjects = StudentSubject.objects.filter(
+        student=request.user
+    ).select_related('subject').prefetch_related(
+        'subject__exercise_set',
+        'subject__knowledgepoint_set'
+    )
+    
+    # 获取已选课程的ID列表
+    enrolled_subject_ids = [ss.subject.id for ss in my_subjects]
+    
+    # 获取可选课程（排除已选的）
+    available_subjects = Subject.objects.exclude(
+        id__in=enrolled_subject_ids
+    ).prefetch_related('exercise_set', 'knowledgepoint_set')
+    
+    if request.method == 'POST':
+        subject_id = request.POST.get('subject_id')
+        action = request.POST.get('action')
+        
+        if action == 'select' and subject_id:
+            # 选课
+            subject = get_object_or_404(Subject, id=subject_id)
+            StudentSubject.objects.get_or_create(student=request.user, subject=subject)
+            messages.success(request, f'已成功选修《{subject.name}》课程')
+        elif action == 'remove' and subject_id:
+            # 退课
+            subject = get_object_or_404(Subject, id=subject_id)
+            StudentSubject.objects.filter(student=request.user, subject_id=subject_id).delete()
+            messages.success(request, f'已退选《{subject.name}》课程')
+        
+        return redirect('student_course_management')
+    
+    context = {
+        'my_subjects': my_subjects,
+        'available_subjects': available_subjects,
+    }
+    return render(request, 'student/course_management.html', context)
 
 #"单个课程列表页面"""
 @login_required
@@ -309,10 +354,18 @@ def exercise_result(request, log_id):
         ).order_by('id').first()
 
     # 5. 准备上下文数据
+    # 检查是否已收藏
+    from .models import ExerciseFavorite
+    is_favorited = ExerciseFavorite.objects.filter(
+        student=request.user,
+        exercise=current_exercise
+    ).exists()
+    
     context = {
         'answer_log': answer_log,
         'selected_choice_ids': selected_choice_ids,
         'next_exercise': next_exercise,
+        'is_favorited': is_favorited,
     }
 
     return render(request, 'student/exercise_result.html', context)
@@ -351,6 +404,9 @@ def student_diagnosis(request):
 @login_required
 def subject_exercise_logs(request, subject_id):
     """显示科目下所有习题的答题记录"""
+    from collections import defaultdict
+    from datetime import datetime, timedelta
+    
     subject = get_object_or_404(Subject, id=subject_id)
 
     # 计算3个月前的时间点
@@ -374,6 +430,67 @@ def subject_exercise_logs(request, subject_id):
     else:
         correct_rate = 0
 
+    # ===== 图表数据准备 =====
+    
+    # 1. 答题趋势数据（最近30天）
+    thirty_days_ago = timezone.now() - timedelta(days=30)
+    recent_logs = answer_logs.filter(submitted_at__gte=thirty_days_ago)
+    
+    # 按日期分组统计
+    daily_stats = defaultdict(lambda: {'total': 0, 'correct': 0})
+    for log in recent_logs:
+        date_str = log.submitted_at.strftime('%m-%d')
+        daily_stats[date_str]['total'] += 1
+        if log.is_correct:
+            daily_stats[date_str]['correct'] += 1
+    
+    # 生成最近30天的日期列表
+    trend_dates = []
+    trend_total = []
+    trend_correct = []
+    for i in range(29, -1, -1):
+        date = timezone.now() - timedelta(days=i)
+        date_str = date.strftime('%m-%d')
+        trend_dates.append(date_str)
+        trend_total.append(daily_stats[date_str]['total'])
+        trend_correct.append(daily_stats[date_str]['correct'])
+    
+    # 2. 每日答题活跃度（最近14天）
+    fourteen_days_ago = timezone.now() - timedelta(days=14)
+    recent_14_logs = answer_logs.filter(submitted_at__gte=fourteen_days_ago)
+    
+    daily_counts_dict = defaultdict(int)
+    for log in recent_14_logs:
+        date_str = log.submitted_at.strftime('%m-%d')
+        daily_counts_dict[date_str] += 1
+    
+    daily_dates = []
+    daily_counts = []
+    for i in range(13, -1, -1):
+        date = timezone.now() - timedelta(days=i)
+        date_str = date.strftime('%m-%d')
+        daily_dates.append(date_str)
+        daily_counts.append(daily_counts_dict[date_str])
+    
+    # 3. 题型分布统计
+    type_stats = defaultdict(int)
+    type_names_map = {
+        '1': '单选题',
+        '2': '多选题',
+        '3': '填空题',
+        '4': '简答题',
+        '5': '主观题',
+        '6': '判断题',
+    }
+    
+    for log in answer_logs:
+        q_type = log.exercise.question_type
+        type_name = type_names_map.get(q_type, '其他')
+        type_stats[type_name] += 1
+    
+    type_names = list(type_stats.keys())
+    type_counts = list(type_stats.values())
+
     # 获取所有不重复的习题（优化性能）
     exercise_ids = answer_logs.values_list('exercise_id', flat=True).distinct()
 
@@ -387,7 +504,7 @@ def subject_exercise_logs(request, subject_id):
         exercise_logs = [log for log in answer_logs if log.exercise.id == exercise.id]
 
         # 获取最近3个月的答题记录
-        recent_logs = [log for log in exercise_logs if log.submitted_at >= three_months_ago][:31]  # 最多显示31个
+        recent_logs_3m = [log for log in exercise_logs if log.submitted_at >= three_months_ago][:31]  # 最多显示31个
 
         # 统计该习题的答题情况
         total_attempts = len(exercise_logs)
@@ -404,7 +521,7 @@ def subject_exercise_logs(request, subject_id):
 
         # 准备最近答题记录的数据
         processed_recent_logs = []
-        for i, log in enumerate(recent_logs, 1):
+        for i, log in enumerate(recent_logs_3m, 1):
             # 获取用户选择的选项
             selected_choices = list(log.selected_choices.all())
 
@@ -426,16 +543,18 @@ def subject_exercise_logs(request, subject_id):
                 'is_correct': log.is_correct,
                 'submitted_at': log.submitted_at,
                 'question_text': exercise.content,
+                'question_type': exercise.question_type,
                 'selected_option': " | ".join(selected_options_text) if selected_options_text else "未选择",
                 'correct_option': " | ".join(correct_options_text) if correct_options_text else "未设置正确答案",
-                'options_json': json.dumps(options_text),
+                'options_json': json.dumps(options_text, ensure_ascii=False),
+                'text_answer': log.text_answer if log.text_answer else "",  # 主观题答案
             }
             processed_recent_logs.append(log_data)
 
         exercises_with_stats.append({
             'id': exercise.id,
             'title': exercise.title,
-            'points': 20,  # 如果没有points字段，使用默认值20
+            'points': 20,
             'total_attempts': total_attempts,
             'correct_rate': exercise_correct_rate,
             'recent_logs': processed_recent_logs,
@@ -444,32 +563,9 @@ def subject_exercise_logs(request, subject_id):
     # 按答题次数排序
     exercises_with_stats.sort(key=lambda x: x['total_attempts'], reverse=True)
 
-    # 按习题分组统计（保持原有功能）
-    exercise_stats = {}
-    for log in answer_logs:
-        if log.exercise.id not in exercise_stats:
-            exercise_stats[log.exercise.id] = {
-                'exercise': log.exercise,
-                'total': 0,
-                'correct': 0,
-                'logs': []
-            }
-        exercise_stats[log.exercise.id]['total'] += 1
-        if log.is_correct:
-            exercise_stats[log.exercise.id]['correct'] += 1
-        exercise_stats[log.exercise.id]['logs'].append(log)
-
-    for stat in exercise_stats.values():
-        if stat['total'] > 0:
-            stat['correct_rate'] = round((stat['correct'] / stat['total']) * 100, 1)
-        else:
-            stat['correct_rate'] = 0
-
-    # 获取知识点掌握情况
-    knowledge_stats = StudentDiagnosis.objects.filter(
-        student=request.user,
-        knowledge_point__subject=subject
-    ).select_related('knowledge_point')
+    # 计算习题总数和已完成习题数
+    total_exercises = len(exercises_with_stats)
+    completed_exercises = len([ex for ex in exercises_with_stats if ex['total_attempts'] > 0])
 
     context = {
         'subject': subject,
@@ -479,10 +575,18 @@ def subject_exercise_logs(request, subject_id):
         'incorrect_logs': incorrect_logs,
         'unmarked_logs': unmarked_logs,
         'correct_rate': correct_rate,
-        'exercise_stats': exercise_stats.values(),
-        'knowledge_stats': knowledge_stats,
         'has_data': total_logs > 0,
-        'exercises_with_stats': exercises_with_stats,  # 新增的数据
+        'exercises_with_stats': exercises_with_stats,
+        'total_exercises': total_exercises,
+        'completed_exercises': completed_exercises,
+        # 图表数据
+        'trend_dates': json.dumps(trend_dates),
+        'trend_total': json.dumps(trend_total),
+        'trend_correct': json.dumps(trend_correct),
+        'daily_dates': json.dumps(daily_dates),
+        'daily_counts': json.dumps(daily_counts),
+        'type_names': json.dumps(type_names),
+        'type_counts': json.dumps(type_counts),
     }
 
     return render(request, 'student/subject_exercise_logs.html', context)
@@ -617,3 +721,196 @@ def calculate_mastery(self):
     else:
         self.mastery_level = 0.0
     self.save()
+
+
+# 收藏习题
+@login_required
+@user_passes_test(is_student)
+@require_http_methods(["POST"])
+def add_favorite(request):
+    """添加收藏"""
+    import json
+    from .models import ExerciseFavorite
+    
+    try:
+        data = json.loads(request.body)
+        exercise_id = data.get('exercise_id')
+        
+        if not exercise_id:
+            return JsonResponse({'success': False, 'message': '缺少习题ID'})
+        
+        exercise = get_object_or_404(Exercise, id=exercise_id)
+        
+        # 创建收藏，如果已存在则忽略
+        favorite, created = ExerciseFavorite.objects.get_or_create(
+            student=request.user,
+            exercise=exercise
+        )
+        
+        if created:
+            return JsonResponse({'success': True, 'message': '收藏成功'})
+        else:
+            return JsonResponse({'success': True, 'message': '已经收藏过了'})
+    
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)})
+
+@login_required
+@user_passes_test(is_student)
+@require_http_methods(["POST"])
+def remove_favorite(request):
+    """取消收藏"""
+    import json
+    from .models import ExerciseFavorite
+    
+    try:
+        data = json.loads(request.body)
+        exercise_id = data.get('exercise_id')
+        
+        if not exercise_id:
+            return JsonResponse({'success': False, 'message': '缺少习题ID'})
+        
+        # 删除收藏
+        deleted_count = ExerciseFavorite.objects.filter(
+            student=request.user,
+            exercise_id=exercise_id
+        ).delete()[0]
+        
+        if deleted_count > 0:
+            return JsonResponse({'success': True, 'message': '取消收藏成功'})
+        else:
+            return JsonResponse({'success': False, 'message': '未找到收藏记录'})
+    
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)})
+
+@login_required
+@user_passes_test(is_student)
+def my_favorites(request):
+    """我的收藏夹"""
+    from .models import ExerciseFavorite
+    
+    favorites = ExerciseFavorite.objects.filter(
+        student=request.user
+    ).select_related('exercise__subject').prefetch_related('exercise__choices')
+    
+    # 按科目分组
+    favorites_by_subject = {}
+    for favorite in favorites:
+        subject_name = favorite.exercise.subject.name
+        if subject_name not in favorites_by_subject:
+            favorites_by_subject[subject_name] = []
+        favorites_by_subject[subject_name].append(favorite)
+    
+    context = {
+        'favorites': favorites,
+        'favorites_by_subject': favorites_by_subject,
+        'total_count': favorites.count()
+    }
+    
+    return render(request, 'student/my_favorites.html', context)
+
+
+# 科目学习页面（新窗口）
+@login_required
+@user_passes_test(is_student)
+def subject_learning(request, subject_id):
+    """科目学习页面 - 显示章节和课程卡片"""
+    # 获取科目
+    subject = get_object_or_404(Subject, id=subject_id)
+
+    # 获取该科目的所有习题，按 problemsets 排序
+    exercises = Exercise.objects.filter(subject_id=subject_id).order_by('problemsets', 'id')
+
+    # 获取答题记录
+    answer_logs = AnswerLog.objects.filter(
+        student=request.user,
+        exercise__in=exercises
+    )
+
+    # 统计
+    completed_exercise_ids = answer_logs.values_list('exercise_id', flat=True).distinct()
+    total_attempts = answer_logs.count()
+    correct_attempts = answer_logs.filter(is_correct=True).count()
+
+    # 标记已完成
+    for exercise in exercises:
+        exercise.completed = exercise.id in completed_exercise_ids
+
+    # 进度计算
+    total_exercises = exercises.count()
+    completed_count = len(completed_exercise_ids)
+
+    percentage = 0
+    if total_exercises > 0:
+        percentage = min(100, round((completed_count / total_exercises) * 100, 1))
+
+    accuracy = 0
+    if total_attempts > 0:
+        accuracy = round((correct_attempts / total_attempts) * 100, 1)
+
+    # 进度数据
+    progress = {
+        'total': total_exercises,
+        'completed': completed_count,
+        'percentage': percentage,
+        'total_attempts': total_attempts,
+        'correct_attempts': correct_attempts,
+        'accuracy': accuracy,
+    }
+
+    # 按标题分组
+    grouped_exercises = []
+    current_title = None
+    current_group = []
+
+    for exercise in exercises:
+        if exercise.title != current_title:
+            if current_group:
+                grouped_exercises.append({
+                    'title': current_title,
+                    'exercises': current_group,
+                    'exercise_count': len(current_group),
+                    'completed': all(ex.completed for ex in current_group)
+                })
+            current_title = exercise.title
+            current_group = [exercise]
+        else:
+            current_group.append(exercise)
+
+    if current_group:
+        grouped_exercises.append({
+            'title': current_title,
+            'exercises': current_group,
+            'exercise_count': len(current_group),
+            'completed': all(ex.completed for ex in current_group)
+        })
+
+    return render(request, 'student/subject_learning.html', {
+        'subject': subject,
+        'grouped_exercises': grouped_exercises,
+        'progress': progress,
+    })
+
+
+# 科目收藏页面（使用learning_base布局）
+@login_required
+@user_passes_test(is_student)
+def subject_favorites(request, subject_id):
+    """科目收藏页面 - 使用learning_base布局"""
+    from .models import ExerciseFavorite
+    
+    subject = get_object_or_404(Subject, id=subject_id)
+    
+    favorites = ExerciseFavorite.objects.filter(
+        student=request.user,
+        exercise__subject=subject
+    ).select_related('exercise').prefetch_related('exercise__choices').order_by('-created_at')
+    
+    context = {
+        'subject': subject,
+        'favorites': favorites,
+        'total_count': favorites.count()
+    }
+    
+    return render(request, 'student/subject_favorites.html', context)

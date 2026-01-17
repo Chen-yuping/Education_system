@@ -1,68 +1,9 @@
-{% extends 'student/base.html' %}
+{% extends 'student/learning_base.html' %}
 
-{% block title %}{{ subject.name }} - 做题记录 - 在线学习诊断系统{% endblock %}
-#做题记录
-{% block content %}
+{% block title %}{{ subject.name }} - 做题记录{% endblock %}
+
+{% block extra_css %}
 <style>
-    /* 基础布局样式 - 与你的页面保持一致 */
-    .container.mt-4 {
-        margin: 0 !important;
-        padding: 0 !important;
-        max-width: 100% !important;
-        width: 100% !important;
-    }
-
-    /* 学生页面布局样式 */
-    .student-container {
-        display: flex;
-        min-height: calc(100vh - 80px);
-        margin-top: 20px;
-    }
-
-    /* 侧边栏样式 */
-    .student-sidebar {
-        width: 280px;
-        background-color: #f8f9fa;
-        border-right: 1px solid #dee2e6;
-        flex-shrink: 0;
-        padding: 0 10px 0;
-    }
-
-    /* 主内容区域 */
-    .student-main-content {
-        flex: 1;
-        padding: 20px;
-        min-height: 100%;
-        background-color: #ffffff;
-    }
-
-    /* 侧边栏导航链接样式 */
-    .sidebar-nav .nav-link {
-        padding: 12px 20px;
-        color: #333;
-        border-radius: 0;
-        border-left: 3px solid transparent;
-        transition: all 0.2s ease;
-    }
-
-    .sidebar-nav .nav-link:hover {
-        background-color: #e9ecef;
-        color: #007bff;
-        border-left-color: #007bff;
-    }
-
-    .sidebar-nav .nav-link.active {
-        background-color: #007bff;
-        color: white;
-        border-left-color: #007bff;
-    }
-
-    .sidebar-nav .nav-link i {
-        width: 20px;
-        text-align: center;
-        margin-right: 10px;
-    }
-
     /* 统计卡片样式 */
     .stat-card {
         border-radius: 10px;
@@ -89,7 +30,7 @@
     }
 
     .total-icon {
-        background: linear-gradient(135deg, #007bff, #339af0);
+        background: linear-gradient(135deg, #667eea, #764ba2);
     }
 
     .correct-icon {
@@ -97,14 +38,42 @@
     }
 
     .incorrect-icon {
-        background: linear-gradient(135deg, #dc3545, #e35d6a);
+        background: linear-gradient(135deg, #f093fb, #f5576c);
     }
 
-    .unmarked-icon {
-        background: linear-gradient(135deg, #6c757d, #868e96);
+    .accuracy-icon {
+        background: linear-gradient(135deg, #4facfe, #00f2fe);
     }
 
-    /* 新添加的样式 */
+    /* 图表卡片 */
+    .chart-card {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+    }
+
+    .chart-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .chart-title i {
+        color: #007bff;
+    }
+
+    .chart-container {
+        width: 100%;
+        height: 300px;
+    }
+
+    /* 答题记录网格 */
     .answer-grid {
         display: flex;
         gap: 5px;
@@ -143,11 +112,6 @@
     .answer-dot.unmarked {
         background-color: #6c757d;
         color: white;
-    }
-
-    .answer-dot.current {
-        border-color: #007bff;
-        box-shadow: 0 0 0 2px rgba(0,123,255,0.2);
     }
 
     /* 题目详情模态框样式 */
@@ -220,217 +184,228 @@
         background-color: rgba(220,53,69,0.1);
     }
 
-    /* 移动设备响应式 */
-    @media (max-width: 768px) {
-        .student-container {
-            flex-direction: column;
-        }
+    /* 习题表格 */
+    .exercise-table {
+        background: white;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
 
-        .student-sidebar {
-            width: 100%;
-            border-right: none;
-            border-bottom: 1px solid #dee2e6;
-        }
-
-        .student-main-content {
-            padding: 20px;
-        }
-
-        .answer-dot {
-            width: 22px;
-            height: 22px;
-            font-size: 10px;
-        }
+    .table-header {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        padding: 15px 20px;
+        font-weight: 600;
     }
 </style>
+{% endblock %}
 
+{% block content %}
 
-<main class="student-main-content">
-    <!-- 页面标题 -->
-    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3 mb-3 border-bottom">
-        <div class="btn-toolbar mb-2 mb-md-0">
-            <a href="{% url 'exercise_list' subject_id=subject.id %}" class="btn btn-primary">
-                <i class="fas fa-arrow-left me-1"></i>返回题目详情
-            </a>
-        </div>
-        <div>
-            <h1 class="h2">{{ subject.name }} - 做题记录</h1>
-        </div>
+{% if has_data %}
+<!-- 统计卡片 -->
+<div class="row mb-4">
+    
 
-        <div class="btn-toolbar mb-2 mb-md-0">
-            <a href="{% url 'personalized_recommendations'%}" class="btn btn-primary">
-                <i class="fas fa-magic me-1"></i>个性化习题推荐
-            </a>
-        </div>
-    </div>
-
-    {% if has_data %}
-    <!-- 统计卡片 -->
-    <div class="row mb-4">
-        <div class="col-md-3 mb-3">
-            <div class="card stat-card">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="stat-icon total-icon me-3">
-                            <i class="fas fa-list-alt"></i>
-                        </div>
-                        <div>
-                            <h3 class="mb-0">{{ total_logs }}</h3>
-                            <p class="text-muted mb-0">总答题次数</p>
-                        </div>
+    <div class="col-md-3 mb-3">
+        <div class="card stat-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="stat-icon correct-icon me-3">
+                        <i class="fas fa-book"></i>
                     </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3 mb-3">
-            <div class="card stat-card">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="stat-icon correct-icon me-3">
-                            <i class="fas fa-check-circle"></i>
-                        </div>
-                        <div>
-                            <h3 class="mb-0">{{ correct_logs }}</h3>
-                            <p class="text-muted mb-0">正确次数</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3 mb-3">
-            <div class="card stat-card">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="stat-icon incorrect-icon me-3">
-                            <i class="fas fa-times-circle"></i>
-                        </div>
-                        <div>
-                            <h3 class="mb-0">{{ incorrect_logs }}</h3>
-                            <p class="text-muted mb-0">错误次数</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3 mb-3">
-            <div class="card stat-card">
-                <div class="card-body">
-                    <div class="d-flex align-items-center">
-                        <div class="stat-icon unmarked-icon me-3">
-                            <i class="fas fa-question-circle"></i>
-                        </div>
-                        <div>
-                            <h3 class="mb-0">{{ unmarked_logs }}</h3>
-                            <p class="text-muted mb-0">未批改次数</p>
-                        </div>
+                    <div>
+                        <h3 class="mb-0">{{ total_exercises }}</h3>
+                        <p class="text-muted mb-0">习题总数</p>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- 各习题答题情况 - 新设计 -->
-    <div class="card mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">各习题答题情况</h5>
-            <div class="text-muted small">
-                最近3个月答题记录，点击数字查看详情
+    <div class="col-md-3 mb-3">
+        <div class="card stat-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="stat-icon incorrect-icon me-3">
+                        <i class="fas fa-check-double"></i>
+                    </div>
+                    <div>
+                        <h3 class="mb-0">{{ completed_exercises }}</h3>
+                        <p class="text-muted mb-0">已完成习题</p>
+                    </div>
+                </div>
             </div>
         </div>
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle">
-                    <thead>
-                        <tr>
-                            <th width="60">序号</th>
-                            <th width="200">标题</th>
-                            <th width="200">最近答题记录</th>
-                            <th width="200">作答详情</th>
-                            <th width="200">操作</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for exercise in exercises_with_stats %}
-                        <tr class="{% if forloop.counter|divisibleby:2 %}table-light{% endif %}">
-                            <td class="fw-bold text-center">
-                                {{ forloop.counter }}
-                            </td>
-                            <td>
-                                <div class="d-flex align-items-center">
-                                    <span class="fw-semibold">{{ exercise.title|truncatechars:25 }}</span>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card stat-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="stat-icon total-icon me-3">
+                        <i class="fas fa-list-alt"></i>
+                    </div>
+                    <div>
+                        <h3 class="mb-0">{{ total_logs }}</h3>
+                        <p class="text-muted mb-0">总答题次数</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card stat-card">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <div class="stat-icon accuracy-icon me-3">
+                        <i class="fas fa-percentage"></i>
+                    </div>
+                    <div>
+                        <h3 class="mb-0">{{ correct_rate }}%</h3>
+                        <p class="text-muted mb-0">正确率</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 图表区域 -->
+<div class="row mb-4">
+    <!-- 答题趋势图 -->
+    <div class="col-md-8 mb-3">
+        <div class="chart-card">
+            <div class="chart-title">
+                <i class="fas fa-chart-line"></i>
+                答题趋势分析
+            </div>
+            <div class="chart-container" id="trendChart"></div>
+        </div>
+    </div>
+
+    <!-- 正确率饼图 -->
+    <div class="col-md-4 mb-3">
+        <div class="chart-card">
+            <div class="chart-title">
+                <i class="fas fa-chart-pie"></i>
+                答题结果分布
+            </div>
+            <div class="chart-container" id="pieChart"></div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <!-- 每日答题活跃度 -->
+    <div class="col-md-6 mb-3">
+        <div class="chart-card">
+            <div class="chart-title">
+                <i class="fas fa-calendar-alt"></i>
+                每日答题活跃度
+            </div>
+            <div class="chart-container" id="dailyChart"></div>
+        </div>
+    </div>
+
+    <!-- 题型分布 -->
+    <div class="col-md-6 mb-3">
+        <div class="chart-card">
+            <div class="chart-title">
+                <i class="fas fa-tasks"></i>
+                答题分布统计
+            </div>
+            <div class="chart-container" id="typeChart"></div>
+        </div>
+    </div>
+</div>
+
+<!-- 各习题答题情况 -->
+<div class="exercise-table mb-4">
+    <div class="table-header">
+        <i class="fas fa-clipboard-list me-2"></i>各习题答题详情
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th width="60">序号</th>
+                        <th width="200">标题</th>
+                        <th width="100">答题次数</th>
+                        <th>最近答题记录</th>
+                        <th width="120">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for exercise in exercises_with_stats %}
+                    <tr>
+                        <td class="fw-bold text-center">{{ forloop.counter }}</td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <span class="fw-semibold">{{ exercise.title|truncatechars:30 }}</span>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge bg-primary">{{ exercise.total_attempts }}次</span>
+                        </td>
+                        <td>
+                            <div class="answer-grid" data-exercise-id="{{ exercise.id }}">
+                                {% for log in exercise.recent_logs %}
+                                <div class="answer-dot
+                                    {% if log.is_correct == True %}correct
+                                    {% elif log.is_correct == False %}incorrect
+                                    {% else %}unmarked{% endif %}"
+                                     data-log-id="{{ log.id }}"
+                                     data-question="{{ log.question_text|escapejs }}"
+                                     data-question-type="{{ log.question_type }}"
+                                     data-selected-option="{{ log.selected_option|escapejs }}"
+                                     data-correct-option="{{ log.correct_option|escapejs }}"
+                                     data-options='{{ log.options_json }}'
+                                     data-text-answer="{{ log.text_answer|escapejs }}"
+                                     data-status="{% if log.is_correct == True %}correct{% elif log.is_correct == False %}incorrect{% else %}unmarked{% endif %}"
+                                     data-time="{{ log.submitted_at|date:'Y-m-d H:i:s' }}">
+                                    {{ forloop.counter }}
                                 </div>
-                            </td>
-                            <td>
-                                <span class="badge bg-dark text-white">
-                                    {{ exercise.total_attempts }}次
-                                </span>
-                            </td>
-                            <td>
-                                <div class="answer-grid" data-exercise-id="{{ exercise.id }}">
-                                    {% for log in exercise.recent_logs %}
-                                    <div class="answer-dot
-                                        {% if log.is_correct == True %}correct
-                                        {% elif log.is_correct == False %}incorrect
-                                        {% else %}unmarked{% endif %}"
-                                         data-log-id="{{ log.id }}"
-                                         data-question="{{ log.question_text|escapejs }}"
-                                         data-selected-option="{{ log.selected_option|escapejs }}"
-                                         data-correct-option="{{ log.correct_option|escapejs }}"
-                                         data-options="{{ log.options_json|escapejs }}"
-                                         data-status="{% if log.is_correct == True %}correct{% elif log.is_correct == False %}incorrect{% else %}unmarked{% endif %}"
-                                         data-time="{{ log.submitted_at|date:'Y-m-d H:i:s' }}">
-                                        {{ forloop.counter }}
-                                    </div>
-                                    {% empty %}
-                                    <span class="text-muted small">暂无答题记录</span>
-                                    {% endfor %}
-                                </div>
-                            </td>
-                            <td>
-                                <div class="btn-group btn-group-sm">
-                                    <a href="{% url 'take_exercise' exercise_id=exercise.id %}"
-                                       class="btn btn-outline-primary">
-                                        <i class="fas fa-redo me-1"></i>再次答题
-                                    </a>
-                                    {% if exercise.recent_logs %}
-                                    <button class="btn btn-outline-info view-details-btn"
-                                            data-exercise-id="{{ exercise.id }}">
-                                        <i class="fas fa-history me-1"></i>作答详情
-                                    </button>
-                                    {% endif %}
-                                </div>
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="7" class="text-center py-4 text-muted">
-                                <i class="fas fa-inbox fa-2x mb-3"></i>
-                                <p>暂无答题数据</p>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
+                                {% empty %}
+                                <span class="text-muted small">暂无记录</span>
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td>
+                            {% if exercise.recent_logs %}
+                            <button class="btn btn-sm btn-outline-info view-details-btn"
+                                    data-exercise-id="{{ exercise.id }}">
+                                <i class="fas fa-history me-1"></i>查看详情
+                            </button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center py-4 text-muted">
+                            <i class="fas fa-inbox fa-2x mb-3"></i>
+                            <p>暂无答题数据</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
+</div>
 
-    {% else %}
-    <!-- 无数据提示 -->
-    <div class="text-center py-5">
-        <i class="fas fa-history fa-4x text-muted mb-3"></i>
-        <h3 class="text-muted">暂无答题记录</h3>
-        <p class="text-muted mb-4">您还没有在该科目下答题，快去开始学习吧！</p>
-        <a href="{% url 'exercise_list' subject_id=subject.id %}" class="btn btn-primary btn-lg">
-            <i class="fas fa-play-circle me-2"></i>开始答题
-        </a>
-    </div>
-    {% endif %}
-</main>
-
+{% else %}
+<!-- 无数据提示 -->
+<div class="text-center py-5">
+    <i class="fas fa-history fa-4x text-muted mb-3"></i>
+    <h3 class="text-muted">暂无答题记录</h3>
+    <p class="text-muted mb-4">您还没有在该科目下答题，快去开始学习吧！</p>
+    <a href="{% url 'subject_learning' subject_id=subject.id %}" class="btn btn-primary btn-lg">
+        <i class="fas fa-play-circle me-2"></i>开始答题
+    </a>
+</div>
+{% endif %}
 
 <!-- 题目详情模态框 -->
 <div id="questionModal" class="question-modal">
@@ -460,11 +435,178 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 <script>
 // 当前查看的题目索引
 let currentQuestionIndex = 0;
 let currentQuestions = [];
+
+{% if has_data %}
+// 初始化图表
+document.addEventListener('DOMContentLoaded', function() {
+    initCharts();
+});
+
+function initCharts() {
+    // 1. 答题趋势图
+    const trendChart = echarts.init(document.getElementById('trendChart'));
+    const trendOption = {
+        tooltip: {
+            trigger: 'axis'
+        },
+        legend: {
+            data: ['答题次数', '正确次数']
+        },
+        grid: {
+            left: '3%',
+            right: '4%',
+            bottom: '3%',
+            containLabel: true
+        },
+        xAxis: {
+            type: 'category',
+            data: {{ trend_dates|safe }}
+        },
+        yAxis: {
+            type: 'value'
+        },
+        series: [
+            {
+                name: '答题次数',
+                type: 'line',
+                data: {{ trend_total|safe }},
+                smooth: true,
+                itemStyle: { color: '#667eea' }
+            },
+            {
+                name: '正确次数',
+                type: 'line',
+                data: {{ trend_correct|safe }},
+                smooth: true,
+                itemStyle: { color: '#28a745' }
+            }
+        ]
+    };
+    trendChart.setOption(trendOption);
+
+    // 2. 正确率饼图
+    const pieChart = echarts.init(document.getElementById('pieChart'));
+    const pieOption = {
+        tooltip: {
+            trigger: 'item',
+            formatter: '{b}: {c} ({d}%)'
+        },
+        series: [
+            {
+                type: 'pie',
+                radius: ['40%', '70%'],
+                avoidLabelOverlap: false,
+                itemStyle: {
+                    borderRadius: 10,
+                    borderColor: '#fff',
+                    borderWidth: 2
+                },
+                label: {
+                    show: true,
+                    formatter: '{b}\n{d}%'
+                },
+                data: [
+                    { value: {{ correct_logs }}, name: '正确', itemStyle: { color: '#28a745' } },
+                    { value: {{ incorrect_logs }}, name: '错误', itemStyle: { color: '#dc3545' } },
+                    { value: {{ unmarked_logs }}, name: '未批改', itemStyle: { color: '#6c757d' } }
+                ]
+            }
+        ]
+    };
+    pieChart.setOption(pieOption);
+
+    // 3. 每日答题活跃度
+    const dailyChart = echarts.init(document.getElementById('dailyChart'));
+    const dailyOption = {
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: {
+                type: 'shadow'
+            }
+        },
+        grid: {
+            left: '3%',
+            right: '4%',
+            bottom: '3%',
+            containLabel: true
+        },
+        xAxis: {
+            type: 'category',
+            data: {{ daily_dates|safe }}
+        },
+        yAxis: {
+            type: 'value'
+        },
+        series: [
+            {
+                type: 'bar',
+                data: {{ daily_counts|safe }},
+                itemStyle: {
+                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                        { offset: 0, color: '#4facfe' },
+                        { offset: 1, color: '#00f2fe' }
+                    ])
+                },
+                barWidth: '60%'
+            }
+        ]
+    };
+    dailyChart.setOption(dailyOption);
+
+    // 4. 题型分布
+    const typeChart = echarts.init(document.getElementById('typeChart'));
+    const typeOption = {
+        tooltip: {
+            trigger: 'axis',
+            axisPointer: {
+                type: 'shadow'
+            }
+        },
+        grid: {
+            left: '3%',
+            right: '4%',
+            bottom: '3%',
+            containLabel: true
+        },
+        xAxis: {
+            type: 'value'
+        },
+        yAxis: {
+            type: 'category',
+            data: {{ type_names|safe }}
+        },
+        series: [
+            {
+                type: 'bar',
+                data: {{ type_counts|safe }},
+                itemStyle: {
+                    color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+                        { offset: 0, color: '#667eea' },
+                        { offset: 1, color: '#764ba2' }
+                    ])
+                }
+            }
+        ]
+    };
+    typeChart.setOption(typeOption);
+
+    // 响应式调整
+    window.addEventListener('resize', function() {
+        trendChart.resize();
+        pieChart.resize();
+        dailyChart.resize();
+        typeChart.resize();
+    });
+}
+{% endif %}
 
 // 显示题目详情模态框
 function showQuestionModal(logId) {
@@ -479,16 +621,20 @@ function showQuestionModal(logId) {
 
     // 获取题目数据
     const questionText = dot.getAttribute('data-question');
+    const questionType = dot.getAttribute('data-question-type');
     const selectedOption = dot.getAttribute('data-selected-option');
     const correctOption = dot.getAttribute('data-correct-option');
+    const textAnswer = dot.getAttribute('data-text-answer');
     const status = dot.getAttribute('data-status');
     const time = dot.getAttribute('data-time');
 
     // 解析选项数据
     let options = [];
     try {
-        options = JSON.parse(dot.getAttribute('data-options'));
+        const optionsStr = dot.getAttribute('data-options');
+        options = JSON.parse(optionsStr);
     } catch (e) {
+        console.error('Error parsing options:', e);
         options = [];
     }
 
@@ -519,25 +665,34 @@ function showQuestionModal(logId) {
         <div class="p-3 bg-light rounded">${questionText || '题目内容加载中...'}</div>
     `;
 
-    // 清空并重新设置选项
+    // 清空并重新设置选项或答案
     answerOptions.innerHTML = '';
-    if (options && options.length > 0) {
+    
+    // 判断题型：主观题（类型5）显示文本答案，其他显示选项
+    if (questionType === '5') {
+        // 主观题：显示文本答案
+        answerOptions.innerHTML = `
+            <h6>我的作答：</h6>
+            <div class="p-3 bg-light rounded" style="white-space: pre-wrap; line-height: 1.8;">
+                ${textAnswer || '未作答'}
+            </div>
+        `;
+    } else if (options && options.length > 0) {
+        // 选择题：显示选项
         answerOptions.innerHTML = '<h6>选项：</h6>';
+        
+        // 解析用户选择和正确答案（可能是多个，用 " | " 分隔）
+        const selectedOptions = selectedOption ? selectedOption.split(' | ').map(s => s.trim()) : [];
+        const correctOptions = correctOption ? correctOption.split(' | ').map(s => s.trim()) : [];
+        
         options.forEach((option, index) => {
             const optionDiv = document.createElement('div');
             optionDiv.className = 'answer-option';
 
-            // 检查是否是这个选项
-            let isSelected = false;
-            let isCorrect = false;
-
-            if (selectedOption && option.includes(selectedOption)) {
-                isSelected = true;
-            }
-
-            if (correctOption && option.includes(correctOption)) {
-                isCorrect = true;
-            }
+            // 检查当前选项是否被选择或是正确答案
+            const optionText = option.trim();
+            const isSelected = selectedOptions.some(selected => optionText === selected || optionText.includes(selected) || selected.includes(optionText));
+            const isCorrect = correctOptions.some(correct => optionText === correct || optionText.includes(correct) || correct.includes(optionText));
 
             // 添加相应的类
             if (isSelected && isCorrect) {
@@ -581,9 +736,11 @@ function loadExerciseQuestions(exerciseId) {
     currentQuestions = Array.from(dots).map(dot => ({
         logId: dot.getAttribute('data-log-id'),
         questionText: dot.getAttribute('data-question'),
+        questionType: dot.getAttribute('data-question-type'),
         selectedOption: dot.getAttribute('data-selected-option'),
         correctOption: dot.getAttribute('data-correct-option'),
         options: dot.getAttribute('data-options'),
+        textAnswer: dot.getAttribute('data-text-answer'),
         status: dot.getAttribute('data-status'),
         time: dot.getAttribute('data-time')
     }));
@@ -665,28 +822,6 @@ document.addEventListener('DOMContentLoaded', function() {
             closeQuestionModal();
         }
     });
-
-    // 移动设备侧边栏切换
-    if (window.innerWidth < 768) {
-        const sidebar = document.querySelector('.student-sidebar');
-        const toggleBtn = document.createElement('button');
-
-        toggleBtn.className = 'btn btn-primary btn-sm';
-        toggleBtn.innerHTML = '<i class="fas fa-bars"></i>';
-        toggleBtn.style.position = 'fixed';
-        toggleBtn.style.top = '80px';
-        toggleBtn.style.right = '20px';
-        toggleBtn.style.zIndex = '1000';
-
-        let sidebarVisible = false;
-        toggleBtn.addEventListener('click', function() {
-            sidebarVisible = !sidebarVisible;
-            sidebar.style.display = sidebarVisible ? 'block' : 'none';
-        });
-
-        document.body.appendChild(toggleBtn);
-        sidebar.style.display = 'none';
-    }
 });
 </script>
 {% endblock %}

@@ -2,8 +2,8 @@
 
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3 mb-3 border-bottom">
-    <h1 class="h2">我的科目（已选课程）</h1>
-    <a href="{% url 'student_subject_selection' %}" class="btn btn-primary">
+    <h1 class="h2">在线学习</h1>
+    <a href="{% url 'student_course_management' %}" class="btn btn-primary">
         <i class="fas fa-plus"></i> 选择更多科目
     </a>
 </div>
@@ -26,18 +26,13 @@
                         </div>
                     </div>
                     <div class="card-footer bg-white">
-                        <div class="d-flex justify-content-between">
-                            <a href="{% url 'exercise_list' subject_id=record.subject.id %}" class="btn btn-sm btn-primary">
-                                <i class="fas fa-play"></i> 开始学习
+                        <div class="d-flex gap-2">
+                            <a href="{% url 'subject_learning' subject_id=record.subject.id %}" target="_blank" class="btn btn-sm btn-primary flex-fill">
+                                <i class="fas fa-play"></i> 课程门户
                             </a>
-                            <form method="post" action="{% url 'student_subject_selection' %}" class="d-inline">
-                                {% csrf_token %}
-                                <input type="hidden" name="action" value="drop">
-                                <input type="hidden" name="subject_id" value="{{ record.subject.id }}">
-                                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('确定要退选这门科目吗？')">
-                                    <i class="fas fa-trash"></i> 退选
-                                </button>
-                            </form>
+                            <a href="{% url 'personalized_recommendations' subject_id=record.subject.id %}" target="_blank" class="btn btn-sm btn-success flex-fill">
+                                <i class="fas fa-magic"></i> 个性化习题推荐
+                            </a>
                         </div>
                     </div>
                 </div>

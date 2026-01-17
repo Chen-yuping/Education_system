@@ -9,6 +9,7 @@ urlpatterns = [
 #学生功能
     path('dashboard/', views_student.dashboard, name='dashboard'),#用户身份判断
     path('student/dashboard/', views_student.student_dashboard, name='student_dashboard'),#学生面板
+    path('student/course-management/', views_student.student_course_management, name='student_course_management'),#课程管理
     path('student/subject/', views_student.student_subject, name='student_subject'),#所有科目
     path('student/my-subjects/', views_student.my_subjects, name='my_subjects'),  # 学生我的科目
     path('student/subjects/select/', views_student.student_subject_selection, name='student_subject_selection'),#课程选择
@@ -17,6 +18,12 @@ urlpatterns = [
     path('diagnosis/',views_studentknowledge.student_knowledge_diagnosis,name='student_diagnosis'),
     path('student/api/knowledge-points/<int:subject_id>/',views_studentknowledge.student_knowledge_data_api,name='knowledge_points_api'),
 
+    # 收藏功能
+    path('favorite/add/', views_student.add_favorite, name='add_favorite'),
+    path('favorite/remove/', views_student.remove_favorite, name='remove_favorite'),
+    path('my-favorites/', views_student.my_favorites, name='my_favorites'),
+    path('subject/<int:subject_id>/favorites/', views_student.subject_favorites, name='subject_favorites'),  # 科目收藏页面
+
     # 个性化推荐
     path('personalized-recommendations/',views_personalized_recommendations.personalized_recommendations,name='personalized_recommendations'),
     path('personalized-recommendations/<int:subject_id>/',views_personalized_recommendations.personalized_recommendations,name='personalized_recommendations'),
@@ -24,6 +31,7 @@ urlpatterns = [
     path('recommendation-result/<int:subject_id>/',views_personalized_recommendations.recommendation_result, name='recommendation_result'),
 
     #课程-做题-做题结果
+    path('subject/<int:subject_id>/learning/', views_student.subject_learning, name='subject_learning'),  # 新的学习页面
     path('subject/<int:subject_id>/exercises/', views_student.exercise_list, name='exercise_list'),
     path('exercise/<int:exercise_id>/take/', views_student.take_exercise, name='take_exercise'),
     path('exercise/result/<int:log_id>/', views_student.exercise_result, name='exercise_result'),

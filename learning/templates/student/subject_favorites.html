@@ -1,0 +1,460 @@
+{% extends 'student/learning_base.html' %}
+
+{% block title %}我的收藏 - {{ subject.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .favorites-header {
+        background: #f8f9fa;
+        padding: 15px 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        border: 1px solid #dee2e6;
+    }
+
+    .favorites-header h5 {
+        margin: 0;
+        color: #333;
+        font-size: 18px;
+    }
+
+    /* 筛选区域 */
+    .filter-section {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        border: 1px solid #dee2e6;
+    }
+
+    .filter-row {
+        display: flex;
+        gap: 15px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .filter-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .filter-label {
+        font-size: 14px;
+        color: #666;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+
+    .filter-buttons {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .filter-btn {
+        padding: 6px 16px;
+        border: 1px solid #dee2e6;
+        background: white;
+        border-radius: 20px;
+        font-size: 13px;
+        color: #666;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .filter-btn:hover {
+        border-color: #007bff;
+        color: #007bff;
+    }
+
+    .filter-btn.active {
+        background: #007bff;
+        border-color: #007bff;
+        color: white;
+    }
+
+    .search-box {
+        flex: 1;
+        min-width: 250px;
+        position: relative;
+    }
+
+    .search-input {
+        width: 100%;
+        padding: 8px 40px 8px 15px;
+        border: 1px solid #dee2e6;
+        border-radius: 20px;
+        font-size: 14px;
+        outline: none;
+        transition: all 0.2s;
+    }
+
+    .search-input:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+    }
+
+    .search-icon {
+        position: absolute;
+        right: 15px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #999;
+    }
+
+    .favorites-list {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .favorite-card {
+        background: white;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid #dee2e6;
+        transition: all 0.2s;
+    }
+
+    .favorite-card:hover {
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .favorite-card.hidden {
+        display: none;
+    }
+
+    .favorite-header {
+        padding: 15px 20px;
+        background-color: #f8f9fa;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .favorite-icon {
+        width: 30px;
+        height: 30px;
+        background-color: #ffc107;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        flex-shrink: 0;
+    }
+
+    .favorite-title {
+        flex: 1;
+        font-size: 15px;
+        font-weight: 600;
+        color: #333;
+    }
+
+    .favorite-date {
+        font-size: 12px;
+        color: #999;
+    }
+
+    .favorite-content {
+        padding: 20px;
+    }
+
+    .exercise-question {
+        font-size: 14px;
+        color: #333;
+        margin-bottom: 15px;
+        line-height: 1.6;
+    }
+
+    .exercise-choices {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-bottom: 15px;
+    }
+
+    .choice-item {
+        padding: 10px 15px;
+        background-color: #f8f9fa;
+        border-radius: 6px;
+        border: 1px solid #dee2e6;
+        font-size: 14px;
+        color: #333;
+    }
+
+    .choice-item.correct {
+        background-color: #d4edda;
+        border-color: #c3e6cb;
+        color: #155724;
+    }
+
+    .favorite-actions {
+        padding: 15px 20px;
+        background-color: #f8f9fa;
+        border-top: 1px solid #dee2e6;
+        display: flex;
+        gap: 10px;
+    }
+
+    .btn-practice {
+        padding: 8px 20px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-decoration: none;
+        display: inline-block;
+    }
+
+    .btn-practice:hover {
+        background-color: #0056b3;
+        color: white;
+    }
+
+    .btn-remove {
+        padding: 8px 20px;
+        background-color: #dc3545;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-remove:hover {
+        background-color: #c82333;
+        opacity: 0.9;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #999;
+    }
+
+    .empty-state i {
+        font-size: 64px;
+        margin-bottom: 20px;
+        color: #ccc;
+    }
+
+    .no-results {
+        text-align: center;
+        padding: 40px 20px;
+        color: #999;
+        display: none;
+    }
+
+    .no-results.show {
+        display: block;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="favorites-header">
+    <h5><i class="fas fa-star me-2"></i>我的收藏 (<span id="totalCount">{{ total_count }}</span>)</h5>
+</div>
+
+{% if favorites %}
+<!-- 筛选区域 -->
+<div class="filter-section">
+    <div class="filter-row">
+        <div class="filter-group">
+            <span class="filter-label"><i class="fas fa-filter me-1"></i>题型：</span>
+            <div class="filter-buttons">
+                <button class="filter-btn active" data-type="all" onclick="filterByType('all')">全部</button>
+                <button class="filter-btn" data-type="1" onclick="filterByType('1')">单选题</button>
+                <button class="filter-btn" data-type="2" onclick="filterByType('2')">多选题</button>
+                <button class="filter-btn" data-type="3" onclick="filterByType('3')">填空题</button>
+                <button class="filter-btn" data-type="4" onclick="filterByType('4')">简答题</button>
+                <button class="filter-btn" data-type="5" onclick="filterByType('5')">主观题</button>
+                <button class="filter-btn" data-type="6" onclick="filterByType('6')">判断题</button>
+            </div>
+        </div>
+        <div class="search-box">
+            <input type="text" class="search-input" id="searchInput" placeholder="搜索题目内容..." onkeyup="searchExercises()">
+            <i class="fas fa-search search-icon"></i>
+        </div>
+    </div>
+</div>
+
+<div class="favorites-list" id="favoritesList">
+    {% for favorite in favorites %}
+    <div class="favorite-card" data-type="{{ favorite.exercise.question_type }}" data-content="{{ favorite.exercise.content|lower }}">
+        <div class="favorite-header">
+            <div class="favorite-icon">
+                <i class="fas fa-star"></i>
+            </div>
+            <div class="favorite-title">
+                {% if favorite.exercise.question_type == '1' %}单选题
+                {% elif favorite.exercise.question_type == '2' %}多选题
+                {% elif favorite.exercise.question_type == '3' %}填空题
+                {% elif favorite.exercise.question_type == '4' %}简答题
+                {% elif favorite.exercise.question_type == '5' %}主观题
+                {% elif favorite.exercise.question_type == '6' %}判断题
+                {% else %}习题{% endif %}
+            </div>
+            <div class="favorite-date">
+                收藏于 {{ favorite.created_at|date:"Y-m-d H:i" }}
+            </div>
+        </div>
+        
+        <div class="favorite-content">
+            <div class="exercise-question">
+                {{ favorite.exercise.content }}
+            </div>
+            
+            {% if favorite.exercise.choices.all %}
+            <div class="exercise-choices">
+                {% for choice in favorite.exercise.choices.all %}
+                <div class="choice-item {% if choice.is_correct %}correct{% endif %}">
+                    {{ choice.content }}
+                    {% if choice.is_correct %}
+                    <i class="fas fa-check-circle ms-2"></i>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="favorite-actions">
+            <a href="{% url 'take_exercise' exercise_id=favorite.exercise.id %}" class="btn-practice">
+                <i class="fas fa-play me-1"></i>开始练习
+            </a>
+            <button class="btn-remove" onclick="removeFavorite({{ favorite.exercise.id }}, this)">
+                <i class="fas fa-trash me-1"></i>取消收藏
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="no-results" id="noResults">
+    <i class="fas fa-search fa-3x mb-3"></i>
+    <h5>没有找到匹配的收藏</h5>
+    <p>试试其他筛选条件或搜索关键词</p>
+</div>
+
+{% else %}
+<div class="empty-state">
+    <i class="fas fa-star"></i>
+    <h4>暂无收藏</h4>
+    <p>您还没有收藏任何习题</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentType = 'all';
+let currentSearch = '';
+
+// 按题型筛选
+function filterByType(type) {
+    currentType = type;
+    
+    // 更新按钮状态
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.querySelector(`[data-type="${type}"]`).classList.add('active');
+    
+    // 应用筛选
+    applyFilters();
+}
+
+// 搜索功能
+function searchExercises() {
+    currentSearch = document.getElementById('searchInput').value.toLowerCase();
+    applyFilters();
+}
+
+// 应用所有筛选条件
+function applyFilters() {
+    const cards = document.querySelectorAll('.favorite-card');
+    let visibleCount = 0;
+    
+    cards.forEach(card => {
+        const cardType = card.getAttribute('data-type');
+        const cardContent = card.getAttribute('data-content');
+        
+        // 检查题型筛选
+        const typeMatch = currentType === 'all' || cardType === currentType;
+        
+        // 检查搜索关键词
+        const searchMatch = currentSearch === '' || cardContent.includes(currentSearch);
+        
+        // 显示或隐藏卡片
+        if (typeMatch && searchMatch) {
+            card.classList.remove('hidden');
+            visibleCount++;
+        } else {
+            card.classList.add('hidden');
+        }
+    });
+    
+    // 更新计数
+    document.getElementById('totalCount').textContent = visibleCount;
+    
+    // 显示或隐藏"无结果"提示
+    const noResults = document.getElementById('noResults');
+    if (visibleCount === 0) {
+        noResults.classList.add('show');
+    } else {
+        noResults.classList.remove('show');
+    }
+}
+
+function removeFavorite(exerciseId, button) {
+    if (!confirm('确定要取消收藏这道题吗？')) {
+        return;
+    }
+    
+    fetch('{% url "remove_favorite" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({
+            exercise_id: exerciseId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 移除卡片
+            const card = button.closest('.favorite-card');
+            card.style.opacity = '0';
+            setTimeout(() => {
+                card.remove();
+                // 重新应用筛选以更新计数
+                applyFilters();
+                
+                // 检查是否还有收藏
+                const favoritesList = document.querySelector('.favorites-list');
+                if (favoritesList && favoritesList.children.length === 0) {
+                    location.reload();
+                }
+            }, 300);
+        } else {
+            alert('取消收藏失败：' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('操作失败，请重试');
+    });
+}
+</script>
+{% endblock %}

@@ -186,6 +186,22 @@ class StudentDiagnosis(models.Model):
     def __str__(self):
         return f"{self.student.username} - {self.knowledge_point.name}"
 
+# 习题收藏模型
+class ExerciseFavorite(models.Model):
+    student = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="学生", related_name='favorite_exercises')
+    exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE, verbose_name="习题", related_name='favorited_by')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="收藏时间")
+    note = models.TextField(blank=True, verbose_name="备注")
+
+    class Meta:
+        verbose_name = "习题收藏"
+        verbose_name_plural = "习题收藏"
+        unique_together = ('student', 'exercise')  # 防止重复收藏
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.student.username} - {self.exercise.title}"
+
 #对应数据库learning_exercisefile
 def exercise_file_upload_path(instance, filename):
     """生成文件上传路径"""
