@@ -136,7 +136,7 @@ class AnswerLog(models.Model):
     student = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="学生")
     exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE, verbose_name="习题")
     selected_choices = models.ManyToManyField(Choice, blank=True, verbose_name="选择的选项")
-    text_answer = models.TextField(blank=True, verbose_name="文本答案")
+    text_answer = models.TextField(blank=True, verbose_name="文本答案",default=None)
     is_correct = models.BooleanField(null=True, verbose_name="是否正确")
     time_spent = models.IntegerField(default=0, verbose_name="答题耗时(秒)")
     submitted_at = models.DateTimeField(auto_now_add=True, verbose_name="提交时间")

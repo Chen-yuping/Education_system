@@ -218,8 +218,26 @@
                     <textarea class="form-control" name="text_answer" rows="6"
                               placeholder="请输入您的答案..."></textarea>
                 </div>
-                {% else %}
+                {% elif exercise.question_type == '6' %}
                 <!-- 判断题 -->
+                <div class="choices-container">
+                    {% for choice in exercise.choices.all %}
+                    <div class="choice-item" onclick="selectSingleChoice({{ choice.id }})">
+                        <div class="form-check">
+                            <input class="form-check-input choice-input"
+                                   type="radio"
+                                   name="choices"
+                                   id="choice_{{ choice.id }}"
+                                   value="{{ choice.id }}">
+                            <label class="form-check-label w-100" for="choice_{{ choice.id }}">
+                                {{ choice.content }}
+                            </label>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <!-- 其他题型 -->
                 <div class="form-group">
                     <textarea class="form-control" name="text_answer" rows="6"
                               placeholder="请输入您的答案..."></textarea>

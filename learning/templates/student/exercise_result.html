@@ -282,24 +282,70 @@
             <!-- 判断题 -->
             {% elif answer_log.exercise.question_type == '6' %}
             <div class="mb-4">
-                <h5 class="mb-3">
-                    <i class="fas fa-check-circle me-2"></i>判断结果
-                </h5>
+                <div class="options-list">
+                    {% for choice in answer_log.exercise.choices.all %}
+                        {% with choice_index=forloop.counter0 %}
+                        {% with option_letter=choice_index|add:65|stringformat:"c"|upper %}
 
-                <div class="mb-3">
-                    <strong>我的判断：</strong>
-                    <div class="p-3 mt-2 rounded
-                        {% if answer_log.is_correct == True %}bg-success bg-opacity-10 border border-success
-                        {% elif answer_log.is_correct == False %}bg-danger bg-opacity-10 border border-danger
-                        {% else %}bg-secondary bg-opacity-10 border border-secondary{% endif %}">
-                        {{ answer_log.text_answer|default:"未选择" }}
-                    </div>
+                        {# 判断是否为用户选择 #}
+                        {% if choice.id in selected_choice_ids %}
+                            {# 用户选择的选项 #}
+                            <div class="option-item mb-2 p-3 rounded
+                                {% if choice.is_correct %}
+                                    user-choice-correct
+                                {% else %}
+                                    user-choice-incorrect
+                                {% endif %}">
+                                <div class="d-flex align-items-center">
+                                    <span class="option-letter user-choice-letter">
+                                        {{ option_letter }}
+                                    </span>
+                                    <div class="flex-grow-1">
+                                        {{ choice.content }}
+                                    </div>
+                                    {% if choice.is_correct %}
+                                        <span class="correct-mark">✓</span>
+                                    {% else %}
+                                        <span class="incorrect-mark">✗</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                        {% else %}
+                            {# 用户没有选择的选项 #}
+                            <div class="option-item mb-2 p-3 rounded
+                                {% if choice.is_correct %}correct-answer-only{% endif %}">
+                                <div class="d-flex align-items-center">
+                                    <span class="option-letter {% if choice.is_correct %}correct-answer-letter{% endif %}">
+                                        {{ option_letter }}
+                                    </span>
+                                    <div class="flex-grow-1">
+                                        {{ choice.content }}
+                                    </div>
+                                    {% if choice.is_correct %}
+                                        <span class="text-info">正确答案</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                        {% endif %}
+
+                        {% endwith %}
+                        {% endwith %}
+                    {% endfor %}
                 </div>
 
-                <div class="mb-3">
+                <!-- 正确答案显示 -->
+                <div class="mt-4">
                     <strong>正确答案：</strong>
-                    <div class="p-3 mt-2 rounded bg-warning bg-opacity-10 border border-warning">
-                        {{ answer_log.exercise.answer|default:"正确" }}
+                    <div class="mt-2">
+                        {% for choice in answer_log.exercise.choices.all %}
+                            {% if choice.is_correct %}
+                                <span class="correct-answer-box me-2">
+                                    {{ choice.content }}
+                                </span>
+                            {% endif %}
+                        {% endfor %}
                     </div>
                 </div>
             </div>

@@ -234,8 +234,8 @@ def take_exercise(request, exercise_id):
             time_spent=time_spent
         )
 
-        # 处理选择题（单选题和多选题）
-        if exercise.question_type in ['1', '2']:
+        # 处理选择题（单选题、多选题、判断题）
+        if exercise.question_type in ['1', '2', '6']:
             selected_choices = Choice.objects.filter(id__in=selected_choice_ids)
             answer_log.selected_choices.set(selected_choices)
 
@@ -588,10 +588,21 @@ def update_knowledge_mastery(student, exercise, is_correct):
     #对题目涉及的每个知识点都进行单独处理。
     for q_item in related_kps:
         #获取或创建学习诊断记录
-        diagnosis, created = StudentDiagnosis.objects.get_or_create(
+        # 使用filter().first()代替get_or_create，避免MultipleObjectsReturned错误
+        diagnosis = StudentDiagnosis.objects.filter(
             student=student,
             knowledge_point=q_item.knowledge_point
-        )
+        ).first()
+        
+        if not diagnosis:
+            # 如果不存在，创建新记录
+            diagnosis = StudentDiagnosis.objects.create(
+                student=student,
+                knowledge_point=q_item.knowledge_point,
+                practice_count=0,
+                correct_count=0,
+                mastery_level=0.0
+            )
 
         diagnosis.practice_count += 1
         if is_correct:
