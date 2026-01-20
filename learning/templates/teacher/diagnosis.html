@@ -217,15 +217,46 @@
     <!-- 总体掌握情况 -->
     <div class="col-lg-8 mb-4">
         <div class="card diagnosis-card h-100">
-            <div class="card-header bg-white">
-                <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>学生总体掌握情况</h5>
-                <small class="text-muted">基于选择科目的全体学生分析</small>
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>学生总体掌握情况</h5>
+                    <small class="text-muted">基于选择科目的全体学生分析</small>
+                </div>
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-sm btn-outline-primary active" id="barChartBtn" onclick="switchChartView('bar')">
+                        <i class="fas fa-chart-bar"></i> 柱状图
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="graphChartBtn" onclick="switchChartView('graph')">
+                        <i class="fas fa-project-diagram"></i> 知识图谱
+                    </button>
+                </div>
             </div>
             <div class="card-body">
-                <div id="overallMasteryChart" class="knowledge-mastery-chart">
+                <!-- 柱状图容器 -->
+                <div id="overallMasteryChart" class="knowledge-mastery-chart" style="display: block;">
                     <!-- 总体掌握情况图表 -->
                     <div class="text-center py-5 text-muted">
                         <i class="fas fa-chart-bar fa-3x mb-3"></i>
+                        <p>请选择科目并开始诊断分析</p>
+                    </div>
+                </div>
+                
+                <!-- 知识点节点图容器 -->
+                <div id="knowledgeGraphContainer" class="knowledge-mastery-chart" style="display: none; position: relative;">
+                    <div id="knowledgeGraphChart" style="width: 100%; height: 100%;"></div>
+                    <!-- 图例 -->
+                    <div style="position: absolute; top: 10px; right: 10px; background: white; padding: 10px; border-radius: 5px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); font-size: 12px; z-index: 10;">
+                        <div><span style="display: inline-block; width: 12px; height: 12px; background: #52c41a; border-radius: 50%; margin-right: 5px;"></span>优秀 (≥80%)</div>
+                        <div><span style="display: inline-block; width: 12px; height: 12px; background: #faad14; border-radius: 50%; margin-right: 5px;"></span>良好 (60-80%)</div>
+                        <div><span style="display: inline-block; width: 12px; height: 12px; background: #f5222d; border-radius: 50%; margin-right: 5px;"></span>需加强 (<60%)</div>
+                        <div class="mt-2 text-muted"><i class="fas fa-info-circle me-1"></i>拖拽节点可移动</div>
+                    </div>
+                    <!-- 工具提示 -->
+                    <div id="graphTooltip" style="display: none; position: absolute; background: white; padding: 10px; border-radius: 5px; box-shadow: 0 2px 12px rgba(0,0,0,0.15); pointer-events: none; z-index: 1000; min-width: 150px;">
+                    </div>
+                    <!-- 初始提示 -->
+                    <div id="graphInitialMessage" class="text-center py-5 text-muted">
+                        <i class="fas fa-project-diagram fa-3x mb-3"></i>
                         <p>请选择科目并开始诊断分析</p>
                     </div>
                 </div>
@@ -289,6 +320,7 @@
                         <th>总体掌握度</th>
                         <th>强项知识点</th>
                         <th>弱项知识点</th>
+                        <th>操作</th>
                     </tr>
                 </thead>
                 <tbody id="studentAnalysisBody">
@@ -301,11 +333,24 @@
                 </tbody>
             </table>
         </div>
+        
+        <!-- 分页控件 -->
+        <div class="d-flex justify-content-between align-items-center mt-3" id="paginationContainer" style="display: none !important;">
+            <div class="text-muted">
+                显示第 <span id="pageStart">0</span> - <span id="pageEnd">0</span> 条，共 <span id="totalStudents">0</span> 名学生
+            </div>
+            <nav>
+                <ul class="pagination mb-0" id="paginationList">
+                    <!-- 分页按钮将通过JavaScript生成 -->
+                </ul>
+            </nav>
+        </div>
     </div>
 </div>
 
 <!-- 引入图表库 -->
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.2/dist/echarts.min.js"></script>
+<script src="https://d3js.org/d3.v7.min.js"></script>
 
 <!-- templates/teacher/diagnosis.html - 更新JavaScript部分 -->
 <!-- templates/teacher/diagnosis.html - 修复JavaScript -->
@@ -314,12 +359,77 @@
 let currentDiagnosisData = null;
 let overallChart = null;
 let isDiagnosing = false;  // 是否正在诊断中
+let allStudentResults = [];  // 所有学生结果
+let currentPage = 1;  // 当前页码
+let pageSize = 10;  // 每页显示数量
+let currentChartView = 'bar';  // 当前图表视图：'bar' 或 'graph'
+let graphSimulation = null;  // D3力导向图模拟器
 
 // 页面加载完成
 document.addEventListener('DOMContentLoaded', function() {
     initCharts();
     setupEventListeners();
 });
+
+// 切换图表视图
+function switchChartView(viewType) {
+    currentChartView = viewType;
+    
+    const barChartBtn = document.getElementById('barChartBtn');
+    const graphChartBtn = document.getElementById('graphChartBtn');
+    const barChartContainer = document.getElementById('overallMasteryChart');
+    const graphChartContainer = document.getElementById('knowledgeGraphContainer');
+    
+    if (viewType === 'bar') {
+        // 切换到柱状图
+        barChartBtn.classList.add('active');
+        graphChartBtn.classList.remove('active');
+        barChartContainer.style.display = 'block';
+        graphChartContainer.style.display = 'none';
+        
+        // 如果有数据，重新渲染柱状图
+        if (currentDiagnosisData) {
+            renderOverallChart(currentDiagnosisData);
+        }
+    } else {
+        // 切换到知识图谱
+        barChartBtn.classList.remove('active');
+        graphChartBtn.classList.add('active');
+        barChartContainer.style.display = 'none';
+        graphChartContainer.style.display = 'block';
+        
+        // 如果有数据，渲染知识图谱
+        if (currentDiagnosisData) {
+            const diagnosisData = currentDiagnosisData;
+            const kpAverages = calculateKpAverages(diagnosisData);
+            renderKnowledgeGraph(diagnosisData, kpAverages);
+        }
+    }
+}
+
+// 计算知识点平均掌握度
+function calculateKpAverages(diagnosisData) {
+    const kpAverages = {};
+    const studentResults = Object.values(diagnosisData.diagnosis_results || {});
+
+    diagnosisData.knowledge_points.forEach(kp => {
+        const kpId = kp.id.toString();
+        let totalMastery = 0;
+        let count = 0;
+
+        studentResults.forEach(student => {
+            const mastery = student.knowledge_mastery[kpId];
+            if (mastery !== undefined) {
+                totalMastery += mastery;
+                count++;
+            }
+        });
+
+        kpAverages[kpId] = count > 0 ? (totalMastery / count) * 100 : 0;
+    });
+
+    return kpAverages;
+}
 
 // 初始化图表
 function initCharts() {
@@ -695,8 +805,14 @@ function updateStatsSummaryFromDiagnosis(data) {
         });
     }
 
-    const diagnosisRate = summary.total_students > 0 
-        ? Math.round((summary.diagnosed_students / summary.total_students) * 100) 
+    // 学生覆盖率：有做题记录的学生数 / 选课学生总数
+    const studentCoverageRate = summary.enrolled_students_count > 0 
+        ? Math.round((summary.total_students / summary.enrolled_students_count) * 100) 
+        : 0;
+    
+    // 知识点覆盖率：学生做题覆盖的知识点数 / 科目知识点总数
+    const kpCoverageRate = summary.total_kp_count > 0 
+        ? Math.round((summary.covered_kp_count / summary.total_kp_count) * 100) 
         : 0;
 
     const html = `
@@ -710,17 +826,17 @@ function updateStatsSummaryFromDiagnosis(data) {
             </div>
             <div class="col-6 mb-4">
                 <div class="progress-circle mb-2" style="background: linear-gradient(135deg, #1cc88a 0%, #13855c 100%);">
-                    ${summary.diagnosed_students}
+                    ${studentCoverageRate}%
                 </div>
-                <div class="fw-bold">选课学生数</div>
-                <small class="text-muted">共${summary.total_students}人有记录</small>
+                <div class="fw-bold">学生覆盖率</div>
+                <small class="text-muted">${summary.total_students}/${summary.enrolled_students_count}人</small>
             </div>
             <div class="col-6">
                 <div class="progress-circle mb-2" style="background: linear-gradient(135deg, #f6c23e 0%, #dda20a 100%);">
-                    ${diagnosisRate}%
+                    ${kpCoverageRate}%
                 </div>
-                <div class="fw-bold">诊断覆盖率</div>
-                <small class="text-muted">学生覆盖比例</small>
+                <div class="fw-bold">知识点覆盖率</div>
+                <small class="text-muted">${summary.covered_kp_count}/${summary.total_kp_count}个知识点</small>
             </div>
             <div class="col-6">
                 <div class="progress-circle mb-2" style="background: linear-gradient(135deg, #e74a3b 0%, #be2617 100%);">
@@ -733,7 +849,6 @@ function updateStatsSummaryFromDiagnosis(data) {
         <div class="mt-3 p-3 bg-light rounded">
             <small class="text-muted">
                 <i class="fas fa-info-circle me-1"></i>
-                诊断时间: ${summary.diagnosis_time}<br>
                 科目: ${summary.subject_name}<br>
                 使用模型: ${summary.model_used}<br>
                 优势知识点: ${strongCount}个
@@ -761,33 +876,27 @@ function updateDiagnosisResults(data) {
 function renderOverallChart(diagnosisData) {
     console.log('renderOverallChart 被调用');
 
-    // 先清空图表
-    if (overallChart) {
-        overallChart.clear();
-    }
     if (!diagnosisData.knowledge_points || diagnosisData.knowledge_points.length === 0) {
         return;
     }
 
     // 计算所有学生的平均掌握度
-    const kpAverages = {};
-    const studentResults = Object.values(diagnosisData.diagnosis_results || {});
+    const kpAverages = calculateKpAverages(diagnosisData);
 
-    diagnosisData.knowledge_points.forEach(kp => {
-        const kpId = kp.id.toString();
-        let totalMastery = 0;
-        let count = 0;
+    // 根据当前视图类型渲染
+    if (currentChartView === 'bar') {
+        renderBarChart(diagnosisData, kpAverages);
+    } else {
+        renderKnowledgeGraph(diagnosisData, kpAverages);
+    }
+}
 
-        studentResults.forEach(student => {
-            const mastery = student.knowledge_mastery[kpId];
-            if (mastery !== undefined) {
-                totalMastery += mastery;
-                count++;
-            }
-        });
-
-        kpAverages[kpId] = count > 0 ? (totalMastery / count) * 100 : 0;
-    });
+// 渲染柱状图
+function renderBarChart(diagnosisData, kpAverages) {
+    // 先清空图表
+    if (overallChart) {
+        overallChart.clear();
+    }
 
     const categories = diagnosisData.knowledge_points.map(kp => kp.name);
     const masteryData = diagnosisData.knowledge_points.map(kp =>
@@ -795,7 +904,7 @@ function renderOverallChart(diagnosisData) {
     );
 
     const option = {
-        animation: false,  // 禁用动画，避免看起来像变化两次
+        animation: false,
         tooltip: {
             trigger: 'axis',
             formatter: function(params) {
@@ -849,10 +958,8 @@ function renderOverallChart(diagnosisData) {
     if (overallChart) {
         overallChart.setOption(option);
     }
-
-    // 同时渲染D3知识点节点图
-    renderKnowledgeGraph(diagnosisData, kpAverages);
 }
+
 
 // 渲染D3.js知识点节点图
 function renderKnowledgeGraph(diagnosisData, kpAverages) {
@@ -1053,6 +1160,16 @@ function updateStatsSummary(summary) {
 
     const weakCount = summary.weak_knowledge_points ? summary.weak_knowledge_points.length : 0;
     const strongCount = summary.strong_knowledge_points ? summary.strong_knowledge_points.length : 0;
+    
+    // 学生覆盖率：有做题记录的学生数 / 选课学生总数
+    const studentCoverageRate = summary.enrolled_students_count > 0 
+        ? Math.round((summary.student_count / summary.enrolled_students_count) * 100) 
+        : 0;
+    
+    // 知识点覆盖率：学生做题覆盖的知识点数 / 科目知识点总数
+    const kpCoverageRate = summary.total_kp_count > 0 
+        ? Math.round((summary.covered_kp_count / summary.total_kp_count) * 100) 
+        : 0;
 
     const html = `
         <div class="row text-center">
@@ -1065,17 +1182,17 @@ function updateStatsSummary(summary) {
             </div>
             <div class="col-6 mb-4">
                 <div class="progress-circle mb-2" style="background: linear-gradient(135deg, #1cc88a 0%, #13855c 100%);">
-                    ${summary.diagnosed_count}
+                    ${studentCoverageRate}%
                 </div>
-                <div class="fw-bold">存在做题记录学生</div>
-                <small class="text-muted">共${summary.student_count}人</small>
+                <div class="fw-bold">学生覆盖率</div>
+                <small class="text-muted">${summary.student_count}/${summary.enrolled_students_count}人</small>
             </div>
             <div class="col-6">
                 <div class="progress-circle mb-2" style="background: linear-gradient(135deg, #f6c23e 0%, #dda20a 100%);">
-                    ${summary.diagnosis_rate}%
+                    ${kpCoverageRate}%
                 </div>
-                <div class="fw-bold">诊断覆盖率</div>
-                <small class="text-muted">学生覆盖比例</small>
+                <div class="fw-bold">知识点覆盖率</div>
+                <small class="text-muted">${summary.covered_kp_count}/${summary.total_kp_count}个知识点</small>
             </div>
             <div class="col-6">
                 <div class="progress-circle mb-2" style="background: linear-gradient(135deg, #e74a3b 0%, #be2617 100%);">
@@ -1088,7 +1205,6 @@ function updateStatsSummary(summary) {
         <div class="mt-3 p-3 bg-light rounded">
             <small class="text-muted">
                 <i class="fas fa-info-circle me-1"></i>
-                最后诊断: ${summary.last_diagnosis_time}<br>
                 科目: ${summary.subject_name}<br>
                 优势知识点: ${strongCount}个
             </small>
@@ -1104,6 +1220,7 @@ function updateStudentAnalysisTable(diagnosisData) {
     if (!tbody) return;
 
     const studentResults = Object.values(diagnosisData.diagnosis_results || {});
+    allStudentResults = studentResults;  // 保存所有学生数据
 
     if (studentResults.length === 0) {
         tbody.innerHTML = `
@@ -1114,10 +1231,29 @@ function updateStudentAnalysisTable(diagnosisData) {
                 </td>
             </tr>
         `;
+        document.getElementById('paginationContainer').style.display = 'none';
         return;
     }
 
-    const rows = studentResults.map(student => {
+    // 重置到第一页
+    currentPage = 1;
+    renderStudentPage(diagnosisData);
+}
+
+// 渲染指定页的学生数据
+function renderStudentPage(diagnosisData) {
+    const tbody = document.getElementById('studentAnalysisBody');
+    if (!tbody) return;
+
+    // 计算分页
+    const totalStudents = allStudentResults.length;
+    const totalPages = Math.ceil(totalStudents / pageSize);
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = Math.min(startIndex + pageSize, totalStudents);
+    const pageStudents = allStudentResults.slice(startIndex, endIndex);
+
+    // 渲染当前页学生
+    const rows = pageStudents.map(student => {
         // 找出掌握度最高和最低的知识点
         const masteryEntries = Object.entries(student.knowledge_mastery || {});
         const sortedMastery = masteryEntries.sort((a, b) => b[1] - a[1]);
@@ -1182,6 +1318,20 @@ function updateStudentAnalysisTable(diagnosisData) {
 
     tbody.innerHTML = rows;
 
+    // 更新分页信息
+    document.getElementById('pageStart').textContent = startIndex + 1;
+    document.getElementById('pageEnd').textContent = endIndex;
+    document.getElementById('totalStudents').textContent = totalStudents;
+
+    // 显示分页控件
+    const paginationContainer = document.getElementById('paginationContainer');
+    if (totalStudents > pageSize) {
+        paginationContainer.style.display = 'flex';
+        renderPagination(totalPages);
+    } else {
+        paginationContainer.style.display = 'none';
+    }
+
     // 添加查看详情事件监听
     document.querySelectorAll('.view-detail-btn').forEach(btn => {
         btn.addEventListener('click', function() {
@@ -1195,6 +1345,82 @@ function updateStudentAnalysisTable(diagnosisData) {
             }
         });
     });
+}
+
+// 渲染分页按钮
+function renderPagination(totalPages) {
+    const paginationList = document.getElementById('paginationList');
+    if (!paginationList) return;
+
+    let html = '';
+
+    // 上一页按钮
+    html += `
+        <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="changePage(${currentPage - 1}); return false;">
+                <i class="fas fa-chevron-left"></i>
+            </a>
+        </li>
+    `;
+
+    // 页码按钮
+    const maxVisiblePages = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+    if (endPage - startPage < maxVisiblePages - 1) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+
+    if (startPage > 1) {
+        html += `
+            <li class="page-item">
+                <a class="page-link" href="#" onclick="changePage(1); return false;">1</a>
+            </li>
+        `;
+        if (startPage > 2) {
+            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        }
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+        html += `
+            <li class="page-item ${i === currentPage ? 'active' : ''}">
+                <a class="page-link" href="#" onclick="changePage(${i}); return false;">${i}</a>
+            </li>
+        `;
+    }
+
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        }
+        html += `
+            <li class="page-item">
+                <a class="page-link" href="#" onclick="changePage(${totalPages}); return false;">${totalPages}</a>
+            </li>
+        `;
+    }
+
+    // 下一页按钮
+    html += `
+        <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="changePage(${currentPage + 1}); return false;">
+                <i class="fas fa-chevron-right"></i>
+            </a>
+        </li>
+    `;
+
+    paginationList.innerHTML = html;
+}
+
+// 切换页码
+function changePage(page) {
+    const totalPages = Math.ceil(allStudentResults.length / pageSize);
+    if (page < 1 || page > totalPages) return;
+    
+    currentPage = page;
+    renderStudentPage(currentDiagnosisData);
 }
 
 // 查看学生详情
@@ -1527,6 +1753,13 @@ function getMasteryColor(mastery) {
     if (value >= 80) return '#52c41a';
     if (value >= 60) return '#faad14';
     return '#f5222d';
+}
+
+function getNodeRadius(node) {
+    const baseRadius = 30;
+    const mastery = node.mastery || 0;
+    // 掌握度越高，节点越大
+    return baseRadius + (mastery / 100) * 15;
 }
 
 function showLoading(message) {

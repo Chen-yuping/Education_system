@@ -27,14 +27,14 @@ class IRTModel:
     支持1PL, 2PL, 3PL模型
     """
 
-    def __init__(self, model_type: str = '2PL', max_iter: int = 100, tol: float = 1e-4):
+    def __init__(self, model_type: str = '2PL', max_iter: int = 50, tol: float = 1e-3):
         """
         初始化IRT模型
 
         Args:
             model_type: 模型类型 ('1PL', '2PL', '3PL')
-            max_iter: 最大迭代次数
-            tol: 收敛阈值
+            max_iter: 最大迭代次数（减少以提高速度）
+            tol: 收敛阈值（放宽以提高速度）
         """
         self.model_type = model_type
         self.max_iter = max_iter

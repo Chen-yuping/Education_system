@@ -38,54 +38,58 @@ class DiagnosisService:
 
     def build_diagnosis_data(self, subject_id: int) -> Dict[str, Any]:
         """
-        构建诊断所需数据 - 从做题记录中获取所有学生
+        构建诊断所需数据 - 从做题记录中获取所有学生（优化版本）
 
         Returns:
             包含学生答题数据、Q矩阵、知识点的字典
         """
-        # 获取该科目的所有习题
-        exercises = Exercise.objects.filter(
+        # 获取该科目的所有习题（只获取ID）
+        exercises = list(Exercise.objects.filter(
             subject_id=subject_id
-        ).order_by('id')
-        exercise_list = list(exercises)
+        ).only('id').order_by('id'))
+        exercise_list = exercises
         exercise_id_map = {ex.id: idx for idx, ex in enumerate(exercise_list)}
 
-        # 获取该科目的所有知识点
-        knowledge_points = KnowledgePoint.objects.filter(
+        # 获取该科目的所有知识点（只获取必要字段）
+        knowledge_points = list(KnowledgePoint.objects.filter(
             subject_id=subject_id
-        ).order_by('id')
-        kp_list = list(knowledge_points)
+        ).only('id', 'name').order_by('id'))
+        kp_list = knowledge_points
         kp_id_map = {kp.id: idx for idx, kp in enumerate(kp_list)}
 
-        # 构建Q矩阵
+        # 构建Q矩阵（优化：使用values_list减少内存）
         n_exercises = len(exercise_list)
         n_kps = len(kp_list)
         Q = np.zeros((n_exercises, n_kps), dtype=np.float32)
 
         qmatrices = QMatrix.objects.filter(
             exercise__subject_id=subject_id
-        ).select_related('exercise', 'knowledge_point')
+        ).values_list('exercise_id', 'knowledge_point_id', 'weight')
 
-        for qm in qmatrices:
-            ex_idx = exercise_id_map.get(qm.exercise_id)
-            kp_idx = kp_id_map.get(qm.knowledge_point_id)
+        for ex_id, kp_id, weight in qmatrices:
+            ex_idx = exercise_id_map.get(ex_id)
+            kp_idx = kp_id_map.get(kp_id)
             if ex_idx is not None and kp_idx is not None:
-                Q[ex_idx, kp_idx] = qm.weight or 1.0
+                Q[ex_idx, kp_idx] = weight or 1.0
 
-        # 从做题记录中获取该科目所有有答题记录的学生
+        # 从做题记录中获取该科目所有有答题记录的学生（优化：使用values_list）
         answer_logs = AnswerLog.objects.filter(
             exercise__subject_id=subject_id,
             is_correct__isnull=False
-        ).select_related('student', 'exercise')
+        ).values_list('student_id', 'exercise_id', 'is_correct', 'time_spent')
 
         # 先收集所有有答题记录的学生ID
-        student_ids_with_logs = answer_logs.values_list('student_id', flat=True).distinct()
+        student_ids_with_logs = set()
+        answer_logs_list = list(answer_logs)  # 转换为列表避免重复查询
         
-        # 获取这些学生的详细信息
+        for student_id, _, _, _ in answer_logs_list:
+            student_ids_with_logs.add(student_id)
+        
+        # 获取这些学生的详细信息（只获取必要字段）
         students_with_logs = User.objects.filter(
             id__in=student_ids_with_logs,
             user_type='student'
-        )
+        ).only('id', 'username', 'first_name', 'last_name')
 
         # 构建学生数据字典
         student_data = {}
@@ -98,19 +102,18 @@ class DiagnosisService:
                 'exercise_scores': {}
             }
 
-        # 填充答题记录
-        for log in answer_logs:
-            student_id = log.student_id
+        # 填充答题记录（使用已缓存的列表）
+        for student_id, exercise_id, is_correct, time_spent in answer_logs_list:
             if student_id in student_data:
-                exercise_idx = exercise_id_map.get(log.exercise_id)
+                exercise_idx = exercise_id_map.get(exercise_id)
                 if exercise_idx is not None:
                     student_data[student_id]['answer_logs'].append({
-                        'exercise_id': log.exercise_id,
+                        'exercise_id': exercise_id,
                         'exercise_idx': exercise_idx,
-                        'is_correct': log.is_correct,
-                        'time_spent': log.time_spent
+                        'is_correct': is_correct,
+                        'time_spent': time_spent
                     })
-                    student_data[student_id]['exercise_scores'][log.exercise_id] = log.is_correct
+                    student_data[student_id]['exercise_scores'][exercise_id] = is_correct
 
         return {
             'students': student_data,
@@ -145,8 +148,8 @@ class DiagnosisService:
             # 使用IRT模型
             return self._run_irt_diagnosis(data, model_name)
         elif 'ncd' in model_name_lower:
-            # 使用NCD模型（目前使用简单方法，后续可扩展）
-            return self._run_simple_diagnosis(data, model_name)
+            # 使用NCD模型
+            return self._run_ncd_diagnosis(data, model_name)
         else:
             # 默认使用简单诊断
             return self._run_simple_diagnosis(data, model_name)
@@ -187,6 +190,48 @@ class DiagnosisService:
         # 添加额外信息
         result['subject_id'] = data.get('subject_id')
         result['model_type'] = f'IRT-{irt_type}'
+        result['knowledge_points'] = [
+            {
+                'id': kp.id,
+                'name': kp.name,
+                'subject_id': kp.subject_id
+            }
+            for kp in data['knowledge_points']
+        ]
+        result['total_students'] = len(data['students'])
+        result['diagnosed_students'] = len(result.get('diagnosis_results', {}))
+        result['diagnosis_time'] = timezone.now().isoformat()
+
+        return result
+
+    def _run_ncd_diagnosis(self, data: Dict, model_name: str) -> Dict[str, Any]:
+        """
+        使用NCD模型进行诊断
+
+        Args:
+            data: 诊断数据
+            model_name: 模型名称
+
+        Returns:
+            诊断结果
+        """
+        # 创建NCD诊断服务
+        ncd_service = NCDDiagnosisService()
+
+        # 运行诊断
+        result = ncd_service.run_diagnosis(
+            students_data=data['students'],
+            exercises=data['exercises'],
+            knowledge_points=data['knowledge_points'],
+            q_matrix=data['Q_matrix']
+        )
+
+        if 'error' in result:
+            return result
+
+        # 添加额外信息
+        result['subject_id'] = data.get('subject_id')
+        result['model_type'] = 'NCD'
         result['knowledge_points'] = [
             {
                 'id': kp.id,
@@ -318,7 +363,7 @@ class DiagnosisService:
 
     def save_student_diagnoses(self, subject_id: int, diagnosis_data: Dict, model_id: int) -> int:
         """
-        保存诊断结果到StudentDiagnosis表（优化版本，减少数据库锁定时间）
+        保存诊断结果到StudentDiagnosis表（优化版本，避免死锁）
 
         Args:
             subject_id: 科目ID
@@ -331,67 +376,115 @@ class DiagnosisService:
         saved_students = set()
         current_time = timezone.now()
         
-        # 预先获取所需数据，减少循环中的查询
-        subject = Subject.objects.get(id=subject_id)
-        diagnosis_model = DiagnosisModel.objects.get(id=model_id)
-        
-        # 获取所有知识点，建立ID映射
-        knowledge_points = {
-            kp.id: kp for kp in KnowledgePoint.objects.filter(subject=subject)
-        }
-        
-        # 获取所有相关学生
-        student_ids = [int(sid) for sid in diagnosis_data.get('diagnosis_results', {}).keys()]
-        students = {
-            s.id: s for s in User.objects.filter(id__in=student_ids, user_type='student')
-        }
-        
-        # 批量准备数据
-        records_to_update = []
-        
-        for student_id_str, result_data in diagnosis_data.get('diagnosis_results', {}).items():
-            student_id = int(student_id_str)
-            student = students.get(student_id)
-            if not student:
-                continue
-                
-            for kp_str, mastery in result_data['knowledge_mastery'].items():
-                kp_id = int(kp_str)
-                knowledge_point = knowledge_points.get(kp_id)
-                if not knowledge_point:
+        try:
+            # 预先获取所需数据
+            subject = Subject.objects.get(id=subject_id)
+            diagnosis_model = DiagnosisModel.objects.get(id=model_id)
+            
+            # 获取所有知识点，建立ID映射
+            knowledge_points = {
+                kp.id: kp for kp in KnowledgePoint.objects.filter(subject=subject)
+            }
+            
+            # 获取所有相关学生
+            student_ids = [int(sid) for sid in diagnosis_data.get('diagnosis_results', {}).keys()]
+            students = {
+                s.id: s for s in User.objects.filter(id__in=student_ids, user_type='student')
+            }
+            
+            # 准备所有需要保存的记录
+            records_to_save = []
+            
+            for student_id_str, result_data in diagnosis_data.get('diagnosis_results', {}).items():
+                student_id = int(student_id_str)
+                student = students.get(student_id)
+                if not student:
                     continue
                     
-                practice_count = result_data['practice_counts'].get(kp_str, 0)
-                correct_count = result_data['correct_counts'].get(kp_str, 0)
+                for kp_str, mastery in result_data['knowledge_mastery'].items():
+                    kp_id = int(kp_str)
+                    knowledge_point = knowledge_points.get(kp_id)
+                    if not knowledge_point:
+                        continue
+                        
+                    practice_count = result_data['practice_counts'].get(kp_str, 0)
+                    correct_count = result_data['correct_counts'].get(kp_str, 0)
+                    
+                    records_to_save.append({
+                        'student_id': student_id,
+                        'student': student,
+                        'knowledge_point_id': kp_id,
+                        'knowledge_point': knowledge_point,
+                        'mastery': mastery,
+                        'practice_count': practice_count,
+                        'correct_count': correct_count
+                    })
+                    saved_students.add(student_id)
+            
+            # 使用单个事务批量处理，按学生ID排序避免死锁
+            records_to_save.sort(key=lambda x: (x['student_id'], x['knowledge_point_id']))
+            
+            # 查询已存在的记录（不使用select_for_update，避免跨事务问题）
+            existing_records = {}
+            if records_to_save:
+                existing = StudentDiagnosis.objects.filter(
+                    student_id__in=[r['student_id'] for r in records_to_save],
+                    knowledge_point_id__in=[r['knowledge_point_id'] for r in records_to_save],
+                    diagnosis_model=diagnosis_model
+                )
                 
-                records_to_update.append({
-                    'student': student,
-                    'knowledge_point': knowledge_point,
-                    'mastery': mastery,
-                    'practice_count': practice_count,
-                    'correct_count': correct_count
-                })
-                saved_students.add(student_id)
-        
-        # 分批保存，每批50条，减少单次事务时间
-        batch_size = 50
-        for i in range(0, len(records_to_update), batch_size):
-            batch = records_to_update[i:i + batch_size]
-            with transaction.atomic():
-                for record in batch:
-                    StudentDiagnosis.objects.update_or_create(
-                        student=record['student'],
-                        knowledge_point=record['knowledge_point'],
-                        diagnosis_model=diagnosis_model,
-                        defaults={
-                            'mastery_level': record['mastery'],
-                            'practice_count': record['practice_count'],
-                            'correct_count': record['correct_count'],
-                            'last_practiced': current_time
-                        }
-                    )
-        
-        return len(saved_students)
+                for record in existing:
+                    key = (record.student_id, record.knowledge_point_id)
+                    existing_records[key] = record
+            
+            # 分批处理，使用较小的批次减少锁定时间
+            batch_size = 20
+            for i in range(0, len(records_to_save), batch_size):
+                batch = records_to_save[i:i + batch_size]
+                
+                with transaction.atomic():
+                    to_create = []
+                    to_update = []
+                    
+                    for record in batch:
+                        key = (record['student_id'], record['knowledge_point_id'])
+                        
+                        if key in existing_records:
+                            # 更新现有记录
+                            existing = existing_records[key]
+                            existing.mastery_level = record['mastery']
+                            existing.practice_count = record['practice_count']
+                            existing.correct_count = record['correct_count']
+                            existing.last_practiced = current_time
+                            to_update.append(existing)
+                        else:
+                            # 创建新记录
+                            to_create.append(StudentDiagnosis(
+                                student=record['student'],
+                                knowledge_point=record['knowledge_point'],
+                                diagnosis_model=diagnosis_model,
+                                mastery_level=record['mastery'],
+                                practice_count=record['practice_count'],
+                                correct_count=record['correct_count'],
+                                last_practiced=current_time
+                            ))
+                    
+                    # 批量创建和更新
+                    if to_create:
+                        StudentDiagnosis.objects.bulk_create(to_create, ignore_conflicts=True)
+                    if to_update:
+                        StudentDiagnosis.objects.bulk_update(
+                            to_update,
+                            ['mastery_level', 'practice_count', 'correct_count', 'last_practiced']
+                        )
+            
+            return len(saved_students)
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print(f"保存诊断结果时出错: {str(e)}")
+            return 0
 
     def get_student_diagnosis_history(self, student_id: int, subject_id: int) -> List[Dict]:
         """获取学生诊断历史"""

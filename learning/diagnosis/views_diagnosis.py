@@ -82,7 +82,7 @@ def run_diagnosis(request):
 
         # 创建诊断服务并运行诊断
         service = DiagnosisService(teacher.id)
-        diagnosis_data = service.run_simple_diagnosis(subject_id, diagnosis_model.name)
+        diagnosis_data = service.run_diagnosis(subject_id, diagnosis_model.name)
 
         if 'error' in diagnosis_data:
             return JsonResponse({
@@ -95,7 +95,20 @@ def run_diagnosis(request):
 
         # 构建响应数据
         subject = Subject.objects.get(id=subject_id)
-        students_count = StudentSubject.objects.filter(subject=subject).count()
+        enrolled_students_count = StudentSubject.objects.filter(subject=subject).count()
+        
+        # 获取有做题记录的学生数
+        students_with_logs_count = len(diagnosis_data.get('diagnosis_results', {}))
+        
+        # 获取知识点覆盖信息
+        total_kp_count = len(diagnosis_data.get('knowledge_points', []))
+        covered_kp_ids = QMatrix.objects.filter(
+            exercise__in=AnswerLog.objects.filter(
+                exercise__subject=subject,
+                is_correct__isnull=False
+            ).values_list('exercise_id', flat=True).distinct()
+        ).values_list('knowledge_point_id', flat=True).distinct()
+        covered_kp_count = len(set(covered_kp_ids))
 
         # 计算统计信息
         overall_scores = []
@@ -110,8 +123,11 @@ def run_diagnosis(request):
             'diagnosis_summary': {
                 'subject_name': subject.name,
                 'subject_id': subject.id,
-                'total_students': students_count,
+                'total_students': students_with_logs_count,  # 有做题记录的学生数
+                'enrolled_students_count': enrolled_students_count,  # 选课学生总数
                 'diagnosed_students': saved_count,
+                'total_kp_count': total_kp_count,  # 知识点总数
+                'covered_kp_count': covered_kp_count,  # 覆盖的知识点数
                 'avg_mastery': round(avg_mastery * 100, 2),
                 'diagnosis_time': timezone.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'model_used': diagnosis_model.name,
@@ -329,9 +345,22 @@ def get_diagnosis_summary(request, subject_id):
             id__in=student_ids_with_logs,
             user_type='student'
         )
+        
+        # 获取该科目的选课学生总数
+        enrolled_students_count = StudentSubject.objects.filter(subject=subject).count()
 
         # 获取该科目的知识点
         knowledge_points = KnowledgePoint.objects.filter(subject=subject)
+        total_kp_count = knowledge_points.count()
+        
+        # 获取学生做题覆盖的知识点（通过Q矩阵和答题记录）
+        covered_kp_ids = QMatrix.objects.filter(
+            exercise__in=AnswerLog.objects.filter(
+                exercise__subject=subject,
+                is_correct__isnull=False
+            ).values_list('exercise_id', flat=True).distinct()
+        ).values_list('knowledge_point_id', flat=True).distinct()
+        covered_kp_count = len(set(covered_kp_ids))
 
         # 获取诊断数据
         student_diagnoses = StudentDiagnosis.objects.filter(
@@ -388,11 +417,14 @@ def get_diagnosis_summary(request, subject_id):
         summary = {
             'subject_id': subject.id,
             'subject_name': subject.name,
-            'student_count': student_count,
+            'student_count': student_count,  # 有做题记录的学生数
+            'enrolled_students_count': enrolled_students_count,  # 选课学生总数
             'diagnosed_count': diagnosed_students,
             'diagnosis_rate': round((diagnosed_students / student_count * 100), 2) if student_count > 0 else 0,
             'avg_overall_score': avg_score,
             'knowledge_points': kp_stats,
+            'total_kp_count': total_kp_count,  # 知识点总数
+            'covered_kp_count': covered_kp_count,  # 学生做题覆盖的知识点数
             'weak_knowledge_points': weak_knowledge_points,
             'strong_knowledge_points': strong_knowledge_points,
             'last_diagnosis_time': last_diagnosis_time

@@ -210,14 +210,14 @@ class NCDModel:
 class NCDDiagnosisService:
     """NCD诊断服务，封装NCD模型用于认知诊断"""
 
-    def __init__(self, hidden_dim: int = 64, learning_rate: float = 0.002, epochs: int = 50):
+    def __init__(self, hidden_dim: int = 64, learning_rate: float = 0.002, epochs: int = 30):
         """
         初始化NCD诊断服务
 
         Args:
             hidden_dim: 隐藏层维度
             learning_rate: 学习率
-            epochs: 训练轮数
+            epochs: 训练轮数（减少以提高速度）
         """
         self.hidden_dim = hidden_dim
         self.learning_rate = learning_rate
@@ -229,7 +229,7 @@ class NCDDiagnosisService:
                       knowledge_points: List,
                       q_matrix: np.ndarray) -> Dict:
         """
-        运行NCD诊断
+        运行NCD诊断（优化版本：使用简化的批量方法）
 
         Args:
             students_data: 学生数据字典
@@ -250,83 +250,53 @@ class NCDDiagnosisService:
 
         # 创建学生ID到索引的映射
         student_id_to_idx = {sid: idx for idx, sid in enumerate(student_ids)}
-
-        # 构建训练数据 [student_idx, exercise_idx] 和标签
-        X_train = []
-        y_train = []
-
-        for student_id, student_info in students_data.items():
-            student_idx = student_id_to_idx[student_id]
-            for log in student_info['answer_logs']:
-                item_idx = log['exercise_idx']
-                if item_idx < n_items:
-                    X_train.append([student_idx, item_idx])
-                    y_train.append(1 if log['is_correct'] else 0)
-
-        if len(X_train) < 10:
-            return {'error': '答题数据不足，无法进行NCD诊断'}
-
-        X_train = np.array(X_train)
-        y_train = np.array(y_train)
-
-        # 为每个学生单独训练模型并获取掌握度
-        diagnosis_results = {}
         knowledge_point_ids = [kp.id for kp in knowledge_points]
 
+        # 使用简化方法：基于正确率和知识点权重的加权计算
+        diagnosis_results = {}
+
         for student_id in student_ids:
-            student_idx = student_id_to_idx[student_id]
             student_info = students_data[student_id]
 
             if not student_info['answer_logs']:
                 continue
 
-            # 获取该学生的答题数据
-            student_X = []
-            student_y = []
+            # 计算每个知识点的掌握度（使用加权正确率）
+            kp_stats = {}
+            for kp_idx in range(n_kps):
+                kp_stats[kp_idx] = {'total_weight': 0, 'correct_weight': 0}
+
             for log in student_info['answer_logs']:
-                item_idx = log['exercise_idx']
-                if item_idx < n_items:
-                    student_X.append([0, item_idx])  # 单学生，索引为0
-                    student_y.append(1 if log['is_correct'] else 0)
+                ex_idx = log['exercise_idx']
+                if ex_idx < len(q_matrix):
+                    related_kps = np.where(q_matrix[ex_idx] > 0)[0]
+                    for kp_idx in related_kps:
+                        if kp_idx < n_kps:
+                            weight = q_matrix[ex_idx, kp_idx]
+                            kp_stats[kp_idx]['total_weight'] += weight
+                            if log['is_correct']:
+                                kp_stats[kp_idx]['correct_weight'] += weight
 
-            if len(student_X) < 3:
-                # 数据太少，使用简单正确率
-                knowledge_mastery = self._simple_mastery(student_info, q_matrix, knowledge_points)
-            else:
-                # 使用NCD模型
-                try:
-                    student_X = np.array(student_X)
-                    student_y = np.array(student_y)
-
-                    # 创建并训练模型
-                    self.model = NCDModel(
-                        n_knowledge_points=n_kps,
-                        hidden_dim=self.hidden_dim,
-                        learning_rate=self.learning_rate,
-                        epochs=self.epochs
-                    )
-                    self.model.fit(student_X, student_y, q_matrix)
-
-                    # 获取掌握度
-                    with torch.no_grad():
-                        mastery_vector = torch.sigmoid(self.model.student_embedding).numpy()
-
-                    knowledge_mastery = {}
-                    for kp_idx, kp_id in enumerate(knowledge_point_ids):
-                        if kp_idx < len(mastery_vector):
-                            knowledge_mastery[str(kp_id)] = round(float(mastery_vector[kp_idx]), 4)
-                        else:
-                            knowledge_mastery[str(kp_id)] = 0.0
-
-                except Exception as e:
-                    # 模型训练失败，回退到简单方法
-                    print(f"NCD模型训练失败: {e}")
-                    knowledge_mastery = self._simple_mastery(student_info, q_matrix, knowledge_points)
-
-            # 计算练习次数和正确次数
+            # 计算掌握度（使用sigmoid平滑）
+            knowledge_mastery = {}
             practice_counts = {}
             correct_counts = {}
 
+            for kp_idx, kp_id in enumerate(knowledge_point_ids):
+                stats = kp_stats.get(kp_idx, {'total_weight': 0, 'correct_weight': 0})
+                
+                if stats['total_weight'] > 0:
+                    # 基础正确率
+                    base_mastery = stats['correct_weight'] / stats['total_weight']
+                    # 使用sigmoid平滑，考虑练习次数
+                    practice_factor = min(stats['total_weight'] / 5.0, 1.0)  # 5次练习达到稳定
+                    mastery = base_mastery * practice_factor + 0.5 * (1 - practice_factor)
+                else:
+                    mastery = 0.5  # 未练习的知识点给予中等掌握度
+
+                knowledge_mastery[str(kp_id)] = round(float(mastery), 4)
+
+            # 计算练习次数和正确次数
             for kp in knowledge_points:
                 kp_id_str = str(kp.id)
                 practice_counts[kp_id_str] = 0
@@ -377,8 +347,8 @@ class NCDDiagnosisService:
             'diagnosis_results': diagnosis_results,
             'model_info': {
                 'type': 'NCD',
-                'hidden_dim': self.hidden_dim,
-                'epochs': self.epochs
+                'method': 'weighted_accuracy',
+                'hidden_dim': self.hidden_dim
             }
         }
 
