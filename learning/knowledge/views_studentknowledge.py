@@ -11,6 +11,55 @@ from django.contrib.auth.decorators import user_passes_test
 def is_student(user):
     return user.user_type == 'student'
 
+
+def detect_clusters(nodes, links):
+    """
+    使用简单的聚类算法检测知识点聚类
+    基于节点之间的连接关系进行聚类
+    """
+    if not nodes:
+        return {}
+    
+    # 构建邻接表
+    adjacency = {str(node['id']): [] for node in nodes}
+    for link in links:
+        source_id = str(nodes[link['source']]['id'])
+        target_id = str(nodes[link['target']]['id'])
+        adjacency[source_id].append(target_id)
+        adjacency[target_id].append(source_id)
+    
+    # 使用DFS进行聚类
+    visited = set()
+    clusters = []
+    cluster_id = 0
+    
+    def dfs(node_id, cluster):
+        visited.add(node_id)
+        cluster.append(node_id)
+        for neighbor in adjacency.get(node_id, []):
+            if neighbor not in visited:
+                dfs(neighbor, cluster)
+    
+    for node in nodes:
+        node_id = str(node['id'])
+        if node_id not in visited:
+            cluster = []
+            dfs(node_id, cluster)
+            clusters.append({
+                'id': cluster_id,
+                'nodes': cluster,
+                'size': len(cluster)
+            })
+            cluster_id += 1
+    
+    # 为每个节点分配聚类ID
+    node_cluster_map = {}
+    for cluster in clusters:
+        for node_id in cluster['nodes']:
+            node_cluster_map[node_id] = cluster['id']
+    
+    return node_cluster_map, clusters
+
 #"""学生知识点诊断图页面"""
 @login_required
 @user_passes_test(is_student)
@@ -72,10 +121,11 @@ def student_knowledge_data_api(request, subject_id):
         # 获取该科目的所有知识点
         knowledge_points = KnowledgePoint.objects.filter(subject_id=subject_id)
 
-        # 获取学生对每个知识点的掌握情况
+        # 获取学生对每个知识点的掌握情况（只获取 diagnosis_model=3 的数据）
         student_diagnoses = StudentDiagnosis.objects.filter(
             student=request.user,
-            knowledge_point__subject_id=subject_id
+            knowledge_point__subject_id=subject_id,
+            diagnosis_model_id=3  # 只获取 diagnosis_model=3 的数据
         ).select_related('knowledge_point')
 
         # 创建掌握程度字典
@@ -183,6 +233,13 @@ def student_knowledge_data_api(request, subject_id):
             }
             links.append(link_data)
 
+        # 执行聚类
+        node_cluster_map, clusters = detect_clusters(nodes, links)
+        
+        # 为每个节点添加聚类信息
+        for node in nodes:
+            node['cluster'] = node_cluster_map.get(str(node['id']), 0)
+
         response_data = {
             'status': 'success',
             'student_id': request.user.id,
@@ -191,17 +248,19 @@ def student_knowledge_data_api(request, subject_id):
             'subject_name': subject.name,
             'nodes': nodes,
             'links': links,
+            'clusters': clusters,
             'node_count': len(nodes),
             'link_count': len(links),
+            'cluster_count': len(clusters),
             'mastery_stats': {
                 'total': len(nodes),
                 'mastered': len([n for n in nodes if n['mastery_level'] >= 0.8]),
                 'partial': len([n for n in nodes if 0.6 <= n['mastery_level'] < 0.8]),
                 'weak': len([n for n in nodes if 0.4 <= n['mastery_level'] < 0.6]),
-                'beginner': len([n for n in nodes if 0 < n['mastery_level'] < 0.4]),  # 新增
-                'none': len([n for n in nodes if n['mastery_level'] == 0])  # 严格等于0
+                'beginner': len([n for n in nodes if 0 < n['mastery_level'] < 0.4]),
+                'none': len([n for n in nodes if n['mastery_level'] == 0])
             },
-            'message': f'成功获取{len(nodes)}个知识点的掌握情况'
+            'message': f'成功获取{len(nodes)}个知识点的掌握情况，分为{len(clusters)}个聚类'
         }
         return JsonResponse(response_data, json_dumps_params={'ensure_ascii': False})
 

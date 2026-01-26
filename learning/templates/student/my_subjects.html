@@ -1,7 +1,77 @@
 {% extends 'student/base.html' %}
 
 {% block content %}
-<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3 mb-3 border-bottom">
+<style>
+    .subject-card {
+        position: relative;
+        overflow: hidden;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+        height: 280px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .subject-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .subject-image {
+        width: 100%;
+        height: 180px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .subject-image img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .subject-image-placeholder {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 48px;
+    }
+
+    .subject-title {
+        padding: 12px 16px;
+        background: white;
+        font-weight: 600;
+        font-size: 15px;
+        color: #333;
+        text-align: center;
+        flex-grow: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .subject-actions {
+        padding: 12px;
+        background: #f8f9fa;
+        display: flex;
+        gap: 8px;
+    }
+
+    .subject-actions .btn {
+        flex: 1;
+        font-size: 12px;
+        padding: 8px 12px;
+    }
+</style>
+
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3 mb-4 border-bottom">
     <h1 class="h2">在线学习</h1>
     <a href="{% url 'student_course_management' %}" class="btn btn-primary">
         <i class="fas fa-plus"></i> 选择更多科目
@@ -11,29 +81,32 @@
 <div class="row">
     {% if enrolled_records %}
         {% for record in enrolled_records %}
-            {% comment %} 直接从 record 中获取科目信息和选课时间，无需额外赋值 {% endcomment %}
-            <div class="col-xl-4 col-md-6 mb-4">
-                <div class="card shadow h-100">
-                    <div class="card-header py-3">
-                        <h6 class="m-0 font-weight-bold text-primary">{{ record.subject.name }}</h6>
-                    </div>
-                    <div class="card-body">
-                        {% if record.subject.description %}
-                            <p class="text-muted small mb-3">{{ record.subject.description|truncatechars:100 }}</p>
+            <div class="col-lg-3 col-md-4 col-sm-6 mb-4">
+                <div class="subject-card">
+                    <!-- 科目图片 -->
+                    <div class="subject-image">
+                        {% if record.subject.image %}
+                            <img src="{{ record.subject.image.url }}" alt="{{ record.subject.name }}">
+                        {% else %}
+                            <div class="subject-image-placeholder">
+                                <i class="fas fa-book"></i>
+                            </div>
                         {% endif %}
-                        <div class="text-muted small">
-                            选课时间: {{ record.enrolled_at|date:"Y-m-d H:i" }}
-                        </div>
                     </div>
-                    <div class="card-footer bg-white">
-                        <div class="d-flex gap-2">
-                            <a href="{% url 'subject_learning' subject_id=record.subject.id %}" target="_blank" class="btn btn-sm btn-primary flex-fill">
-                                <i class="fas fa-play"></i> 课程门户
-                            </a>
-                            <a href="{% url 'personalized_recommendations' subject_id=record.subject.id %}" target="_blank" class="btn btn-sm btn-success flex-fill">
-                                <i class="fas fa-magic"></i> 个性化习题推荐
-                            </a>
-                        </div>
+
+                    <!-- 科目名称 -->
+                    <div class="subject-title">
+                        {{ record.subject.name }}
+                    </div>
+
+                    <!-- 操作按钮 -->
+                    <div class="subject-actions">
+                        <a href="{% url 'subject_learning' subject_id=record.subject.id %}" target="_blank" class="btn btn-sm btn-primary" title="课程门户">
+                            <i class="fas fa-play"></i> 门户
+                        </a>
+                        <a href="{% url 'personalized_recommendations' subject_id=record.subject.id %}" target="_blank" class="btn btn-sm btn-success" title="个性化习题推荐">
+                            <i class="fas fa-magic"></i> 推荐
+                        </a>
                     </div>
                 </div>
             </div>

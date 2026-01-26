@@ -1,4 +1,5 @@
 from django.shortcuts import render, get_object_or_404, redirect
+from django.urls import reverse
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.http import JsonResponse
 from django.db.models import Count, Avg, Q
@@ -29,14 +30,15 @@ def dashboard(request):
     else:
         return redirect('researcher_dashboard')
 
-#学习面板
+#一.学习面板
 @login_required
 @user_passes_test(is_student)
 def student_dashboard(request):
     enrolled_records = request.user.enrolled_subjects.all().select_related('subject').order_by('subject__name')
     subjects = [record.subject for record in enrolled_records]
-    recent_logs = AnswerLog.objects.filter(student=request.user).order_by('-submitted_at')[:5]
+    recent_logs = AnswerLog.objects.filter(student=request.user).order_by('-submitted_at')[:10]
     total_answers = AnswerLog.objects.filter(student=request.user).count()
+    
     # 计算总体掌握情况
     total_diagnosis = StudentDiagnosis.objects.filter(student=request.user)
     if total_diagnosis.exists():
@@ -51,16 +53,132 @@ def student_dashboard(request):
 
     first_subject = subjects[0] if subjects else None  # 推荐：用索引判断（最简洁）
 
+    # 计算每个科目的统计数据
+    subject_stats = []
+    for subject in subjects:
+        # 该科目的所有习题数
+        total_exercises = Exercise.objects.filter(subject=subject).count()
+        
+        # 该科目的已完成习题数（去重）
+        completed_exercises = AnswerLog.objects.filter(
+            student=request.user,
+            exercise__subject=subject
+        ).values('exercise_id').distinct().count()
+        
+        # 该科目的正确率
+        correct_count = AnswerLog.objects.filter(
+            student=request.user,
+            exercise__subject=subject,
+            is_correct=True
+        ).count()
+        
+        total_count = AnswerLog.objects.filter(
+            student=request.user,
+            exercise__subject=subject
+        ).count()
+        
+        accuracy = (correct_count / total_count * 100) if total_count > 0 else 0
+        
+        subject_stats.append({
+            'name': subject.name,
+            'total_exercises': total_exercises,
+            'completed_exercises': completed_exercises,
+            'accuracy': round(accuracy, 1),
+            'answer_count': total_count
+        })
+    
+    # 获取薄弱知识点（掌握程度最低的5个）
+    weak_knowledge_points = StudentDiagnosis.objects.filter(
+        student=request.user
+    ).select_related('knowledge_point').order_by('mastery_level')[:5]
+    
+    weak_kp_data = []
+    for kp in weak_knowledge_points:
+        weak_kp_data.append({
+            'name': kp.knowledge_point.name,
+            'mastery': round(kp.mastery_level * 100, 1),
+            'subject': kp.knowledge_point.subject.name
+        })
+
     return render(request, 'student/student_dashboard.html', {
         'total_answers': total_answers,
         'subjects': subjects,
         'recent_logs': recent_logs,
         'avg_mastery': round(avg_mastery * 100, 1),
         'first_subject': first_subject,
-        'days_since_creation': days_since_creation
+        'days_since_creation': days_since_creation,
+        'subject_stats': subject_stats,
+        'weak_knowledge_points': weak_kp_data,
+        'subject_stats_json': json.dumps(subject_stats),
+        'weak_kp_json': json.dumps(weak_kp_data)
     })
 
-#我的科目
+# 推荐习题页面
+@login_required
+@user_passes_test(is_student)
+def recommended_exercises(request, subject_id):
+    """根据学生学习情况推荐习题并直接跳转到第一道题"""
+    subject = get_object_or_404(Subject, id=subject_id)
+    
+    # 获取该科目的所有习题
+    all_exercises = Exercise.objects.filter(subject=subject).select_related('subject')
+    
+    # 获取学生的答题记录
+    answer_logs = AnswerLog.objects.filter(
+        student=request.user,
+        exercise__subject=subject
+    ).values_list('exercise_id', flat=True)
+    
+    # 获取学生在该科目的知识点掌握情况
+    student_diagnosis = StudentDiagnosis.objects.filter(
+        student=request.user,
+        knowledge_point__subject=subject
+    ).select_related('knowledge_point')
+    
+    # 构建推荐逻辑
+    recommended_exercise = None
+    
+    # 1. 优先推荐未做过的习题
+    unanswered = all_exercises.exclude(id__in=answer_logs)
+    
+    if unanswered.exists():
+        # 从未做过的习题中，优先推荐与薄弱知识点相关的
+        weak_kps = student_diagnosis.filter(mastery_level__lt=0.6).values_list('knowledge_point_id', flat=True)
+        
+        if weak_kps:
+            # 推荐与薄弱知识点相关的未做习题（随机选择）
+            weak_related = unanswered.filter(
+                qmatrix__knowledge_point_id__in=weak_kps
+            ).distinct().order_by('?').first()
+            if weak_related:
+                recommended_exercise = weak_related
+        
+        # 如果没有找到薄弱知识点相关的，推荐随机未做的
+        if not recommended_exercise:
+            recommended_exercise = unanswered.order_by('?').first()
+    else:
+        # 如果所有习题都做过，推荐做错过的习题
+        wrong_exercises = AnswerLog.objects.filter(
+            student=request.user,
+            exercise__subject=subject,
+            is_correct=False
+        ).values_list('exercise_id', flat=True).distinct()
+        
+        if wrong_exercises:
+            recommended_exercise = all_exercises.filter(id__in=wrong_exercises).order_by('?').first()
+        else:
+            # 如果全部正确，随机推荐
+            recommended_exercise = all_exercises.order_by('?').first()
+    
+    # 直接跳转到推荐的习题
+    if recommended_exercise:
+        return redirect('take_exercise', exercise_id=recommended_exercise.id)
+    else:
+        # 如果没有习题，返回学习面板
+        messages.warning(request, '该科目暂无习题')
+        return redirect('student_dashboard')
+
+#二.在线学习
 @login_required
 @user_passes_test(is_student)
 def my_subjects(request):
@@ -81,7 +199,7 @@ def my_subjects(request):
 @user_passes_test(is_student)
 def student_subject(request):
     subjects = Subject.objects.all()
-    recent_logs = AnswerLog.objects.filter(student=request.user).order_by('-submitted_at')[:5]
+    recent_logs = AnswerLog.objects.filter(student=request.user).order_by('-submitted_at')[:10]
 
     # 计算总体掌握情况
     total_diagnosis = StudentDiagnosis.objects.filter(student=request.user)
@@ -97,7 +215,7 @@ def student_subject(request):
         'first_subject': subjects.first()
     })
 
-#课程选择
+#课程管理
 @login_required
 @user_passes_test(is_student)
 def student_subject_selection(request):
@@ -131,7 +249,7 @@ def student_subject_selection(request):
     }
     return render(request, 'student/subject_selection.html', context)
 
-# 课程管理页面
+#四.课程管理
 @login_required
 @user_passes_test(is_student)
 def student_course_management(request):
@@ -296,8 +414,29 @@ def take_exercise(request, exercise_id):
 
         return redirect('exercise_result', log_id=answer_log.id)
 
+    # 获取推荐习题列表（如果存在）
+    subject = exercise.subject
+    session_key = f'recommended_exercises_{subject.id}'
+    recommended_exercises = []
+    current_exercise_index = -1
+    
+    if session_key in request.session:
+        exercise_ids = request.session[session_key]
+        current_exercise_index = exercise_ids.index(exercise_id) if exercise_id in exercise_ids else -1
+        
+        # 获取所有推荐习题对象
+        if current_exercise_index >= 0:
+            recommended_exercises = Exercise.objects.filter(id__in=exercise_ids).order_by(
+                'id'
+            )
+            # 按照session中的顺序排序
+            id_order = {eid: i for i, eid in enumerate(exercise_ids)}
+            recommended_exercises = sorted(recommended_exercises, key=lambda x: id_order.get(x.id, 999))
+
     return render(request, 'student/take_exercise.html', {
-        'exercise': exercise
+        'exercise': exercise,
+        'recommended_exercises': recommended_exercises,
+        'current_exercise_index': current_exercise_index,
     })
 
 #显示答题结果，并提供下一题链接
@@ -333,25 +472,19 @@ def exercise_result(request, log_id):
     # 3. 获取用户选择的选项ID列表（如果需要的话）
     selected_choice_ids = list(answer_log.selected_choices.values_list('id', flat=True))
 
-    # 4. 查找同一科目、同一标题的下一题
-    # 先查找同一习题集中的下一题（假设同一标题属于同一习题集）
-    next_exercise = Exercise.objects.filter(
-        subject=current_subject,
-        title=current_exercise.title,  # 同一习题集
-        id__gt=current_exercise.id,  # ID比当前大
-    ).order_by('id').first()  # 按ID排序取第一个
-
-    # 如果没有同一习题集的下一题，则查找同科目的其他题目
-    if not next_exercise:
-        next_exercise = Exercise.objects.filter(
-            subject=current_subject,
-            id__gt=current_exercise.id
-        ).exclude(
-            id__in=AnswerLog.objects.filter(
-                student=request.user,
-                exercise__subject=current_subject
-            ).values_list('exercise_id', flat=True)
-        ).order_by('id').first()
+    # 4. 检查是否在推荐练习集中 - 如果是，提供"下一题"功能
+    next_exercise = None
+    session_key = f'recommended_exercises_{current_subject.id}'
+    
+    if session_key in request.session:
+        # 用户在做推荐练习集
+        exercise_ids = request.session[session_key]
+        current_index = exercise_ids.index(current_exercise.id) if current_exercise.id in exercise_ids else -1
+        
+        # 如果不是最后一题，获取下一题
+        if current_index >= 0 and current_index < len(exercise_ids) - 1:
+            next_exercise_id = exercise_ids[current_index + 1]
+            next_exercise = Exercise.objects.get(id=next_exercise_id)
 
     # 5. 准备上下文数据
     # 检查是否已收藏
@@ -372,7 +505,7 @@ def exercise_result(request, log_id):
 
 
 
-# 学习诊断，知识点掌握情况
+# 三.学习诊断，知识点掌握情况
 @login_required
 @user_passes_test(is_student)
 def student_diagnosis(request):
@@ -567,6 +700,12 @@ def subject_exercise_logs(request, subject_id):
     total_exercises = len(exercises_with_stats)
     completed_exercises = len([ex for ex in exercises_with_stats if ex['total_attempts'] > 0])
 
+    # 添加分页功能 - 10题一页
+    from django.core.paginator import Paginator
+    paginator = Paginator(exercises_with_stats, 10)  # 每页10题
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+
     context = {
         'subject': subject,
         'answer_logs': answer_logs,
@@ -576,7 +715,8 @@ def subject_exercise_logs(request, subject_id):
         'unmarked_logs': unmarked_logs,
         'correct_rate': correct_rate,
         'has_data': total_logs > 0,
-        'exercises_with_stats': exercises_with_stats,
+        'exercises_with_stats': page_obj.object_list,  # 当前页的习题
+        'page_obj': page_obj,  # 分页对象
         'total_exercises': total_exercises,
         'completed_exercises': completed_exercises,
         # 图表数据
@@ -811,6 +951,274 @@ def my_favorites(request):
     return render(request, 'student/my_favorites.html', context)
 
 
+# 错题本功能
+@login_required
+@user_passes_test(is_student)
+def my_error_notebook(request):
+    """我的错题本"""
+    from .models import ErrorNotebook
+    
+    error_notebooks = ErrorNotebook.objects.filter(
+        student=request.user
+    ).select_related('exercise__subject', 'answer_log').prefetch_related('exercise__choices')
+    
+    # 按科目分组
+    errors_by_subject = {}
+    for error in error_notebooks:
+        subject_name = error.exercise.subject.name
+        if subject_name not in errors_by_subject:
+            errors_by_subject[subject_name] = []
+        errors_by_subject[subject_name].append(error)
+    
+    context = {
+        'error_notebooks': error_notebooks,
+        'errors_by_subject': errors_by_subject,
+        'total_count': error_notebooks.count(),
+        'mastered_count': error_notebooks.filter(is_mastered=True).count(),
+    }
+    
+    return render(request, 'student/my_error_notebook.html', context)
+
+
+@login_required
+@user_passes_test(is_student)
+@require_http_methods(["POST"])
+def add_to_error_notebook(request):
+    """添加到错题本"""
+    import json
+    from .models import ErrorNotebook
+    
+    try:
+        data = json.loads(request.body)
+        answer_log_id = data.get('answer_log_id')
+        
+        if not answer_log_id:
+            return JsonResponse({'success': False, 'message': '缺少答题记录ID'})
+        
+        answer_log = get_object_or_404(
+            AnswerLog.objects.select_related('exercise'),
+            id=answer_log_id,
+            student=request.user
+        )
+        
+        # 只有答题错误才能添加到错题本
+        if answer_log.is_correct:
+            return JsonResponse({'success': False, 'message': '只能添加错题到错题本'})
+        
+        # 创建错题本记录，如果已存在则忽略
+        error_notebook, created = ErrorNotebook.objects.get_or_create(
+            student=request.user,
+            answer_log=answer_log,
+            defaults={'exercise': answer_log.exercise}
+        )
+        
+        if created:
+            return JsonResponse({'success': True, 'message': '已添加到错题本'})
+        else:
+            return JsonResponse({'success': True, 'message': '已经在错题本中了'})
+    
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)})
+
+
+@login_required
+@user_passes_test(is_student)
+@require_http_methods(["POST"])
+def remove_from_error_notebook(request):
+    """从错题本中移除"""
+    import json
+    from .models import ErrorNotebook
+    
+    try:
+        data = json.loads(request.body)
+        error_notebook_id = data.get('error_notebook_id')
+        
+        if not error_notebook_id:
+            return JsonResponse({'success': False, 'message': '缺少错题本ID'})
+        
+        # 删除错题本记录
+        deleted_count = ErrorNotebook.objects.filter(
+            student=request.user,
+            id=error_notebook_id
+        ).delete()[0]
+        
+        if deleted_count > 0:
+            return JsonResponse({'success': True, 'message': '已从错题本中移除'})
+        else:
+            return JsonResponse({'success': False, 'message': '未找到记录'})
+    
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)})
+
+
+@login_required
+@user_passes_test(is_student)
+@require_http_methods(["POST"])
+def mark_error_as_mastered(request):
+    """标记错题为已掌握"""
+    import json
+    from .models import ErrorNotebook
+    
+    try:
+        data = json.loads(request.body)
+        error_notebook_id = data.get('error_notebook_id')
+        
+        if not error_notebook_id:
+            return JsonResponse({'success': False, 'message': '缺少错题本ID'})
+        
+        error_notebook = get_object_or_404(
+            ErrorNotebook,
+            id=error_notebook_id,
+            student=request.user
+        )
+        
+        error_notebook.is_mastered = not error_notebook.is_mastered
+        error_notebook.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': '已标记为已掌握' if error_notebook.is_mastered else '已取消标记',
+            'is_mastered': error_notebook.is_mastered
+        })
+    
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)})
+
+
+# 错题本功能
+@login_required
+@user_passes_test(is_student)
+def my_error_notebook(request):
+    """我的错题本"""
+    from .models import ErrorNotebook
+    
+    error_notebooks = ErrorNotebook.objects.filter(
+        student=request.user
+    ).select_related('exercise__subject', 'answer_log').prefetch_related('exercise__choices')
+    
+    # 按科目分组
+    errors_by_subject = {}
+    for error in error_notebooks:
+        subject_name = error.exercise.subject.name
+        if subject_name not in errors_by_subject:
+            errors_by_subject[subject_name] = []
+        errors_by_subject[subject_name].append(error)
+    
+    context = {
+        'error_notebooks': error_notebooks,
+        'errors_by_subject': errors_by_subject,
+        'total_count': error_notebooks.count(),
+        'mastered_count': error_notebooks.filter(is_mastered=True).count(),
+    }
+    
+    return render(request, 'student/my_error_notebook.html', context)
+
+
+@login_required
+@user_passes_test(is_student)
+@require_http_methods(["POST"])
+def add_to_error_notebook(request):
+    """添加到错题本"""
+    import json
+    from .models import ErrorNotebook
+    
+    try:
+        data = json.loads(request.body)
+        answer_log_id = data.get('answer_log_id')
+        
+        if not answer_log_id:
+            return JsonResponse({'success': False, 'message': '缺少答题记录ID'})
+        
+        answer_log = get_object_or_404(
+            AnswerLog.objects.select_related('exercise'),
+            id=answer_log_id,
+            student=request.user
+        )
+        
+        # 只有答题错误才能添加到错题本
+        if answer_log.is_correct:
+            return JsonResponse({'success': False, 'message': '只能添加错题到错题本'})
+        
+        # 创建错题本记录，如果已存在则忽略
+        error_notebook, created = ErrorNotebook.objects.get_or_create(
+            student=request.user,
+            answer_log=answer_log,
+            defaults={'exercise': answer_log.exercise}
+        )
+        
+        if created:
+            return JsonResponse({'success': True, 'message': '已添加到错题本'})
+        else:
+            return JsonResponse({'success': True, 'message': '已经在错题本中了'})
+    
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)})
+
+
+@login_required
+@user_passes_test(is_student)
+@require_http_methods(["POST"])
+def remove_from_error_notebook(request):
+    """从错题本中移除"""
+    import json
+    from .models import ErrorNotebook
+    
+    try:
+        data = json.loads(request.body)
+        error_notebook_id = data.get('error_notebook_id')
+        
+        if not error_notebook_id:
+            return JsonResponse({'success': False, 'message': '缺少错题本ID'})
+        
+        # 删除错题本记录
+        deleted_count = ErrorNotebook.objects.filter(
+            student=request.user,
+            id=error_notebook_id
+        ).delete()[0]
+        
+        if deleted_count > 0:
+            return JsonResponse({'success': True, 'message': '已从错题本中移除'})
+        else:
+            return JsonResponse({'success': False, 'message': '未找到记录'})
+    
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)})
+
+
+@login_required
+@user_passes_test(is_student)
+@require_http_methods(["POST"])
+def mark_error_as_mastered(request):
+    """标记错题为已掌握"""
+    import json
+    from .models import ErrorNotebook
+    
+    try:
+        data = json.loads(request.body)
+        error_notebook_id = data.get('error_notebook_id')
+        
+        if not error_notebook_id:
+            return JsonResponse({'success': False, 'message': '缺少错题本ID'})
+        
+        error_notebook = get_object_or_404(
+            ErrorNotebook,
+            id=error_notebook_id,
+            student=request.user
+        )
+        
+        error_notebook.is_mastered = not error_notebook.is_mastered
+        error_notebook.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': '已标记为已掌握' if error_notebook.is_mastered else '已取消标记',
+            'is_mastered': error_notebook.is_mastered
+        })
+    
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)})
+
+
 # 科目学习页面（新窗口）
 @login_required
 @user_passes_test(is_student)
@@ -886,10 +1294,17 @@ def subject_learning(request, subject_id):
             'completed': all(ex.completed for ex in current_group)
         })
 
+    # 获取课程统计数据
+    total_knowledge_points = KnowledgePoint.objects.filter(subject=subject).count()
+    total_students = User.objects.filter(enrolled_subjects__subject=subject).distinct().count()
+
     return render(request, 'student/subject_learning.html', {
         'subject': subject,
         'grouped_exercises': grouped_exercises,
         'progress': progress,
+        'total_exercises': total_exercises,
+        'total_knowledge_points': total_knowledge_points,
+        'total_students': total_students,
     })
 
 

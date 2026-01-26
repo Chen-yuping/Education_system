@@ -12,13 +12,16 @@ import json
 from datetime import datetime
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.decorators import user_passes_test
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse, HttpResponse, HttpResponseRedirect
 from django.shortcuts import render, get_object_or_404
+from django.urls import reverse
 from django.core.paginator import Paginator
 from django.utils import timezone
 from datetime import timedelta
 from .models import *
-#教师身份判断
+import logging
+
+logger = logging.getLogger(__name__)
 def is_teacher(user):
     return user.user_type == 'teacher'
 
@@ -70,9 +73,46 @@ def teacher_dashboard(request):
     # 统计教师创建的所有习题
     total_exercises_created = Exercise.objects.filter(creator=teacher).count()
 
+    # 8. 学生活跃度分布（按周几统计最近30天的活跃学生）
+    from django.db.models import Count
+    from datetime import datetime, timedelta
+    
+    activity_by_day = [0] * 7  # 周一到周日
+    for i in range(7):
+        day_start = timezone.now() - timedelta(days=30-i)
+        day_end = day_start + timedelta(days=1)
+        active_count = AnswerLog.objects.filter(
+            student__enrolled_subjects__subject__in=teaching_subjects,
+            submitted_at__gte=day_start,
+            submitted_at__lt=day_end
+        ).values('student').distinct().count()
+        activity_by_day[i] = active_count
+
+    # 9. 授课科目分布（统计每个科目的学生数）
+    subject_distribution = []
+    subject_labels = []
+    teaching_subjects_data = []
+    
+    for subject in teaching_subjects:
+        student_count = User.objects.filter(
+            enrolled_subjects__subject=subject
+        ).distinct().count()
+        exercise_count = Exercise.objects.filter(subject=subject).count()
+        knowledge_point_count = KnowledgePoint.objects.filter(subject=subject).count()
+        
+        subject_distribution.append(student_count)
+        subject_labels.append(subject.name)
+        teaching_subjects_data.append({
+            'name': subject.name,
+            'exercise_count': exercise_count,
+            'knowledge_point_count': knowledge_point_count,
+            'student_count': student_count
+        })
+
     return render(request, 'teacher/teacher_dashboard.html', {
         'subjects': all_subjects,  # 所有课程
         'teaching_subjects': teaching_subjects,  # 教师授课的课程
+        'teaching_subjects_data': teaching_subjects_data,  # 教师授课课程的详细数据
         'teacher_count': teacher_count,  # 授课课程数量
         'total_knowledge_points': total_knowledge_points,
         'total_students': total_students,
@@ -80,6 +120,9 @@ def teacher_dashboard(request):
         'exercise_files_count': exercise_files_count,
         'total_exercises_created': total_exercises_created,
         'teacher': teacher,  # 传递教师对象到模板
+        'activity_by_day': activity_by_day,  # 学生活跃度分布
+        'subject_distribution': subject_distribution,  # 科目分布数据
+        'subject_labels': subject_labels,  # 科目标签
     })
 
 # 老师选择授课
@@ -116,7 +159,18 @@ def teacher_subject_management(request):
     }
     return render(request, 'teacher/subject_management.html', context)
 
-# 学生信息显示
+@login_required
+@user_passes_test(is_teacher)
+def teacher_course_management(request):
+    """教师课程管理页面"""
+    # 获取教师授课的科目
+    teaching_subjects = TeacherSubject.objects.filter(teacher=request.user).select_related('subject')
+    
+    context = {
+        'teaching_subjects': teaching_subjects,
+    }
+    return render(request, 'teacher/course_management.html', context)
+
 @login_required
 @user_passes_test(is_teacher)
 def student_info(request):
@@ -166,38 +220,53 @@ def student_info(request):
     page_number = request.GET.get('page')
     page_students = paginator.get_page(page_number)
 
-    # 6. 为每个学生添加学习统计数据（当前科目下）
-    for student in page_students:
-        if current_subject:
-            # 获取学生当前科目的答题记录
-            answer_logs = AnswerLog.objects.filter(
-                student=student,
-                exercise__subject=current_subject
-            )
-        else:
-            answer_logs = AnswerLog.objects.filter(student=student)
-
-        # 不重复的习题数量
-        student.total_exercises = answer_logs.values('exercise').distinct().count()
-
-        # 计算正确率（基于习题的正确率）
-        if student.total_exercises > 0:
-            # 获取学生做过的所有习题ID（去重）
-            exercise_ids = answer_logs.values_list('exercise', flat=True).distinct()
-
-            # 计算有多少个习题学生至少做对过一次
-            correct_exercises = 0
-            for exercise_id in exercise_ids:
-                if answer_logs.filter(exercise_id=exercise_id, is_correct=True).exists():
-                    correct_exercises += 1
-
-            student.accuracy = (correct_exercises / student.total_exercises) * 100
-        else:
+    # 6. 为每个学生添加学习统计数据（当前科目下）- 优化查询
+    if current_subject and page_students:
+        # 一次性获取所有学生的答题记录
+        student_ids = [s.id for s in page_students]
+        all_answer_logs = AnswerLog.objects.filter(
+            student_id__in=student_ids,
+            exercise__subject=current_subject
+        ).select_related('exercise').values('student_id', 'exercise_id', 'is_correct', 'submitted_at')
+        
+        # 按学生ID分组处理数据
+        student_logs_map = {}
+        for log in all_answer_logs:
+            student_id = log['student_id']
+            if student_id not in student_logs_map:
+                student_logs_map[student_id] = []
+            student_logs_map[student_id].append(log)
+        
+        # 为每个学生计算统计数据
+        for student in page_students:
+            logs = student_logs_map.get(student.id, [])
+            
+            # 不重复的习题数量
+            exercise_ids = set(log['exercise_id'] for log in logs)
+            student.total_exercises = len(exercise_ids)
+            
+            # 计算正确率
+            if student.total_exercises > 0:
+                correct_exercises = 0
+                for exercise_id in exercise_ids:
+                    if any(log['exercise_id'] == exercise_id and log['is_correct'] for log in logs):
+                        correct_exercises += 1
+                student.accuracy = (correct_exercises / student.total_exercises) * 100
+            else:
+                student.accuracy = 0
+            
+            # 最后学习时间
+            if logs:
+                last_log = max(logs, key=lambda x: x['submitted_at'])
+                student.last_active = last_log['submitted_at']
+            else:
+                student.last_active = None
+    else:
+        # 如果没有当前科目或没有学生，设置默认值
+        for student in page_students:
+            student.total_exercises = 0
             student.accuracy = 0
-
-        # 最后学习时间
-        last_log = answer_logs.order_by('-submitted_at').first()
-        student.last_active = last_log.submitted_at if last_log else None
+            student.last_active = None
 
     # 7. 准备上下文
     context = {
@@ -206,6 +275,7 @@ def student_info(request):
         'active_students': active_students_count,
         'teacher_subjects': teacher_subjects,
         'current_subject': current_subject,
+        'subject': current_subject,  # 为course_management_base.html提供subject
         'teacher_subjects_count': teacher_subjects.count(),
         'subjects': Subject.objects.all(),
     }
@@ -462,8 +532,8 @@ def exercise_management(request):
     # 排序和分页
     exercises = exercises.order_by('id')  # 按ID降序，最新的在前面
 
-    # 分页 - 每页20条
-    paginator = Paginator(exercises, 20)
+    # 分页 - 每页10条
+    paginator = Paginator(exercises, 10)
     page_number = request.GET.get('page')
     page_exercises = paginator.get_page(page_number)
 
@@ -475,6 +545,7 @@ def exercise_management(request):
         'teacher_subjects': teacher_subject_ids,
         'no_subjects': False,
         'default_subject_id': default_subject.id if default_subject else None,
+        'subject': Subject.objects.get(id=current_subject_id) if current_subject_id else None,
         'filters': {
             'subject': subject_id,
             'question_type': question_type,
@@ -650,6 +721,7 @@ def exercise_update_json(request, exercise_id):
             # 创建新的关联
             for kp_data in knowledge_points_data:
                 knowledge_point_id = kp_data.get('id')
+                # 如果没有权重，使用默认值 1.0
                 weight = kp_data.get('weight', 1.0)
 
                 try:
@@ -848,12 +920,24 @@ def exercise_add(request):
 
 """删除单个习题"""
 @login_required
+@login_required
 @user_passes_test(is_teacher)
 def exercise_delete(request, exercise_id):
 
     if request.method == 'POST':
         try:
             exercise = Exercise.objects.get(id=exercise_id)
+
+            # 检查权限：教师只能删除自己授课科目的习题
+            teacher_subjects = TeacherSubject.objects.filter(
+                teacher=request.user
+            ).values_list('subject_id', flat=True)
+            
+            if exercise.subject_id not in teacher_subjects:
+                return JsonResponse({
+                    'success': False,
+                    'message': '您无权删除此科目的习题'
+                }, status=403)
 
             # 检查是否有答题记录
             answer_logs_count = AnswerLog.objects.filter(exercise=exercise).count()
@@ -1057,8 +1141,16 @@ def grade_subjective(request):
         })
     
     # 获取筛选参数
-    subject_id = request.GET.get('subject')
+    subject_id = request.GET.get('subject_id')  # 从课程管理页面传递的科目ID
+    exercise_id = request.GET.get('exercise')  # 按题目筛选
     status = request.GET.get('status', 'pending')  # pending: 待批改, graded: 已批改
+    
+    # 如果没有指定科目，使用第一个授课科目
+    if not subject_id:
+        subject_id = teacher_subject_ids[0] if teacher_subject_ids else None
+    elif not (int(subject_id) in teacher_subject_ids):
+        # 如果指定的科目不在授课范围内，使用第一个
+        subject_id = teacher_subject_ids[0] if teacher_subject_ids else None
     
     # 基础查询：主观题的答题记录 (question_type = '5' 或 'subjective')
     answer_logs = AnswerLog.objects.filter(
@@ -1067,9 +1159,12 @@ def grade_subjective(request):
     ).select_related('student', 'exercise', 'exercise__subject').order_by('-submitted_at')
     
     # 按科目筛选
-    if subject_id and subject_id.isdigit():
-        if int(subject_id) in teacher_subject_ids:
-            answer_logs = answer_logs.filter(exercise__subject_id=int(subject_id))
+    if subject_id:
+        answer_logs = answer_logs.filter(exercise__subject_id=int(subject_id))
+    
+    # 按题目筛选
+    if exercise_id and exercise_id.isdigit():
+        answer_logs = answer_logs.filter(exercise_id=int(exercise_id))
     
     # 按状态筛选
     if status == 'pending':
@@ -1090,6 +1185,12 @@ def grade_subjective(request):
         is_correct__isnull=False
     ).count()
     
+    # 获取当前科目的所有主观题
+    exercises = Exercise.objects.filter(
+        subject_id=subject_id,
+        question_type__in=['5', 'subjective']
+    ).order_by('title')
+    
     # 分页
     paginator = Paginator(answer_logs, 20)
     page_number = request.GET.get('page')
@@ -1097,12 +1198,14 @@ def grade_subjective(request):
     
     context = {
         'answer_logs': page_logs,
-        'subjects': Subject.objects.filter(id__in=teacher_subject_ids),
+        'exercises': exercises,
         'current_subject': subject_id,
+        'current_exercise': exercise_id,
         'current_status': status,
         'pending_count': pending_count,
         'graded_count': graded_count,
-        'no_subjects': False
+        'no_subjects': False,
+        'subject': Subject.objects.get(id=subject_id) if subject_id else None,
     }
     
     return render(request, 'teacher/grade_subjective.html', context)
@@ -1182,3 +1285,109 @@ def grade_answer(request, log_id):
         
     except Exception as e:
         return JsonResponse({'success': False, 'message': str(e)})
+
+
+@login_required
+@user_passes_test(is_teacher)
+@require_POST
+def ai_grade_answer(request, log_id):
+    """使用AI模型批改答题"""
+    try:
+        from .llm_grading import grade_subjective_answer
+        
+        log = get_object_or_404(AnswerLog, id=log_id)
+        
+        # 检查权限
+        teacher_subjects = TeacherSubject.objects.filter(
+            teacher=request.user
+        ).values_list('subject_id', flat=True)
+        
+        if log.exercise.subject_id not in teacher_subjects:
+            return JsonResponse({'success': False, 'message': '无权批改此记录'})
+        
+        # 调用LLM进行评分
+        grading_result = grade_subjective_answer(
+            exercise_content=log.exercise.content,
+            reference_answer=log.exercise.answer or '',
+            student_answer=log.text_answer or '',
+            exercise_solution=log.exercise.solution or ''
+        )
+        
+        if grading_result.get('error'):
+            return JsonResponse({
+                'success': False,
+                'message': f"AI评分失败: {grading_result['error']}"
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'grading': {
+                'is_correct': grading_result.get('is_correct'),
+                'score': grading_result.get('score'),
+                'feedback': grading_result.get('feedback'),
+                'reasoning': grading_result.get('reasoning'),
+                'confidence': grading_result.get('confidence')
+            }
+        })
+        
+    except Exception as e:
+        import traceback
+        logger.error(f"AI grading error: {traceback.format_exc()}")
+        return JsonResponse({
+            'success': False,
+            'message': f'AI评分服务出错: {str(e)}'
+        }, status=500)
+
+
+@login_required
+@user_passes_test(is_teacher)
+def export_students(request):
+    """导出选课学生列表 API"""
+    try:
+        teacher = request.user
+        subject_id = request.GET.get('subject')
+        
+        if not subject_id:
+            return JsonResponse({
+                'success': False,
+                'message': '请指定科目'
+            })
+        
+        # 验证教师权限
+        if not TeacherSubject.objects.filter(
+            teacher=teacher,
+            subject_id=subject_id
+        ).exists():
+            return JsonResponse({
+                'success': False,
+                'message': '您没有权限导出此科目的学生'
+            }, status=403)
+        
+        # 获取所有选了该科目的学生
+        enrolled_students = StudentSubject.objects.filter(
+            subject_id=subject_id
+        ).select_related('student', 'student__studentprofile')
+        
+        students_data = []
+        for enrollment in enrolled_students:
+            student = enrollment.student
+            students_data.append({
+                'name': f"{student.first_name}{student.last_name}" if student.first_name else student.username,
+                'email': student.email or '无邮箱',
+                'grade': student.studentprofile.grade if student.studentprofile else '-',
+                'school': student.studentprofile.school if student.studentprofile else '-'
+            })
+        
+        return JsonResponse({
+            'success': True,
+            'students': students_data
+        })
+    
+    except Exception as e:
+        import traceback
+        print(f"导出学生列表错误: {e}")
+        print(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'message': f'导出失败: {str(e)}'
+        }, status=500)

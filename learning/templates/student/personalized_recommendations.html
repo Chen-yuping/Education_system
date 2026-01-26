@@ -21,6 +21,9 @@
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
         border-radius: 10px 10px 0 0 !important;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
     }
 
     .badge-recommend {
@@ -56,21 +59,6 @@
         border: 1px solid #ffcdd2;
     }
 
-    .btn-start {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border: none;
-        color: white;
-        padding: 8px 20px;
-        border-radius: 20px;
-        font-weight: 500;
-    }
-
-    .btn-start:hover {
-        color: white;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-    }
-
     .weak-point-item {
         padding: 10px 15px;
         border-left: 3px solid #dc3545;
@@ -86,113 +74,142 @@
         margin-bottom: 20px;
         border: 1px solid #dee2e6;
     }
+
+    .exercise-list-item {
+        padding: 15px;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        margin-bottom: 12px;
+        background: #fff;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .exercise-list-item:hover {
+        background: #f8f9fa;
+    }
+
+    .exercise-number {
+        display: inline-block;
+        width: 32px;
+        height: 32px;
+        line-height: 32px;
+        text-align: center;
+        background: #667eea;
+        color: white;
+        border-radius: 50%;
+        font-weight: bold;
+        margin-right: 12px;
+    }
+
+    .exercise-info {
+        flex: 1;
+    }
+
+    .exercise-title {
+        font-weight: 500;
+        margin-bottom: 5px;
+    }
+
+    .exercise-meta {
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+
+    .progress-bar-dynamic {
+        height: 6px;
+    }
+
+    .action-buttons {
+        display: none;
+    }
+
+    .btn-start-set {
+        background: #fff;
+        border: none;
+        color: #667eea;
+        padding: 8px 20px;
+        border-radius: 20px;
+        font-weight: 500;
+        font-size: 0.95rem;
+    }
+
+    .btn-start-set:hover {
+        background: #f0f0f0;
+        color: #667eea;
+    }
+
+    .btn-re-recommend {
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        color: #fff;
+        padding: 8px 20px;
+        border-radius: 20px;
+        font-weight: 500;
+        font-size: 0.95rem;
+    }
+
+    .btn-re-recommend:hover {
+        background: rgba(255, 255, 255, 0.3);
+        color: #fff;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
-<!-- 页面标题 -->
-<div class="page-header">
-    <div class="d-flex justify-content-between align-items-center">
-        <div>
-            <h4 class="mb-1">{{ title }}</h4>
-            <p class="mb-0 text-muted">
-                <i class="fas fa-book me-2"></i>{{ current_subject.name }}
-            </p>
-        </div>
-        <button class="btn btn-outline-primary" onclick="location.reload()">
-            <i class="fas fa-sync-alt me-1"></i>刷新推荐
-        </button>
-    </div>
-</div>
 
 <div class="row">
     <!-- 左侧：推荐习题列表 -->
     <div class="col-lg-8">
         <div class="card">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
                     <i class="fas fa-star me-2"></i>为您推荐的习题
-                    <span class="badge bg-light text-dark ms-2">{{ exercises|length }} 题</span>
+                    <span class="badge bg-light text-dark ms-2">{{ exercise_count }} 题</span>
                 </h5>
+                {% if exercises %}
+                <div class="d-flex gap-2">
+                    <a href="{% url 'start_recommended_exercises' current_subject.id %}" class="btn btn-start-set">
+                        <i class="fas fa-play me-2"></i>开始练习
+                    </a>
+                    <a href="{% url 'personalized_recommendations' current_subject.id %}" class="btn btn-re-recommend">
+                        <i class="fas fa-redo me-2"></i>重新推荐
+                    </a>
+                </div>
+                {% endif %}
             </div>
             <div class="card-body">
                 {% if exercises %}
-                    {% for exercise in exercises %}
-                    <div class="exercise-card">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-start mb-3">
-                                <div>
-                                    <h5 class="card-title mb-2">{{ exercise.title }}</h5>
-                                    <div class="mb-2">
-                                        <span class="badge bg-light text-dark me-2">
-                                            <i class="fas fa-question-circle me-1"></i>
-                                            {% if exercise.question_type == '1' %}单选题
-                                            {% elif exercise.question_type == '2' %}多选题
-                                            {% elif exercise.question_type == '3' %}投票题
-                                            {% elif exercise.question_type == '4' %}填空题
-                                            {% elif exercise.question_type == '5' %}主观题
-                                            {% else %}判断题{% endif %}
-                                        </span>
-
-                                        <!-- 显示推荐标签 -->
+                    <!-- 习题列表 -->
+                    <div class="mb-4">
+                        {% for exercise in exercises %}
+                        <div class="exercise-list-item">
+                            <div class="d-flex align-items-start flex-grow-1">
+                                <span class="exercise-number">{{ forloop.counter }}</span>
+                                <div class="exercise-info">
+                                    <div class="exercise-title">{{ exercise.title }}</div>
+                                    <div class="exercise-meta">
+                                        {% if exercise.question_type == '1' %}单选题
+                                        {% elif exercise.question_type == '2' %}多选题
+                                        {% elif exercise.question_type == '3' %}投票题
+                                        {% elif exercise.question_type == '4' %}填空题
+                                        {% elif exercise.question_type == '5' %}主观题
+                                        {% else %}判断题{% endif %}
+                                        
                                         {% with weak_knowledge_count=exercise.qmatrix_set.count %}
                                         {% if weak_knowledge_count > 0 %}
-                                        <span class="badge-recommend me-2">
-                                            <i class="fas fa-exclamation-triangle me-1"></i>
-                                            薄弱知识点相关
-                                        </span>
+                                        • <span class="badge-recommend" style="display: inline-block; margin-left: 8px;">薄弱知识点相关</span>
                                         {% else %}
-                                        <span class="badge-new">
-                                            <i class="fas fa-star me-1"></i>
-                                            新习题
-                                        </span>
+                                        • <span class="badge-new" style="display: inline-block; margin-left: 8px;">新习题</span>
                                         {% endif %}
                                         {% endwith %}
                                     </div>
                                 </div>
-                                <div>
-                                    <a href="{% url 'take_exercise' exercise.id %}" class="btn btn-start">
-                                        <i class="fas fa-play me-1"></i>开始练习
-                                    </a>
-                                </div>
-                            </div>
-
-                            <!-- 题目内容预览 -->
-                            <div class="mb-3">
-                                <p class="text-muted small mb-2">题目预览：</p>
-                                <div class="bg-light p-3 rounded" style="max-height: 120px; overflow: auto;">
-                                    {{ exercise.content|truncatechars:300|linebreaks }}
-                                </div>
-                            </div>
-
-                            <!-- 涉及知识点 -->
-                            <div class="mb-3">
-                                <p class="text-muted small mb-2">涉及知识点：</p>
-                                <div>
-                                    {% for q_matrix in exercise.qmatrix_set.all %}
-                                    <span class="knowledge-tag {% if q_matrix.knowledge_point.mastery_level < 0.6 %}weak-tag{% endif %}">
-                                        {{ q_matrix.knowledge_point.name }}
-                                    </span>
-                                    {% empty %}
-                                    <span class="text-muted">未关联知识点</span>
-                                    {% endfor %}
-                                </div>
-                            </div>
-
-                            <!-- 统计信息 -->
-                            <div class="d-flex justify-content-between text-muted small pt-3 border-top">
-                                <div>
-                                    <i class="fas fa-history me-1"></i>
-                                    已有 {{ exercise.answerlog_set.count }} 人练习
-                                </div>
-                                <div>
-                                    <i class="fas fa-clock me-1"></i>
-                                    建议时间: 5分钟
-                                </div>
                             </div>
                         </div>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
                 {% else %}
                 <div class="text-center py-5">
                     <i class="fas fa-search fa-3x text-muted mb-3"></i>
@@ -219,19 +236,20 @@
             <div class="card-body">
                 {% if weak_points %}
                     {% for point in weak_points %}
+                    {% with mastery_pct=point.mastery_level|floatformat:0 %}
                     <div class="weak-point-item">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <strong>{{ point.knowledge_point.name }}</strong>
                             <span class="badge bg-danger">
-                                {{ point.mastery_level|floatformat:0 }}%
+                                {{ mastery_pct }}%
                             </span>
                         </div>
                         <div class="progress" style="height: 6px;">
-                            <div class="progress-bar bg-danger"
-                                 style="width: {{ point.mastery_level|floatformat:0 }}%">
+                            <div class="progress-bar bg-danger" style="width: {{ mastery_pct }}%">
                             </div>
                         </div>
                     </div>
+                    {% endwith %}
                     {% endfor %}
                 {% else %}
                 <div class="text-center py-4">

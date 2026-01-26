@@ -1,6 +1,7 @@
 # views_personalized_recommendations.py
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib import messages
 from django.db.models import Q, Count
 import random
 from ..models import *
@@ -14,7 +15,7 @@ def is_student(user):
 @user_passes_test(is_student)
 def personalized_recommendations(request, subject_id=None):
     """
-    个性化习题推荐页面 - 推荐10个题目
+    个性化习题推荐页面 - 推荐10个题目作为一个练习集
     """
     # 1. 获取学生已选科目
     enrolled_subjects = StudentSubject.objects.filter(
@@ -48,7 +49,11 @@ def personalized_recommendations(request, subject_id=None):
         mastery_level__lt=0.6
     ).select_related('knowledge_point').order_by('mastery_level')[:5]
 
-    # 7. 准备上下文
+    # 7. 将推荐题目ID存储到session中，用于练习流程
+    exercise_ids = [ex.id for ex in recommended_exercises]
+    request.session[f'recommended_exercises_{subject_id}'] = exercise_ids
+
+    # 8. 准备上下文
     context = {
         'subjects': enrolled_subjects,
         'current_subject': current_subject,
@@ -56,6 +61,7 @@ def personalized_recommendations(request, subject_id=None):
         'exercises': recommended_exercises,
         'weak_points': weak_points,
         'title': '个性化推荐习题',
+        'exercise_count': len(recommended_exercises),
     }
 
     return render(request, 'student/personalized_recommendations.html', context)
@@ -201,12 +207,30 @@ def get_wrong_exercises(student, subject, exclude_ids=None, limit=5):
 
 @login_required
 @user_passes_test(is_student)
-def start_recommended_exercise(request, exercise_id):
+def start_recommended_exercises(request, subject_id):
     """
-    开始做推荐的题目
+    开始做推荐的10个题目 - 获取第一个题目并开始
     """
-    # 直接重定向到你现有的答题页面
-    return redirect('take_exercise', exercise_id=exercise_id)
+    subject = get_object_or_404(Subject, id=subject_id)
+    
+    # 检查学生是否选修该科目
+    if not StudentSubject.objects.filter(student=request.user, subject=subject).exists():
+        return render(request, 'student/access_denied.html')
+    
+    # 获取推荐题目
+    recommended_exercises = get_10_recommended_exercises(request.user, subject)
+    
+    if not recommended_exercises:
+        messages.warning(request, '暂无推荐习题')
+        return redirect('personalized_recommendations', subject_id=subject_id)
+    
+    # 将推荐题目ID存储到session中
+    exercise_ids = [ex.id for ex in recommended_exercises]
+    request.session[f'recommended_exercises_{subject_id}'] = exercise_ids
+    
+    # 重定向到第一个题目
+    first_exercise = recommended_exercises[0]
+    return redirect('take_exercise', exercise_id=first_exercise.id)
 
 
 @login_required

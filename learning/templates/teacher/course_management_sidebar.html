@@ -1,0 +1,141 @@
+<div class="sidebar-nav">
+    <!-- 科目信息卡片 -->
+    {% if subject %}
+    <div class="subject-header mb-3">
+        <div class="subject-image">
+            {% if subject.image %}
+                <img src="{{ subject.image.url }}" alt="{{ subject.name }}">
+            {% else %}
+                <div class="image-placeholder">
+                    <i class="fas fa-book"></i>
+                </div>
+            {% endif %}
+        </div>
+        <div class="subject-info">
+            <h6 class="subject-name">{{ subject.name }}</h6>
+        </div>
+    </div>
+    {% endif %}
+
+    <ul class="nav flex-column">
+        {% if subject %}
+        <li class="nav-item">
+            <a class="nav-link {% if request.resolver_match.url_name == 'upload_exercise' %}active{% endif %}" 
+               href="{% url 'upload_exercise' %}?subject_id={{ subject.id }}">
+                <i class="fas fa-cloud-upload-alt"></i> 上传习题
+            </a>
+        </li>
+        
+        <li class="nav-item">
+            <a class="nav-link {% if request.resolver_match.url_name == 'grade_subjective' %}active{% endif %}" 
+               href="{% url 'grade_subjective' %}?subject_id={{ subject.id }}">
+                <i class="fas fa-check-double"></i> 批改作业
+            </a>
+        </li>
+
+        <li class="nav-item">
+            <a class="nav-link {% if request.resolver_match.url_name == 'exercise_management' %}active{% endif %}" 
+               href="{% url 'exercise_management' %}?subject_id={{ subject.id }}">
+                <i class="fas fa-book-open"></i> 题库管理
+            </a>
+        </li>
+
+        <li class="nav-item">
+            <a class="nav-link {% if request.resolver_match.url_name == 'teacher_knowledge_graph' %}active{% endif %}" 
+               href="{% url 'teacher_knowledge_graph' %}?subject_id={{ subject.id }}">
+                <i class="fas fa-project-diagram"></i> 知识点关系图谱
+            </a>
+        </li>
+
+        <li class="nav-item">
+            <a class="nav-link {% if request.resolver_match.url_name == 'student_info' %}active{% endif %}" 
+               href="{% url 'student_info' %}?subject={{ subject.id }}">
+                <i class="fas fa-users"></i> 选课学生
+            </a>
+        </li>
+        {% endif %}
+    </ul>
+</div>
+
+<style>
+    /* 科目信息卡片 */
+    .subject-header {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 12px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        border: 1px solid #dee2e6;
+    }
+
+    .subject-image {
+        width: 100%;
+        height: 120px;
+        border-radius: 6px;
+        overflow: hidden;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .subject-image img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .image-placeholder {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 48px;
+    }
+
+    .subject-info {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .subject-name {
+        margin: 0;
+        font-weight: 600;
+        color: #333;
+        font-size: 14px;
+        line-height: 1.4;
+        word-break: break-word;
+        text-align: center;
+    }
+
+    /* 侧边栏导航链接样式 */
+    .sidebar-nav .nav-link {
+        padding: 12px 20px;
+        color: #333;
+        border-radius: 0;
+        border-left: 3px solid transparent;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        text-decoration: none;
+    }
+
+    .sidebar-nav .nav-link:hover {
+        background-color: #e9ecef;
+        color: #007bff;
+        border-left-color: #007bff;
+    }
+
+    .sidebar-nav .nav-link.active {
+        background-color: #007bff;
+        color: white;
+        border-left-color: #007bff;
+    }
+
+    .sidebar-nav .nav-link i {
+        width: 20px;
+        text-align: center;
+    }
+</style>

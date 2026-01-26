@@ -1,5 +1,5 @@
 <!-- D:\Project\Learning platform\Github\Education_system\learning\templates\teacher\exercise_management.html -->
-{% extends 'teacher/base.html' %}
+{% extends 'teacher/course_management_base.html' %}
 {% load static %}
 
 {% block title %}题库管理{% endblock %}
@@ -21,35 +21,10 @@
 
 <!--主要模块-->
 <div class="container-fluid">
-    <!-- 页面标题和操作按钮 -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h1 class="h3 mb-0 text-gray-800">题库管理</h1>
-            <p class="text-muted mb-0">管理所有习题，支持增删改查、批量操作</p>
-        </div>
-        <div>
-            <button type="button" class="btn btn-primary" onclick="showAddExercise()">
-                <i class="fas fa-plus"></i> 添加习题
-            </button>
-        </div>
-    </div>
-
     <!-- 筛选和搜索区域 -->
     <div class="card shadow mb-4">
         <div class="card-body">
             <form id="filterForm" method="get" class="row g-3">
-                <div class="col-md-3">
-                    <label for="subjectFilter" class="form-label">科目</label>
-                    <select class="form-select" id="subjectFilter" name="subject">
-                        <option value="">全部科目</option>
-                        {% for subject in subjects %}
-                        <option value="{{ subject.id }}" {% if request.GET.subject == subject.id|stringformat:'s' %}selected{% endif %}>
-                            {{ subject.name }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                </div>
-
                 <div class="col-md-3">
                     <label for="typeFilter" class="form-label">题型</label>
                     <select class="form-select" id="typeFilter" name="question_type">
@@ -75,18 +50,6 @@
                     </select>
                 </div>
 
-                <div class="col-md-3">
-                    <label for="creatorFilter" class="form-label">创建者</label>
-                    <select class="form-select" id="creatorFilter" name="creator">
-                        <option value="">全部创建者</option>
-                        {% for creator in creators %}
-                        <option value="{{ creator.id }}" {% if request.GET.creator == creator.id|stringformat:'s' %}selected{% endif %}>
-                            {{ creator.username }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                </div>
-
                 <div class="col-md-6">
                     <label for="searchInput" class="form-label">搜索</label>
                     <div class="input-group">
@@ -98,27 +61,12 @@
                     </div>
                 </div>
 
-                <div class="col-md-6">
-                    <label class="form-label">创建时间</label>
-                    <div class="row g-2">
-                        <div class="col">
-                            <input type="date" class="form-control" id="startDate" name="start_date"
-                                   value="{{ request.GET.start_date|default:'' }}">
-                        </div>
-                        <div class="col-auto d-flex align-items-center">至</div>
-                        <div class="col">
-                            <input type="date" class="form-control" id="endDate" name="end_date"
-                                   value="{{ request.GET.end_date|default:'' }}">
-                        </div>
-                    </div>
-                </div>
-
                 <div class="col-md-12 d-flex justify-content-end">
                     <button type="button" class="btn btn-outline-secondary me-2" id="resetFilters">
                         <i class="fas fa-redo"></i> 重置筛选
                     </button>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-filter"></i> 筛选
+                    <button type="button" class="btn btn-primary" onclick="showAddExercise()">
+                        <i class="fas fa-plus"></i> 添加习题
                     </button>
                 </div>
             </form>
@@ -213,20 +161,27 @@
                                 {% endwith %}
                             </td>
                             <td>
-                                <div class="btn-group btn-group-sm" role="group">
+                                <div class="d-flex gap-2">
                                     <a href="javascript:void(0);"
                                        onclick="showExerciseDetail({{ exercise.id }})"
-                                       class="btn btn-outline-info"
+                                       class="btn btn-sm btn-outline-info"
                                        data-bs-toggle="tooltip"
                                        title="查看详情">
                                         <i class="fas fa-eye"></i>
                                     </a>
                                     <a href="javascript:void(0);"
                                        onclick="showExerciseEdit({{ exercise.id }})"
-                                       class="btn btn-outline-warning"
+                                       class="btn btn-sm btn-outline-warning"
                                        data-bs-toggle="tooltip"
                                        title="编辑">
                                         <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="javascript:void(0);"
+                                       onclick="deleteExercise({{ exercise.id }})"
+                                       class="btn btn-sm btn-outline-danger"
+                                       data-bs-toggle="tooltip"
+                                       title="删除">
+                                        <i class="fas fa-trash"></i>
                                     </a>
                                 </div>
                             </td>
@@ -296,6 +251,35 @@
                 </button>
             </div>
             {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- 删除确认模态框 -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-labelledby="deleteConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deleteConfirmModalLabel">
+                    <i class="fas fa-exclamation-triangle me-2"></i>删除习题
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-0">
+                    <i class="fas fa-warning text-danger me-2"></i>
+                    <strong>确定要删除这道习题吗？</strong>
+                </p>
+                <p class="text-muted mt-2 mb-0">删除后无法恢复，请谨慎操作。</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>取消
+                </button>
+                <button type="button" class="btn btn-danger" id="deleteConfirmBtn">
+                    <i class="fas fa-trash me-1"></i>确认删除
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -846,46 +830,72 @@ function renderExerciseEditForm(exercise) {
         choicesHtml = '<p class="text-muted">该题目没有选项</p>';
     }
 
-    // 生成知识点选择HTML
+    // 生成知识点选择HTML - 两列并列设计
     let knowledgePointsHtml = '';
     if (exercise.all_knowledge_points && exercise.all_knowledge_points.length > 0) {
         // 创建已选知识点的映射
         const selectedKnowledgePoints = {};
         if (exercise.knowledge_points) {
             exercise.knowledge_points.forEach(kp => {
-                selectedKnowledgePoints[kp.knowledge_point__id] = kp.weight;
+                selectedKnowledgePoints[kp.knowledge_point__id] = true;
             });
         }
 
-        exercise.all_knowledge_points.forEach(kp => {
-            const isSelected = selectedKnowledgePoints.hasOwnProperty(kp.id);
-            const weight = isSelected ? selectedKnowledgePoints[kp.id] : '1.0';
-            knowledgePointsHtml += `
-                <div class="row mb-2 align-items-center">
-                    <div class="col">
-                        <div class="form-check">
-                            <input class="form-check-input knowledge-point-checkbox"
-                                   type="checkbox"
-                                   value="${kp.id}"
-                                   id="edit_kp_${kp.id}"
-                                   ${isSelected ? 'checked' : ''}>
-                            <label class="form-check-label" for="edit_kp_${kp.id}">
-                                ${kp.name}
-                            </label>
-                        </div>
-                    </div>
-                    <div class="col-3">
-                        <input type="number"
-                               class="form-control form-control-sm weight-input"
-                               data-kp-id="${kp.id}"
-                               min="0.1" max="10" step="0.1"
-                               value="${weight}"
-                               placeholder="权重"
-                               ${!isSelected ? 'disabled' : ''}>
-                    </div>
+        // 分离已选和未选的知识点
+        const unselectedKPs = exercise.all_knowledge_points.filter(kp => !selectedKnowledgePoints.hasOwnProperty(kp.id));
+        const selectedKPs = exercise.all_knowledge_points.filter(kp => selectedKnowledgePoints.hasOwnProperty(kp.id));
+
+        // 生成未选知识点列表
+        let unselectedHtml = '';
+        unselectedKPs.forEach(kp => {
+            unselectedHtml += `
+                <div class="list-group-item d-flex justify-content-between align-items-center unselected-kp" data-kp-id="${kp.id}" data-kp-name="${kp.name}">
+                    <span>${kp.name}</span>
+                    <button type="button" class="btn btn-sm btn-primary add-kp-btn" data-kp-id="${kp.id}" data-kp-name="${kp.name}">
+                        <i class="fas fa-arrow-right"></i>
+                    </button>
                 </div>
             `;
         });
+
+        // 生成已选知识点列表
+        let selectedHtml = '';
+        selectedKPs.forEach(kp => {
+            selectedHtml += `
+                <div class="list-group-item d-flex justify-content-between align-items-center selected-kp" data-kp-id="${kp.id}">
+                    <span>${kp.name}</span>
+                    <button type="button" class="btn btn-sm btn-danger remove-kp-btn" data-kp-id="${kp.id}">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            `;
+        });
+
+        knowledgePointsHtml = `
+            <div class="row g-3">
+                <!-- 未选择的知识点 -->
+                <div class="col-md-6">
+                    <div class="border rounded p-3 bg-light h-100">
+                        <h6 class="mb-3 fw-bold">未关联知识点</h6>
+                        <div class="mb-2">
+                            <input type="text" class="form-control form-control-sm" id="kp_search" placeholder="搜索知识点...">
+                        </div>
+                        <div class="list-group" style="max-height: 300px; overflow-y: auto;" id="unselected-kp-list">
+                            ${unselectedHtml || '<div class="list-group-item text-muted text-center py-3">全部知识点已关联</div>'}
+                        </div>
+                    </div>
+                </div>
+                <!-- 已选择的知识点 -->
+                <div class="col-md-6">
+                    <div class="border rounded p-3 bg-light h-100">
+                        <h6 class="mb-3 fw-bold">已关联知识点</h6>
+                        <div class="list-group" style="max-height: 300px; overflow-y: auto;" id="selected-kp-list">
+                            ${selectedHtml || '<div class="list-group-item text-muted text-center py-3">暂无关联知识点</div>'}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
     } else {
         knowledgePointsHtml = '<p class="text-muted">该科目下暂无知识点</p>';
     }
@@ -945,15 +955,9 @@ function renderExerciseEditForm(exercise) {
                 <!-- 知识点关联（可编辑） -->
                 <div class="mb-3">
                     <label class="form-label fw-bold">
-                        <i class="fas fa-edit text-warning me-1"></i>关联知识点（Q矩阵）
+                        <i class="fas fa-edit text-warning me-1"></i>关联知识点
                     </label>
-                    <div class="border rounded p-3 bg-light" style="max-height: 200px; overflow-y: auto;">
-                        <div class="row mb-2">
-                            <div class="col fw-bold">知识点</div>
-                            <div class="col-3 fw-bold">权重</div>
-                        </div>
-                        ${knowledgePointsHtml}
-                    </div>
+                    ${knowledgePointsHtml}
                 </div>
             </div>
         </div>
@@ -983,29 +987,134 @@ function openEditFromDetail() {
 
 // 初始化编辑表单事件
 function initEditFormEvents() {
-    // 知识点复选框切换权重输入
-    document.querySelectorAll('.knowledge-point-checkbox').forEach(checkbox => {
-        checkbox.addEventListener('change', function() {
-            const kpId = this.value;
-            const weightInput = document.querySelector(`.weight-input[data-kp-id="${kpId}"]`);
-            if (weightInput) {
-                weightInput.disabled = !this.checked;
-                if (!this.checked) {
-                    weightInput.value = '1.0';
-                }
-            }
+    // 知识点搜索功能
+    const searchInput = document.getElementById('kp_search');
+    if (searchInput) {
+        searchInput.addEventListener('keyup', function() {
+            const searchTerm = this.value.toLowerCase();
+            const unselectedItems = document.querySelectorAll('.unselected-kp');
+            unselectedItems.forEach(item => {
+                const kpName = item.dataset.kpName.toLowerCase();
+                item.style.display = kpName.includes(searchTerm) ? '' : 'none';
+            });
+        });
+    }
+
+    // 添加知识点按钮
+    document.querySelectorAll('.add-kp-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const kpId = this.dataset.kpId;
+            const kpName = this.dataset.kpName;
+            addKnowledgePoint(kpId, kpName);
+        });
+    });
+
+    // 移除知识点按钮
+    document.querySelectorAll('.remove-kp-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const kpId = this.dataset.kpId;
+            removeKnowledgePoint(kpId);
         });
     });
 
     // 表单提交处理
     const saveBtn = document.getElementById('save-edit-btn');
-
     if (saveBtn) {
         saveBtn.onclick = function(e) {
             e.preventDefault();
             submitEditForm();
         };
     }
+}
+
+// 添加知识点到已选列表
+function addKnowledgePoint(kpId, kpName) {
+    const unselectedList = document.getElementById('unselected-kp-list');
+    const selectedList = document.getElementById('selected-kp-list');
+    
+    // 移除未选列表中的项
+    const unselectedItem = document.querySelector(`.unselected-kp[data-kp-id="${kpId}"]`);
+    if (unselectedItem) {
+        unselectedItem.remove();
+    }
+    
+    // 检查是否为空
+    if (unselectedList.querySelectorAll('.unselected-kp').length === 0) {
+        unselectedList.innerHTML = '<div class="list-group-item text-muted">全部知识点已关联</div>';
+    }
+    
+    // 添加到已选列表
+    const selectedItem = document.createElement('div');
+    selectedItem.className = 'list-group-item d-flex justify-content-between align-items-center selected-kp';
+    selectedItem.dataset.kpId = kpId;
+    selectedItem.innerHTML = `
+        <span>${kpName}</span>
+        <button type="button" class="btn btn-sm btn-danger remove-kp-btn" data-kp-id="${kpId}">
+            <i class="fas fa-trash"></i>
+        </button>
+    `;
+    
+    // 清空"暂无关联知识点"提示
+    const emptyMsg = selectedList.querySelector('.text-muted');
+    if (emptyMsg) {
+        emptyMsg.remove();
+    }
+    
+    selectedList.appendChild(selectedItem);
+    
+    // 绑定移除按钮事件
+    selectedItem.querySelector('.remove-kp-btn').addEventListener('click', function(e) {
+        e.preventDefault();
+        removeKnowledgePoint(kpId);
+    });
+}
+
+// 从已选列表移除知识点
+function removeKnowledgePoint(kpId) {
+    const unselectedList = document.getElementById('unselected-kp-list');
+    const selectedList = document.getElementById('selected-kp-list');
+    
+    // 获取知识点名称
+    const selectedItem = document.querySelector(`.selected-kp[data-kp-id="${kpId}"]`);
+    if (!selectedItem) return;
+    
+    const kpName = selectedItem.querySelector('span').textContent;
+    
+    // 移除已选列表中的项
+    selectedItem.remove();
+    
+    // 检查是否为空
+    if (selectedList.querySelectorAll('.selected-kp').length === 0) {
+        selectedList.innerHTML = '<div class="list-group-item text-muted">暂无关联知识点</div>';
+    }
+    
+    // 添加回未选列表
+    const unselectedItem = document.createElement('div');
+    unselectedItem.className = 'list-group-item d-flex justify-content-between align-items-center unselected-kp';
+    unselectedItem.dataset.kpId = kpId;
+    unselectedItem.dataset.kpName = kpName;
+    unselectedItem.innerHTML = `
+        <span>${kpName}</span>
+        <button type="button" class="btn btn-sm btn-primary add-kp-btn" data-kp-id="${kpId}" data-kp-name="${kpName}">
+            <i class="fas fa-arrow-right"></i>
+        </button>
+    `;
+    
+    // 清空"全部知识点已关联"提示
+    const emptyMsg = unselectedList.querySelector('.text-muted');
+    if (emptyMsg) {
+        emptyMsg.remove();
+    }
+    
+    unselectedList.appendChild(unselectedItem);
+    
+    // 绑定添加按钮事件
+    unselectedItem.querySelector('.add-kp-btn').addEventListener('click', function(e) {
+        e.preventDefault();
+        addKnowledgePoint(kpId, kpName);
+    });
 }
 
 // 提交编辑表单
@@ -1033,13 +1142,13 @@ function submitEditForm() {
         formData.append('solution', solutionInput.value);
     }
 
-    // 收集知识点数据
+    // 收集知识点数据 - 只收集已选列表中的知识点ID
     const knowledgePoints = [];
-    document.querySelectorAll('.knowledge-point-checkbox:checked').forEach(checkbox => {
-        const kpId = checkbox.value;
-        const weightInput = document.querySelector(`.weight-input[data-kp-id="${kpId}"]`);
-        const weight = weightInput ? weightInput.value : '1.0';
-        knowledgePoints.push({ id: parseInt(kpId), weight: parseFloat(weight) });
+    document.querySelectorAll('.selected-kp').forEach(item => {
+        const kpId = item.dataset.kpId;
+        if (kpId) {
+            knowledgePoints.push({ id: parseInt(kpId) });
+        }
     });
     formData.append('knowledge_points', JSON.stringify(knowledgePoints));
 
@@ -1077,6 +1186,43 @@ function submitEditForm() {
         saveBtn.innerHTML = '<i class="fas fa-save me-1"></i>保存更改';
     });
 }
+
+// 删除习题
+function deleteExercise(exerciseId) {
+    // 显示删除确认模态框
+    const modal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+    document.getElementById('deleteConfirmBtn').dataset.exerciseId = exerciseId;
+    modal.show();
+}
+
+// 确认删除
+document.getElementById('deleteConfirmBtn')?.addEventListener('click', function() {
+    const exerciseId = this.dataset.exerciseId;
+    
+    // 发送删除请求
+    fetch(`/learning/exercise-management/delete/${exerciseId}/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 关闭模态框
+            const modal = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal'));
+            if (modal) modal.hide();
+            alert('习题删除成功！');
+            location.reload();
+        } else {
+            alert('删除失败：' + (data.message || '未知错误'));
+        }
+    })
+    .catch(error => {
+        console.error('删除习题失败:', error);
+        alert('网络错误，请重试。');
+    });
+});
 </script>
 
 

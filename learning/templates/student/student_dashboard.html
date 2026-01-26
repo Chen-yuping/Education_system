@@ -15,13 +15,6 @@
 
 <!-- 右侧主内容区域 -->
 <main class="student-main-content">
-    <!-- 页面标题 -->
-    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3 mb-3 border-bottom">
-        <h1 class="h2">学习面板</h1>
-        <div class="btn-toolbar mb-2 mb-md-0">
-
-        </div>
-    </div>
 
     <!-- 统计卡片 -->
     <div class="row student-stats">
@@ -113,6 +106,7 @@
                         <table class="table table-bordered" width="100%" cellspacing="0">
                             <thead>
                                 <tr>
+                                    <th>科目</th>
                                     <th>习题名称</th>
                                     <th>答题时间</th>
                                     <th>结果</th>
@@ -122,6 +116,7 @@
                             <tbody>
                                 {% for log in recent_logs %}
                                 <tr>
+                                    <td>{{ log.exercise.subject.name }}</td>
                                     <td>{{ log.exercise.title }}</td>
                                     <td>{{ log.submitted_at|date:"Y-m-d H:i" }}</td>
                                     <td>
@@ -141,7 +136,6 @@
                     <div class="text-center py-4">
                         <i class="fas fa-inbox fa-3x text-gray-300 mb-3"></i>
                         <p class="text-muted">还没有练习记录，快去开始学习吧！</p>
-                        <!-- 修改这里：添加 subject_id= 并添加条件判断 -->
                         {% if subjects %}
                         <a href="{% url 'exercise_list' subject_id=subjects.0.id %}" class="btn btn-primary">
                             <i class="fas fa-play me-2"></i>开始学习
@@ -166,8 +160,7 @@
                 <div class="card-body">
                     <div class="d-grid gap-2">
                         {% for subject in subjects|slice:":3" %}
-                        <!-- 修改这里：添加 subject_id= -->
-                        <a href="{% url 'exercise_list' subject_id=subject.id %}" class="btn btn-outline-primary text-start">
+                        <a href="{% url 'recommended_exercises' subject_id=subject.id %}" target="_blank" class="btn btn-outline-primary text-start">
                             <i class="fas fa-play-circle me-2"></i>
                             学习 {{ subject.name }}
                         </a>
@@ -184,7 +177,124 @@
 
 </main>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
 <script>
-
+    var subjectStatsData = {{ subject_stats_json|safe }};
+    var weakKPData = {{ weak_kp_json|safe }};
+    
+    if (subjectStatsData && subjectStatsData.length > 0) {
+        var subjectCtx = document.getElementById('subjectStatsChart').getContext('2d');
+        new Chart(subjectCtx, {
+            type: 'bar',
+            data: {
+                labels: subjectStatsData.map(function(s) { return s.name; }),
+                datasets: [
+                    {
+                        label: '正确率 (%)',
+                        data: subjectStatsData.map(function(s) { return s.accuracy; }),
+                        backgroundColor: 'rgba(75, 192, 192, 0.7)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: '完成习题数',
+                        data: subjectStatsData.map(function(s) { return s.completed_exercises; }),
+                        backgroundColor: 'rgba(153, 102, 255, 0.7)',
+                        borderColor: 'rgba(153, 102, 255, 1)',
+                        borderWidth: 1,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: '正确率 (%)'
+                        },
+                        max: 100
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: '完成习题数'
+                        },
+                        grid: {
+                            drawOnChartArea: false
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    }
+                }
+            }
+        });
+    }
+    
+    if (weakKPData && weakKPData.length > 0) {
+        var weakCtx = document.getElementById('weakKnowledgeChart').getContext('2d');
+        new Chart(weakCtx, {
+            type: 'bar',
+            data: {
+                labels: weakKPData.map(function(kp) { return kp.name; }),
+                datasets: [{
+                    label: '掌握程度 (%)',
+                    data: weakKPData.map(function(kp) { return kp.mastery; }),
+                    backgroundColor: [
+                        'rgba(255, 99, 132, 0.7)',
+                        'rgba(255, 159, 64, 0.7)',
+                        'rgba(255, 205, 86, 0.7)',
+                        'rgba(201, 203, 207, 0.7)',
+                        'rgba(54, 162, 235, 0.7)'
+                    ],
+                    borderColor: [
+                        'rgba(255, 99, 132, 1)',
+                        'rgba(255, 159, 64, 1)',
+                        'rgba(255, 205, 86, 1)',
+                        'rgba(201, 203, 207, 1)',
+                        'rgba(54, 162, 235, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        max: 100,
+                        title: {
+                            display: true,
+                            text: '掌握程度 (%)'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+    }
 </script>
+
 {% endblock %}

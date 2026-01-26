@@ -444,7 +444,7 @@
                         <i class="fas fa-arrow-right me-1"></i>下一题
                     </a>
                     {% else %}
-                    <a href="{% url 'subject_learning' answer_log.exercise.subject.id %}" class="btn btn-success">
+                    <a href="{% url 'personalized_recommendations' answer_log.exercise.subject.id %}" class="btn btn-success">
                         <i class="fas fa-check me-1"></i>完成练习
                     </a>
                     {% endif %}
@@ -495,6 +495,39 @@ document.getElementById('favoriteBtn').addEventListener('click', function() {
         alert('操作失败，请重试');
     });
 });
+
+// 错题本功能
+const errorNotebookBtn = document.getElementById('errorNotebookBtn');
+if (errorNotebookBtn) {
+    errorNotebookBtn.addEventListener('click', function() {
+        const answerLogId = this.dataset.answerLogId;
+        
+        fetch('/learning/error-notebook/add/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({ answer_log_id: answerLogId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const text = document.getElementById('errorNotebookText');
+                text.textContent = '已添加到错题本';
+                errorNotebookBtn.disabled = true;
+                errorNotebookBtn.classList.remove('btn-outline-danger');
+                errorNotebookBtn.classList.add('btn-danger');
+            } else {
+                alert(data.message || '操作失败');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('操作失败，请重试');
+        });
+    });
+}
 
 function getCookie(name) {
     let cookieValue = null;

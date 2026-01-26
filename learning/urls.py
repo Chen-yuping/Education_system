@@ -27,12 +27,14 @@ urlpatterns = [
     # 个性化推荐
     path('personalized-recommendations/',views_personalized_recommendations.personalized_recommendations,name='personalized_recommendations'),
     path('personalized-recommendations/<int:subject_id>/',views_personalized_recommendations.personalized_recommendations,name='personalized_recommendations'),
+    path('personalized-recommendations/<int:subject_id>/start/',views_personalized_recommendations.start_recommended_exercises,name='start_recommended_exercises'),
     # 推荐完成页面
     path('recommendation-result/<int:subject_id>/',views_personalized_recommendations.recommendation_result, name='recommendation_result'),
 
     #课程-做题-做题结果
     path('subject/<int:subject_id>/learning/', views_student.subject_learning, name='subject_learning'),  # 新的学习页面
     path('subject/<int:subject_id>/exercises/', views_student.exercise_list, name='exercise_list'),
+    path('subject/<int:subject_id>/recommended/', views_student.recommended_exercises, name='recommended_exercises'),  # 推荐习题（直接跳转）
     path('exercise/<int:exercise_id>/take/', views_student.take_exercise, name='take_exercise'),
     path('exercise/result/<int:log_id>/', views_student.exercise_result, name='exercise_result'),
     path('subject/<int:subject_id>/exercise-logs/', views_student.subject_exercise_logs, name='subject_exercise_logs'),# 单个科目的答题log
@@ -48,6 +50,7 @@ urlpatterns = [
     path('teacher/api/knowledge-points/<int:subject_id>/',views_teacherknowledge.knowledge_points_api,name='knowledge_points_api'),
 
     path('teacher/subjects/', views_teacher.teacher_subject_management, name='teacher_subject_management'),#老师选择授课
+    path('teacher/course-management/', views_teacher.teacher_course_management, name='teacher_course_management'),#课程管理
 
     path('teacher/upload/knowledge/', views_teacher.upload_knowledge, name='upload_knowledge'),
     path('teacher/qmatrix/', views_teacher.q_matrix_management, name='q_matrix_management'),
@@ -64,6 +67,7 @@ urlpatterns = [
     #查看学生信息
     path('teacher/students/', views_teacher.student_info, name='student_info'),
     path('teacher/api/student/<int:student_id>/answer-records/', views_teacher.get_student_answer_records, name='get_student_answer_records'),
+    path('api/export-students/', views_teacher.export_students, name='export_students'),
     #诊断
     path('teacher/diagnosis/', views_diagnosis.diagnosis, name='diagnosis'),
     path('teacher/api/diagnosis/run/', views_diagnosis.run_diagnosis, name='run_diagnosis'),
@@ -75,6 +79,7 @@ urlpatterns = [
     path('teacher/grade-subjective/', views_teacher.grade_subjective, name='grade_subjective'),
     path('teacher/api/answer/<int:log_id>/', views_teacher.get_answer_detail, name='get_answer_detail'),
     path('teacher/api/answer/<int:log_id>/grade/', views_teacher.grade_answer, name='grade_answer'),
+    path('teacher/api/answer/<int:log_id>/ai-grade/', views_teacher.ai_grade_answer, name='ai_grade_answer'),
 
     #研究者功能
     path('researcher/dashboard/', views_researcher.researcher_dashboard, name='researcher_dashboard'),

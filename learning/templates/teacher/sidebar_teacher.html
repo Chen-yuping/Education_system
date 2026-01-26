@@ -10,39 +10,15 @@
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if request.resolver_match.url_name == 'upload_exercise' %}active{% endif %}"
-                   href="{% url 'upload_exercise' %}">
-                    <i class="fas fa-upload"></i> 上传习题
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.resolver_match.url_name == 'teacher_knowledge_graph' %}active{% endif %}"
-                   href="{% url 'teacher_knowledge_graph' %}">
-                    <i class="fas fa-project-diagram"></i> 知识点关系图
-                </a>
-            </li>
-            <li class="nav-item">
                 <a class="nav-link {% if request.resolver_match.url_name == 'diagnosis' %}active{% endif %}"
                    href="{% url 'diagnosis' %}">
                     <i class="fas fa-robot"></i> 学生诊断
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if request.resolver_match.url_name == 'exercise_management' %}active{% endif %}"
-                   href="{% url 'exercise_management' %}">
-                    <i class="fas fa-database"></i> 题库管理
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.resolver_match.url_name == 'grade_subjective' %}active{% endif %}"
-                   href="{% url 'grade_subjective' %}">
-                    <i class="fas fa-pen-square"></i> 批改作业
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.resolver_match.url_name == 'student_info' %}active{% endif %}"
-                   href="{% url 'student_info' %}">
-                    <i class="fas fa-users"></i> 授课信息查看
+                <a class="nav-link {% if request.resolver_match.url_name == 'teacher_course_management' %}active{% endif %}"
+                   href="{% url 'teacher_course_management' %}">
+                    <i class="fas fa-cogs"></i> 课程管理
                 </a>
             </li>
             <li class="nav-item">
@@ -51,6 +27,7 @@
                     <i class="fas fa-chalkboard-teacher"></i> 授课管理
                 </a>
             </li>
+           
 
 
         </ul>

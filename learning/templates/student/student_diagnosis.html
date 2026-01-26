@@ -203,24 +203,26 @@
         filter: brightness(1.2);
     }
 
+    /* 聚类背景 */
+    .cluster-background {
+        fill: none;
+        stroke: #ddd;
+        stroke-width: 2;
+        stroke-dasharray: 5,5;
+        opacity: 0.3;
+        pointer-events: none;
+    }
 
-</style>
-
-<!-- 页面标题栏 -->
-<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h2">知识点诊断图</h1>
-    <div class="btn-toolbar mb-2 mb-md-0">
-        <div class="btn-group me-2">
-            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="refreshData()">
-                <i class="fas fa-sync-alt"></i> 刷新数据
-            </button>
-        </div>
-    </div>
-</div>
+    .cluster-label {
+        font-size: 12px;
+        fill: #999;
+        pointer-events: none;
+        font-weight: bold;
+    }</style>
 
 <!-- 科目选择器和统计信息 -->
 <div class="row mb-4">
-    <div class="col-md-4">
+    <div class="col-md-3">
         <div class="card">
             <div class="card-body">
                 <div class="form-group mb-0">
@@ -244,11 +246,31 @@
         </div>
     </div>
 
+    <!-- 视图切换按钮 -->
+    <div class="col-md-2">
+        <div class="card h-100">
+            <div class="card-body d-flex flex-column justify-content-center">
+                <label class="form-label fw-bold mb-2">视图切换</label>
+                <div class="btn-group-vertical w-100" role="group">
+                    <input type="radio" class="btn-check" name="viewMode" id="graphView" value="graph" checked>
+                    <label class="btn btn-outline-primary text-start" for="graphView">
+                        <i class="fas fa-project-diagram me-2"></i>关系图
+                    </label>
+                    
+                    <input type="radio" class="btn-check" name="viewMode" id="chartView" value="chart">
+                    <label class="btn btn-outline-primary text-start" for="chartView">
+                        <i class="fas fa-chart-bar me-2"></i>柱状图
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 修改掌握程度统计部分 -->
-    <div class="col-md-8">
+    <div class="col-md-7">
         <div class="card h-100">
             <div class="card-body">
-                <h6 class="card-title">掌握程度统计</h6>
+                <h6 class="card-title mb-3">掌握程度统计</h6>
                 <div class="row text-center" id="masteryStats">
                     <div class="col-2">
                         <div class="mastery-card p-2 rounded bg-success bg-opacity-10">
@@ -290,7 +312,8 @@
 <!-- 知识点诊断图容器 -->
 <div class="card mb-4">
     <div class="card-body p-0">
-        <div id="graphContainer" class="knowledge-diagnosis-container" style="height: 600px; border: 2px solid #dee2e6; border-radius: 8px; background-color: #f8f9fa;">
+        <!-- 关系图视图 -->
+        <div id="graphContainer" class="knowledge-diagnosis-container" style="height: 600px; border: 2px solid #dee2e6; border-radius: 8px; background-color: #f8f9fa; display: block;">
             <!-- 加载状态 -->
             <div id="loading" style="position:absolute; top:0; left:0; width:100%; height:100%; display:none; flex-direction:column; justify-content:center; align-items:center; background:rgba(255,255,255,0.95); z-index:1000;">
                 <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
@@ -316,6 +339,11 @@
             <!-- D3.js图表区域 -->
             <div id="chart"></div>
         </div>
+
+        <!-- 柱状图视图 -->
+        <div id="chartContainer" style="height: 600px; border: 2px solid #dee2e6; border-radius: 8px; background-color: #f8f9fa; display: none; padding: 20px;">
+            <div id="barChart" style="width: 100%; height: 100%;"></div>
+        </div>
     </div>
 </div>
 
@@ -325,7 +353,7 @@
         <div>
             <i class="fas fa-chart-bar me-2"></i>
             <span id="subjectName"></span>：
-            共 <span id="nodeCount" class="fw-bold">0</span> 个知识点，<span id="linkCount" class="fw-bold">0</span> 个关系
+            共 <span id="nodeCount" class="fw-bold">0</span> 个知识点，<span id="linkCount" class="fw-bold">0</span> 个关系，<span id="clusterCount" class="fw-bold">0</span> 个聚类
         </div>
         <div class="text-muted small">
             <i class="fas fa-mouse-pointer me-1"></i>鼠标悬停查看详情 |
@@ -402,6 +430,44 @@ document.addEventListener('DOMContentLoaded', function() {
     if (select && select.value) {
         console.log('有默认科目，自动加载:', select.value);
         loadDiagnosisData();
+    }
+
+    // 初始化视图切换功能
+    console.log('初始化视图切换功能');
+    
+    const graphViewBtn = document.getElementById('graphView');
+    const chartViewBtn = document.getElementById('chartView');
+    const graphContainer = document.getElementById('graphContainer');
+    const chartContainer = document.getElementById('chartContainer');
+
+    console.log('graphViewBtn:', graphViewBtn);
+    console.log('chartViewBtn:', chartViewBtn);
+    console.log('graphContainer:', graphContainer);
+    console.log('chartContainer:', chartContainer);
+
+    if (graphViewBtn) {
+        graphViewBtn.addEventListener('change', function() {
+            console.log('关系图按钮被点击');
+            if (this.checked) {
+                graphContainer.style.display = 'block';
+                chartContainer.style.display = 'none';
+            }
+        });
+    }
+
+    if (chartViewBtn) {
+        chartViewBtn.addEventListener('change', function() {
+            console.log('柱状图按钮被点击');
+            if (this.checked) {
+                graphContainer.style.display = 'none';
+                chartContainer.style.display = 'block';
+                // 如果有数据，渲染柱状图
+                if (currentData && currentData.nodes) {
+                    console.log('渲染柱状图');
+                    renderBarChart(currentData);
+                }
+            }
+        });
     }
 });
 
@@ -486,6 +552,7 @@ function loadDiagnosisData() {
                 // 显示知识点统计信息
                 document.getElementById('nodeCount').textContent = data.node_count;
                 document.getElementById('linkCount').textContent = data.link_count;
+                document.getElementById('clusterCount').textContent = data.cluster_count || 0;
                 document.getElementById('subjectName').textContent = data.subject_name;
                 document.getElementById('stats').style.display = 'block';
 
@@ -515,6 +582,7 @@ function updateMasteryStats(stats) {
     document.getElementById('masteredCount').textContent = stats.mastered || 0;
     document.getElementById('partialCount').textContent = stats.partial || 0;
     document.getElementById('weakCount').textContent = stats.weak || 0;
+    document.getElementById('beginnerCount').textContent = stats.beginner || 0;
     document.getElementById('noneCount').textContent = stats.none || 0;
 }
 
@@ -523,6 +591,7 @@ function resetStats() {
     document.getElementById('masteredCount').textContent = '0';
     document.getElementById('partialCount').textContent = '0';
     document.getElementById('weakCount').textContent = '0';
+    document.getElementById('beginnerCount').textContent = '0';
     document.getElementById('noneCount').textContent = '0';
 }
 
@@ -601,31 +670,40 @@ function renderDiagnosisGraph(data) {
     console.log('节点:', nodes);
     console.log('链接:', links);
 
-    // 修正后的力模拟设置
+    // 改进的力模拟设置 - 使用 diagnosis_model=3 的数据，优化节点布局
    const simulation = d3.forceSimulation(nodes)
-        // 关键：链接距离要足够大，让节点能分开
+        // 链接力：控制有关系的节点之间的距离
         .force('link', d3.forceLink(links)
             .id(d => d.id)
-            .distance(150)           // 增加距离：让有关系的节点适度分开
-            .strength(0.2))          // 减小强度：避免拉扯太紧
+            .distance(d => {
+                // 根据节点数量动态调整距离
+                const baseDistance = Math.max(200, 300 - data.nodes.length * 2);
+                return baseDistance;
+            })
+            .strength(0.1))          // 减小强度：让链接更松散
 
-        // 关键：排斥力要足够强，让无关节点推开
+        // 排斥力：让无关节点推开
         .force('charge', d3.forceManyBody()
-            .strength(-80))          // 中等排斥力
+            .strength(d => {
+                // 根据节点数量动态调整排斥力
+                return -Math.max(150, 200 - data.nodes.length);
+            })
+            .distanceMax(600))       // 增加排斥力作用范围
 
-        // 关键：中心引力要小，让节点能分散开
+        // 中心引力：让节点不会飘离太远
         .force('center', d3.forceCenter(width / 2, height / 2)
-            .strength(0.02))         // 很小的中心引力
+            .strength(0.03))         // 减小中心引力
 
-        // 碰撞力防止重叠
+        // 碰撞力：防止节点重叠
         .force('collision', d3.forceCollide()
-            .radius(30)
-            .strength(0.8))
+            .radius(50)              // 增加碰撞半径：节点之间保持更大距离
+            .strength(1.0)
+            .iterations(3))          // 增加迭代次数以获得更好的分布
 
-        // 关键：减慢布局过程，让节点有时间找到合适位置
-        .alphaDecay(0.01)            // 非常慢的衰减
-        .velocityDecay(0.8)          // 适当速度衰减
-        .alpha(0.3);                 // 中等启动能量
+        // 布局参数
+        .alphaDecay(0.005)           // 更慢的衰减：让布局有更多时间收敛
+        .velocityDecay(0.6)          // 速度衰减
+        .alpha(0.8);                 // 更高的启动能量
 
     // 绘制链接
     const link = g.append('g')
@@ -697,7 +775,49 @@ function renderDiagnosisGraph(data) {
         label
             .attr('x', d => d.x)
             .attr('y', d => d.y);
+        
+        // 更新聚类背景
+        if (data.clusters && data.clusters.length > 0) {
+            updateClusterBackgrounds();
+        }
     });
+
+    // 更新聚类背景
+    function updateClusterBackgrounds() {
+        if (!data.clusters || data.clusters.length === 0) return;
+        
+        // 为每个聚类计算凸包
+        data.clusters.forEach((cluster, idx) => {
+            const clusterNodes = nodes.filter(n => n.cluster === idx);
+            if (clusterNodes.length < 2) return;
+            
+            // 计算聚类的边界
+            const xs = clusterNodes.map(n => n.x);
+            const ys = clusterNodes.map(n => n.y);
+            const minX = Math.min(...xs) - 40;
+            const maxX = Math.max(...xs) + 40;
+            const minY = Math.min(...ys) - 40;
+            const maxY = Math.max(...ys) + 40;
+            
+            // 绘制聚类背景矩形
+            const clusterId = `cluster-${idx}`;
+            let clusterBg = g.select(`#${clusterId}`);
+            
+            if (clusterBg.empty()) {
+                clusterBg = g.insert('rect', ':first-child')
+                    .attr('id', clusterId)
+                    .attr('class', 'cluster-background')
+                    .attr('rx', 10)
+                    .attr('ry', 10);
+            }
+            
+            clusterBg
+                .attr('x', minX)
+                .attr('y', minY)
+                .attr('width', maxX - minX)
+                .attr('height', maxY - minY);
+        });
+    }
 
     // 拖拽函数
     function dragstarted(event) {
@@ -878,15 +998,10 @@ function resetStats() {
 }
 
 // 窗口大小变化时重绘
-// 等待页面完全加载
+// 科目选择器change事件绑定
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('页面加载完成，开始绑定事件...');
-
     const subjectSelect = document.getElementById('subjectSelect');
     if (subjectSelect) {
-        console.log('找到科目选择器，绑定change事件');
-
-        // 绑定change事件
         subjectSelect.addEventListener('change', function() {
             console.log('科目选择器change事件触发，值:', this.value);
             if (typeof loadDiagnosisData === 'function') {
@@ -895,13 +1010,118 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error('loadDiagnosisData函数未定义');
             }
         });
-
-        console.log('事件绑定完成');
-    } else {
-        console.error('未找到科目选择器');
     }
 });
+
+// 渲染柱状图
+function renderBarChart(data) {
+    if (!data.nodes || data.nodes.length === 0) {
+        document.getElementById('barChart').innerHTML = '<div style="text-align:center; padding:50px;"><p class="text-muted">暂无数据</p></div>';
+        return;
+    }
+
+    // 按掌握程度排序
+    const sortedNodes = [...data.nodes].sort((a, b) => {
+        return (b.mastery_level || 0) - (a.mastery_level || 0);
+    });
+
+    const container = document.getElementById('barChart');
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    const margin = { top: 20, right: 30, bottom: 100, left: 60 };
+    const chartWidth = width - margin.left - margin.right;
+    const chartHeight = height - margin.top - margin.bottom;
+
+    // 清空之前的图表
+    d3.select('#barChart').html('');
+
+    // 创建SVG
+    const svg = d3.select('#barChart')
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height);
+
+    const g = svg.append('g')
+        .attr('transform', `translate(${margin.left},${margin.top})`);
+
+    // 创建比例尺
+    const xScale = d3.scaleBand()
+        .domain(sortedNodes.map(d => d.name))
+        .range([0, chartWidth])
+        .padding(0.1);
+
+    const yScale = d3.scaleLinear()
+        .domain([0, 1])
+        .range([chartHeight, 0]);
+
+    // 绘制柱子
+    g.selectAll('.bar')
+        .data(sortedNodes)
+        .enter()
+        .append('rect')
+        .attr('class', 'bar')
+        .attr('x', d => xScale(d.name))
+        .attr('y', d => yScale(d.mastery_level || 0))
+        .attr('width', xScale.bandwidth())
+        .attr('height', d => chartHeight - yScale(d.mastery_level || 0))
+        .attr('fill', d => d.color)
+        .attr('opacity', 0.8)
+        .on('mouseover', function(event, d) {
+            d3.select(this).attr('opacity', 1);
+            // 显示提示
+            const tooltip = document.getElementById('tooltip');
+            if (tooltip) {
+                const masteryPercent = Math.round((d.mastery_level || 0) * 100);
+                tooltip.innerHTML = `
+                    <h6>${d.full_name || d.name}</h6>
+                    <p><strong>掌握程度:</strong> ${masteryPercent}%</p>
+                    <p><strong>练习次数:</strong> ${d.practice_count || 0}</p>
+                    <p><strong>正确次数:</strong> ${d.correct_count || 0}</p>
+                `;
+                const container = document.getElementById('chartContainer');
+                const rect = container.getBoundingClientRect();
+                tooltip.style.left = (event.clientX - rect.left + 15) + 'px';
+                tooltip.style.top = (event.clientY - rect.top - 100) + 'px';
+                tooltip.style.display = 'block';
+            }
+        })
+        .on('mouseout', function() {
+            d3.select(this).attr('opacity', 0.8);
+            const tooltip = document.getElementById('tooltip');
+            if (tooltip) tooltip.style.display = 'none';
+        });
+
+    // 添加X轴
+    g.append('g')
+        .attr('transform', `translate(0,${chartHeight})`)
+        .call(d3.axisBottom(xScale))
+        .selectAll('text')
+        .attr('transform', 'rotate(-45)')
+        .style('text-anchor', 'end')
+        .style('font-size', '12px');
+
+    // 添加Y轴
+    g.append('g')
+        .call(d3.axisLeft(yScale).tickFormat(d => `${Math.round(d * 100)}%`))
+        .style('font-size', '12px');
+
+    // 添加Y轴标签
+    svg.append('text')
+        .attr('transform', 'rotate(-90)')
+        .attr('y', 0 - margin.left)
+        .attr('x', 0 - (chartHeight / 2))
+        .attr('dy', '1em')
+        .style('text-anchor', 'middle')
+        .style('font-size', '14px')
+        .text('掌握程度');
+
+    // 添加X轴标签
+    svg.append('text')
+        .attr('transform', `translate(${margin.left + chartWidth / 2}, ${height - 10})`)
+        .style('text-anchor', 'middle')
+        .style('font-size', '14px')
+        .text('知识点');
+}
+
 </script>
 {% endblock %}
-
-

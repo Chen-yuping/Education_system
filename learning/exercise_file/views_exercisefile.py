@@ -15,6 +15,13 @@ def is_teacher(user):
 @user_passes_test(is_teacher)
 def upload_exercise(request):
     subjects = Subject.objects.all()
+    
+    # 获取subject_id参数
+    subject_id = request.GET.get('subject_id')
+    subject = None
+    if subject_id:
+        subject = get_object_or_404(Subject, id=subject_id)
+    
     if request.method == 'POST':
         form = ExerciseFileForm(request.POST, request.FILES)
         if form.is_valid():
@@ -34,5 +41,6 @@ def upload_exercise(request):
     return render(request, 'teacher/upload_exercise.html', {
         'form': form,
         'subjects': subjects,
-        'upload_history': upload_history
+        'upload_history': upload_history,
+        'subject': subject,
     })

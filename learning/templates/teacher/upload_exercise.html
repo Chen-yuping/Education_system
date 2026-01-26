@@ -1,15 +1,9 @@
-{% extends 'teacher/base.html' %}
+{% extends 'teacher/course_management_base.html' %}
 {% load static %}
 
 {% block title %}上传习题 - 在线学习诊断系统{% endblock %}
 
 {% block content %}
-
-<!-- 右侧主内容区域 -->
-
-<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h2">上传习题</h1>
-</div>
 
 <!-- 安全文件上传表单 -->
 <div class="row justify-content-center">
@@ -23,14 +17,8 @@
         <form method="post" enctype="multipart/form-data" id="uploadForm">
             {% csrf_token %}
 
-            <!-- 科目选择 -->
-            <div class="mb-4">
-                <label for="{{ form.subject.id_for_label }}" class="form-label fw-semibold">{{ form.subject.label }}</label>
-                {{ form.subject }}
-                {% if form.subject.errors %}
-                    <div class="text-danger small mt-1">{{ form.subject.errors }}</div>
-                {% endif %}
-            </div>
+            <!-- 隐藏的科目ID字段 -->
+            <input type="hidden" name="subject_id" value="{{ request.GET.subject_id }}">
 
             <!-- 文件上传区域（拖拽+点击上传） -->
             <div class="mb-4">

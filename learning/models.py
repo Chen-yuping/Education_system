@@ -8,6 +8,7 @@ from django.core.validators import FileExtensionValidator
 class Subject(models.Model):
     name = models.CharField(max_length=100, verbose_name="科目名称")
     description = models.TextField(blank=True, verbose_name="科目描述")
+    image = models.ImageField(upload_to='subjects/', blank=True, null=True, verbose_name="科目图片")
 
     class Meta:
         verbose_name = "科目"

@@ -1,4 +1,4 @@
-{% extends 'teacher/base.html' %}
+{% extends 'teacher/course_management_base.html' %}
 {% load static %}
 
 {% block title %}批改作业{% endblock %}
@@ -19,29 +19,17 @@
 {% else %}
 
 <div class="container-fluid">
-    <!-- 页面标题 -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h1 class="h3 mb-0 text-gray-800">批改作业</h1>
-            <p class="text-muted mb-0">批改学生的主观题答案</p>
-        </div>
-        <div>
-            <span class="badge bg-warning text-dark me-2">待批改: {{ pending_count }}</span>
-            <span class="badge bg-success">已批改: {{ graded_count }}</span>
-        </div>
-    </div>
-
     <!-- 筛选区域 -->
     <div class="card shadow mb-4">
         <div class="card-body">
             <form method="get" class="row g-3">
                 <div class="col-md-4">
-                    <label for="subjectFilter" class="form-label">科目</label>
-                    <select class="form-select" id="subjectFilter" name="subject">
-                        <option value="">全部科目</option>
-                        {% for subject in subjects %}
-                        <option value="{{ subject.id }}" {% if current_subject == subject.id|stringformat:'s' %}selected{% endif %}>
-                            {{ subject.name }}
+                    <label for="exerciseFilter" class="form-label">题目</label>
+                    <select class="form-select" id="exerciseFilter" name="exercise">
+                        <option value="">全部题目</option>
+                        {% for exercise in exercises %}
+                        <option value="{{ exercise.id }}" {% if current_exercise == exercise.id|stringformat:'s' %}selected{% endif %}>
+                            {{ exercise.title|truncatechars:40 }}
                         </option>
                         {% endfor %}
                     </select>
@@ -181,6 +169,9 @@
             </div>
             <div class="modal-footer" id="gradeModalFooter" style="display: none;">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-info" onclick="requestAIGrade()">
+                    <i class="fas fa-brain me-1"></i>AI评分建议
+                </button>
                 <button type="button" class="btn btn-danger" onclick="submitGrade(false)">
                     <i class="fas fa-times me-1"></i>错误
                 </button>
@@ -290,6 +281,129 @@ function renderGradeContent(log) {
             </div>
         </div>
         ` : ''}
+        
+        <div id="aiGradingResult" style="display: none;"></div>
+    `;
+}
+
+function requestAIGrade() {
+    const bodyDiv = document.getElementById('gradeModalBody');
+    const resultDiv = document.getElementById('aiGradingResult');
+    
+    // Show loading state
+    resultDiv.innerHTML = `
+        <div class="alert alert-info mt-4">
+            <div class="d-flex align-items-center">
+                <div class="spinner-border spinner-border-sm me-2" role="status">
+                    <span class="visually-hidden">加载中...</span>
+                </div>
+                <span>AI正在评分中，请稍候...</span>
+            </div>
+        </div>
+    `;
+    resultDiv.style.display = 'block';
+    
+    fetch(`/learning/teacher/api/answer/${currentLogId}/ai-grade/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            displayAIGradingResult(data.grading, resultDiv);
+        } else {
+            resultDiv.innerHTML = `
+                <div class="alert alert-warning mt-4">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    ${data.message}
+                </div>
+            `;
+        }
+    })
+    .catch(error => {
+        resultDiv.innerHTML = `
+            <div class="alert alert-danger mt-4">
+                <i class="fas fa-times-circle me-2"></i>
+                AI评分请求失败，请重试
+            </div>
+        `;
+    });
+}
+
+function displayAIGradingResult(grading, resultDiv) {
+    const isCorrect = grading.is_correct;
+    const score = grading.score;
+    const feedback = grading.feedback;
+    const reasoning = grading.reasoning;
+    const confidence = (grading.confidence * 100).toFixed(0);
+    
+    let correctBadge = '';
+    if (isCorrect === true) {
+        correctBadge = '<span class="badge bg-success">正确</span>';
+    } else if (isCorrect === false) {
+        correctBadge = '<span class="badge bg-danger">错误</span>';
+    } else {
+        correctBadge = '<span class="badge bg-secondary">不确定</span>';
+    }
+    
+    let confidenceColor = 'success';
+    if (confidence < 60) {
+        confidenceColor = 'warning';
+    } else if (confidence < 40) {
+        confidenceColor = 'danger';
+    }
+    
+    resultDiv.innerHTML = `
+        <div class="alert alert-primary mt-4">
+            <h6 class="alert-heading">
+                <i class="fas fa-brain me-2"></i>AI评分建议
+            </h6>
+            <hr>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <div class="mb-2">
+                        <strong>评分结果：</strong> ${correctBadge}
+                    </div>
+                    <div class="mb-2">
+                        <strong>分数：</strong> ${score !== null ? score + '/100' : '未评分'}
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-2">
+                        <strong>置信度：</strong> 
+                        <span class="badge bg-${confidenceColor}">${confidence}%</span>
+                    </div>
+                </div>
+            </div>
+            
+            ${feedback ? `
+            <div class="mb-3">
+                <strong>反馈：</strong>
+                <div class="mt-2 p-2 bg-white rounded">
+                    ${feedback.replace(/\n/g, '<br>')}
+                </div>
+            </div>
+            ` : ''}
+            
+            ${reasoning ? `
+            <div class="mb-3">
+                <strong>评分理由：</strong>
+                <div class="mt-2 p-2 bg-white rounded">
+                    ${reasoning.replace(/\n/g, '<br>')}
+                </div>
+            </div>
+            ` : ''}
+            
+            <div class="alert alert-warning mt-3 mb-0">
+                <small>
+                    <i class="fas fa-info-circle me-1"></i>
+                    AI评分仅供参考，请根据实际情况进行最终判断。
+                </small>
+            </div>
+        </div>
     `;
 }
 

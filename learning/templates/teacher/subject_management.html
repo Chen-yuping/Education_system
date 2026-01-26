@@ -1,96 +1,266 @@
 {% extends 'teacher/base.html' %}
 
+{% block title %}授课管理 - 在线学习诊断系统{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3 mb-3 border-bottom">
-    <h1 class="h2">课程管理</h1>
-</div>
+<style>
+    .course-management-container {
+        padding: 20px;
+    }
 
-<div class="row">
-    <!-- 可选课程 -->
-    <div class="col-md-6">
-        <div class="card shadow mb-4">
-            <div class="card-header py-3 d-flex justify-content-between align-items-center">
-                <h6 class="m-0 font-weight-bold text-primary">可选课程</h6>
-                <span class="badge bg-secondary" id="availableCount">0</span>
-            </div>
-            <div class="card-body">
-                <!-- 搜索框 -->
-                <div class="mb-3">
-                    <div class="input-group">
-                        <input type="text" class="form-control" id="subjectSearch" 
-                               placeholder="输入课程名称搜索...">
-                        <button class="btn btn-primary" type="button" id="searchBtn">
-                            搜索
-                        </button>
-                        <button class="btn btn-outline-secondary" type="button" id="clearBtn">
-                            清空
-                        </button>
-                    </div>
-                    <small class="text-muted mt-1 d-block" id="searchHint"></small>
+    .course-card {
+        border: none;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        margin-bottom: 20px;
+        transition: all 0.3s ease;
+    }
+
+    .course-card:hover {
+        box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+    }
+
+    .course-item {
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 12px;
+        transition: all 0.2s ease;
+        background: white;
+    }
+
+    .course-item:hover {
+        border-color: #007bff;
+        background-color: #f8f9ff;
+    }
+
+    .course-badge {
+        font-size: 0.85rem;
+        padding: 5px 12px;
+    }
+
+    .search-box {
+        border-radius: 8px;
+        border: 2px solid #e9ecef;
+        transition: all 0.3s ease;
+    }
+
+    .search-box:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+    }
+
+    .course-description {
+        color: #6c757d;
+        font-size: 0.9rem;
+        margin: 8px 0;
+    }
+
+    .course-meta {
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+
+    .btn-select-course {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        color: white;
+        transition: all 0.3s ease;
+        white-space: nowrap;
+    }
+
+    .btn-select-course:hover {
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        color: white;
+        opacity: 0.9;
+    }
+
+    .btn-remove-course {
+        transition: all 0.3s ease;
+        white-space: nowrap;
+    }
+
+    .btn-remove-course:hover {
+        box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
+        opacity: 0.9;
+    }
+
+    .btn-view-course {
+        white-space: nowrap;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 40px 20px;
+        color: #6c757d;
+    }
+
+    .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 15px;
+        opacity: 0.5;
+    }
+
+    .course-stats {
+        display: flex;
+        gap: 15px;
+        margin-top: 10px;
+    }
+
+    .stat-item {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+
+    .stat-item i {
+        color: #007bff;
+    }
+</style>
+
+<div class="course-management-container">
+  
+
+    <div class="row">
+        <!-- 左侧：可选课程 -->
+        <div class="col-lg-6 mb-4">
+            <div class="course-card">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-book text-primary me-2"></i>
+                        可选课程
+                    </h5>
+                    <span class="badge course-badge bg-secondary" id="availableCount">0</span>
                 </div>
-                
-                <form method="post">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="add">
-                    <div class="list-group" id="availableSubjectsList" style="max-height: 400px; overflow-y: auto;">
-                        {% for subject in all_subjects %}
-                            {% if subject.id not in teaching_subject_ids %}
-                            <div class="list-group-item subject-item" data-name="{{ subject.name }}">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <strong>{{ subject.name }}</strong>
-                                        {% if subject.description %}
-                                        <small class="d-block text-muted">{{ subject.description|truncatechars:80 }}</small>
-                                        {% endif %}
-                                    </div>
-                                    <button type="submit" name="subject_id" value="{{ subject.id }}" class="btn btn-sm btn-outline-primary">
-                                        选择授课
-                                    </button>
-                                </div>
-                            </div>
-                            {% endif %}
-                        {% empty %}
-                        <div class="text-center py-3 text-muted">暂无可用课程</div>
-                        {% endfor %}
-                    </div>
-                    <div class="text-center py-3 text-muted" id="noResultsMsg" style="display: none;">
-                        没有找到匹配的课程
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <!-- 已选授课课程 -->
-    <div class="col-md-6">
-        <div class="card shadow mb-4">
-            <div class="card-header py-3 d-flex justify-content-between align-items-center">
-                <h6 class="m-0 font-weight-bold text-primary">我的授课课程</h6>
-                <span class="badge bg-primary">{{ teaching_subjects|length }}</span>
-            </div>
-            <div class="card-body">
-                <form method="post">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="remove">
-                    <div class="list-group" style="max-height: 400px; overflow-y: auto;">
-                        {% for teaching in teaching_subjects %}
-                        <div class="list-group-item d-flex justify-content-between align-items-center">
-                            <div>
-                                <strong>{{ teaching.subject.name }}</strong>
-                                {% if teaching.subject.description %}
-                                <small class="d-block text-muted">{{ teaching.subject.description|truncatechars:80 }}</small>
-                                {% endif %}
-                                <small class="d-block text-muted">添加时间: {{ teaching.created_at|date:"Y-m-d" }}</small>
-                            </div>
-                            <button type="submit" name="subject_id" value="{{ teaching.subject.id }}" class="btn btn-sm btn-outline-danger">
-                                取消授课
+                <div class="card-body">
+                    <!-- 搜索框 -->
+                    <div class="mb-3">
+                        <div class="input-group">
+                            <span class="input-group-text bg-white">
+                                <i class="fas fa-search text-muted"></i>
+                            </span>
+                            <input type="text" class="form-control search-box border-start-0" 
+                                   id="subjectSearch" 
+                                   placeholder="输入课程名称搜索...">
+                            <button class="btn btn-outline-secondary" type="button" id="clearBtn">
+                                <i class="fas fa-times"></i> 清空
                             </button>
                         </div>
-                        {% empty %}
-                        <div class="text-center py-3 text-muted">尚未选择任何授课课程</div>
-                        {% endfor %}
+                        <small class="text-muted mt-2 d-block" id="searchHint"></small>
                     </div>
-                </form>
+
+                    <!-- 课程列表 -->
+                    <div id="availableSubjectsList" style="max-height: 500px; overflow-y: auto;">
+                        <form method="post" id="selectCourseForm">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="add">
+                            {% for subject in all_subjects %}
+                                {% if subject.id not in teaching_subject_ids %}
+                                <div class="course-item" data-name="{{ subject.name }}">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1">{{ subject.name }}</h6>
+                                            {% if subject.description %}
+                                            <p class="course-description mb-2">{{ subject.description|truncatechars:100 }}</p>
+                                            {% endif %}
+                                            <div class="course-stats">
+                                                <span class="stat-item">
+                                                    <i class="fas fa-book"></i>
+                                                    <span>{{ subject.exercise_set.count }} 道习题</span>
+                                                </span>
+                                                <span class="stat-item">
+                                                    <i class="fas fa-brain"></i>
+                                                    <span>{{ subject.knowledgepoint_set.count }} 个知识点</span>
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <button type="submit" name="subject_id" value="{{ subject.id }}" 
+                                                class="btn btn-sm btn-select-course ms-3">
+                                            <i class="fas fa-plus me-1"></i>选择
+                                        </button>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            {% empty %}
+                            <div class="empty-state">
+                                <i class="fas fa-inbox"></i>
+                                <p>暂无可选课程</p>
+                            </div>
+                            {% endfor %}
+                        </form>
+                    </div>
+                    <div class="empty-state" id="noResultsMsg" style="display: none;">
+                        <i class="fas fa-search"></i>
+                        <p>没有找到匹配的课程</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧：我的授课课程 -->
+        <div class="col-lg-6 mb-4">
+            <div class="course-card">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chalkboard-user text-success me-2"></i>
+                        我的授课课程
+                    </h5>
+                    <span class="badge course-badge bg-success">{{ teaching_subjects|length }}</span>
+                </div>
+                <div class="card-body">
+                    <div style="max-height: 600px; overflow-y: auto;">
+                        <form method="post" id="removeCourseForm">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="remove">
+                            {% for teaching in teaching_subjects %}
+                            <div class="course-item">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div class="flex-grow-1">
+                                        <h6 class="mb-1">{{ teaching.subject.name }}</h6>
+                                        {% if teaching.subject.description %}
+                                        <p class="course-description mb-2">{{ teaching.subject.description|truncatechars:100 }}</p>
+                                        {% endif %}
+                                        <div class="course-stats">
+                                            <span class="stat-item">
+                                                <i class="fas fa-calendar-alt"></i>
+                                                <span>授课时间: {{ teaching.created_at|date:"Y-m-d" }}</span>
+                                            </span>
+                                        </div>
+                                        <div class="course-stats mt-2">
+                                            <span class="stat-item">
+                                                <i class="fas fa-book"></i>
+                                                <span>{{ teaching.subject.exercise_set.count }} 道习题</span>
+                                            </span>
+                                            <span class="stat-item">
+                                                <i class="fas fa-brain"></i>
+                                                <span>{{ teaching.subject.knowledgepoint_set.count }} 个知识点</span>
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex flex-column gap-2 ms-3" style="min-width: 80px;">
+                                        <a href="{% url 'upload_exercise' %}?subject_id={{ teaching.subject.id }}" 
+                                           class="btn btn-sm btn-outline-primary btn-view-course">
+                                            <i class="fas fa-door-open me-1"></i>门户
+                                        </a>
+                                        <button type="submit" name="subject_id" value="{{ teaching.subject.id }}" 
+                                                class="btn btn-sm btn-outline-danger btn-remove-course">
+                                            <i class="fas fa-times me-1"></i>退课
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <div class="empty-state">
+                                <i class="fas fa-book-open"></i>
+                                <p>尚未选择任何授课课程</p>
+                                <small class="text-muted">从左侧选择课程开始授课</small>
+                            </div>
+                            {% endfor %}
+                        </form>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -98,36 +268,35 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    var searchInput = document.getElementById('subjectSearch');
-    var searchBtn = document.getElementById('searchBtn');
-    var clearBtn = document.getElementById('clearBtn');
-    var countBadge = document.getElementById('availableCount');
-    var noResultsMsg = document.getElementById('noResultsMsg');
-    var searchHint = document.getElementById('searchHint');
-    var listContainer = document.getElementById('availableSubjectsList');
+    const searchInput = document.getElementById('subjectSearch');
+    const clearBtn = document.getElementById('clearBtn');
+    const countBadge = document.getElementById('availableCount');
+    const noResultsMsg = document.getElementById('noResultsMsg');
+    const searchHint = document.getElementById('searchHint');
+    const listContainer = document.getElementById('availableSubjectsList');
     
     function getItems() {
-        return listContainer.getElementsByClassName('subject-item');
+        return listContainer.getElementsByClassName('course-item');
     }
     
     // 初始化计数
     countBadge.textContent = getItems().length;
     
     function doSearch() {
-        var searchText = searchInput.value.toLowerCase().trim();
-        var items = getItems();
-        var visibleCount = 0;
+        const searchText = searchInput.value.toLowerCase().trim();
+        const items = getItems();
+        let visibleCount = 0;
         
-        for (var i = 0; i < items.length; i++) {
-            var item = items[i];
-            var name = item.getAttribute('data-name');
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            const name = item.getAttribute('data-name');
             if (name) {
-                name = name.toLowerCase();
-                if (searchText === '' || name.indexOf(searchText) !== -1) {
-                    item.style.setProperty('display', 'block', 'important');
+                const nameLower = name.toLowerCase();
+                if (searchText === '' || nameLower.indexOf(searchText) !== -1) {
+                    item.style.display = 'block';
                     visibleCount++;
                 } else {
-                    item.style.setProperty('display', 'none', 'important');
+                    item.style.display = 'none';
                 }
             }
         }
@@ -136,9 +305,13 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (visibleCount === 0 && searchText !== '') {
             noResultsMsg.style.display = 'block';
+            listContainer.style.display = 'none';
             searchHint.textContent = '搜索 "' + searchInput.value + '" 无结果';
+            searchHint.classList.add('text-danger');
         } else {
             noResultsMsg.style.display = 'none';
+            listContainer.style.display = 'block';
+            searchHint.classList.remove('text-danger');
             if (searchText !== '') {
                 searchHint.textContent = '找到 ' + visibleCount + ' 个匹配的课程';
             } else {
@@ -149,17 +322,17 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function doClear() {
         searchInput.value = '';
-        searchHint.textContent = '';
         doSearch();
     }
     
-    searchBtn.addEventListener('click', doSearch);
+    // 实时搜索
+    searchInput.addEventListener('input', doSearch);
     clearBtn.addEventListener('click', doClear);
-    searchInput.addEventListener('keyup', doSearch);
-    searchInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
+    
+    // 表单提交确认
+    document.getElementById('removeCourseForm').addEventListener('submit', function(e) {
+        if (!confirm('确定要取消授课这门课程吗？')) {
             e.preventDefault();
-            doSearch();
         }
     });
 });

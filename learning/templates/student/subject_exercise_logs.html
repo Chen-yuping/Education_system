@@ -296,30 +296,6 @@
     </div>
 </div>
 
-<div class="row mb-4">
-    <!-- 每日答题活跃度 -->
-    <div class="col-md-6 mb-3">
-        <div class="chart-card">
-            <div class="chart-title">
-                <i class="fas fa-calendar-alt"></i>
-                每日答题活跃度
-            </div>
-            <div class="chart-container" id="dailyChart"></div>
-        </div>
-    </div>
-
-    <!-- 题型分布 -->
-    <div class="col-md-6 mb-3">
-        <div class="chart-card">
-            <div class="chart-title">
-                <i class="fas fa-tasks"></i>
-                答题分布统计
-            </div>
-            <div class="chart-container" id="typeChart"></div>
-        </div>
-    </div>
-</div>
-
 <!-- 各习题答题情况 -->
 <div class="exercise-table mb-4">
     <div class="table-header">
@@ -394,6 +370,73 @@
         </div>
     </div>
 </div>
+
+<!-- 分页控件 -->
+{% if page_obj.has_other_pages %}
+<nav aria-label="Page navigation" class="mb-4">
+    <ul class="pagination justify-content-center">
+        <!-- 上一页 -->
+        {% if page_obj.has_previous %}
+        <li class="page-item">
+            <a class="page-link" href="?page=1" aria-label="First">
+                <span aria-hidden="true">&laquo;&laquo;</span>
+            </a>
+        </li>
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.previous_page_number }}" aria-label="Previous">
+                <span aria-hidden="true">&laquo;</span>
+            </a>
+        </li>
+        {% else %}
+        <li class="page-item disabled">
+            <span class="page-link">&laquo;&laquo;</span>
+        </li>
+        <li class="page-item disabled">
+            <span class="page-link">&laquo;</span>
+        </li>
+        {% endif %}
+
+        <!-- 页码 -->
+        {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+            <li class="page-item active">
+                <span class="page-link">{{ num }}</span>
+            </li>
+            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+            </li>
+            {% endif %}
+        {% endfor %}
+
+        <!-- 下一页 -->
+        {% if page_obj.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.next_page_number }}" aria-label="Next">
+                <span aria-hidden="true">&raquo;</span>
+            </a>
+        </li>
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}" aria-label="Last">
+                <span aria-hidden="true">&raquo;&raquo;</span>
+            </a>
+        </li>
+        {% else %}
+        <li class="page-item disabled">
+            <span class="page-link">&raquo;</span>
+        </li>
+        <li class="page-item disabled">
+            <span class="page-link">&raquo;&raquo;</span>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+
+<!-- 分页信息 -->
+<div class="text-center text-muted mb-4">
+    <small>第 {{ page_obj.number }} 页，共 {{ page_obj.paginator.num_pages }} 页 | 共 {{ total_exercises }} 题</small>
+</div>
+{% endif %}
 
 {% else %}
 <!-- 无数据提示 -->

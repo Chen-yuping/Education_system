@@ -25,10 +25,17 @@ def knowledge_graph(request):
 
         # 如果有科目，设置第一个为默认
         default_subject = subjects[0] if subjects else None
+        
+        # 获取subject_id参数
+        subject_id = request.GET.get('subject_id')
+        subject = None
+        if subject_id:
+            subject = Subject.objects.get(id=subject_id)
 
         context = {
             'subjects': subjects,
             'default_subject': default_subject,
+            'subject': subject,
         }
 
         return render(request, 'teacher/knowledge_graph.html', context)
@@ -38,6 +45,7 @@ def knowledge_graph(request):
         context = {
             'subjects': [],
             'default_subject': None,
+            'subject': None,
         }
         return render(request, 'teacher/knowledge_graph.html', context)
 
