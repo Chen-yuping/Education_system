@@ -1,0 +1,508 @@
+{% extends 'teacher/course_management_base.html' %}
+
+{% block title %}知识点关系管理 - 在线学习诊断系统{% endblock %}
+
+{% block content %}
+<style>
+    .page-header {
+        margin-bottom: 32px;
+        padding-bottom: 20px;
+        border-bottom: 2px solid #f0f0f0;
+    }
+
+    .page-title {
+        font-size: 28px;
+        font-weight: 700;
+        color: #1a1a1a;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 8px;
+    }
+
+    .page-title i {
+        color: #667eea;
+        font-size: 32px;
+    }
+
+    .page-subtitle {
+        color: #666;
+        font-size: 14px;
+    }
+
+    .legend {
+        display: flex;
+        gap: 24px;
+        margin-bottom: 28px;
+        padding: 16px 20px;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        border-radius: 12px;
+        font-size: 13px;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .legend-color {
+        width: 16px;
+        height: 16px;
+        border-radius: 3px;
+    }
+
+    .legend-color.source {
+        background: #10b981;
+    }
+
+    .legend-color.target {
+        background: #ef4444;
+    }
+
+    .content-grid {
+        display: grid;
+        grid-template-columns: 1fr 1.5fr;
+        gap: 24px;
+        margin-bottom: 32px;
+    }
+
+    .form-panel {
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        border: 1px solid #f0f0f0;
+        height: fit-content;
+    }
+
+    .panel-title {
+        font-size: 16px;
+        font-weight: 700;
+        margin-bottom: 20px;
+        color: #1a1a1a;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .panel-title i {
+        color: #667eea;
+    }
+
+    .form-group {
+        margin-bottom: 16px;
+    }
+
+    .form-label {
+        font-weight: 700;
+        margin-bottom: 8px;
+        color: #1a1a1a;
+        font-size: 13px;
+        display: block;
+    }
+
+    .form-select {
+        width: 100%;
+        padding: 10px 12px;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        font-size: 13px;
+        transition: all 0.3s ease;
+    }
+
+    .form-select:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        outline: none;
+    }
+
+    .btn-add {
+        width: 100%;
+        padding: 12px 16px;
+        background: #667eea;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+
+    .btn-add:hover {
+        background: #5568d3;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    }
+
+    .btn-add:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .stats-panel {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 12px;
+        padding: 24px;
+        color: white;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    }
+
+    .stat-item {
+        margin-bottom: 20px;
+    }
+
+    .stat-item:last-child {
+        margin-bottom: 0;
+    }
+
+    .stat-label {
+        font-size: 12px;
+        opacity: 0.9;
+        margin-bottom: 8px;
+    }
+
+    .stat-value {
+        font-size: 36px;
+        font-weight: 700;
+    }
+
+    .relationships-panel {
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        border: 1px solid #f0f0f0;
+    }
+
+    .relationship-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        margin-bottom: 12px;
+        transition: all 0.3s ease;
+    }
+
+    .relationship-item:hover {
+        border-color: #667eea;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+    }
+
+    .relationship-content {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex: 1;
+    }
+
+    .kp-name {
+        font-weight: 700;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 13px;
+    }
+
+    .kp-name.source {
+        background: #d1fae5;
+        color: #065f46;
+    }
+
+    .kp-name.target {
+        background: #fee2e2;
+        color: #7f1d1d;
+    }
+
+    .relationship-arrow {
+        color: #667eea;
+        font-weight: 700;
+        font-size: 16px;
+    }
+
+    .btn-delete {
+        padding: 8px 16px;
+        background: #ef4444;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 700;
+        font-size: 12px;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .btn-delete:hover {
+        background: #dc2626;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 40px;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        border-radius: 12px;
+    }
+
+    .empty-state i {
+        font-size: 48px;
+        color: #667eea;
+        margin-bottom: 16px;
+        opacity: 0.8;
+    }
+
+    .empty-state h5 {
+        font-size: 16px;
+        font-weight: 700;
+        color: #1a1a1a;
+        margin-bottom: 8px;
+    }
+
+    .empty-state p {
+        color: #666;
+        font-size: 13px;
+    }
+
+    .back-button {
+        margin-top: 32px;
+        padding-top: 20px;
+        border-top: 2px solid #f0f0f0;
+    }
+
+    .back-button .btn {
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-weight: 700;
+        transition: all 0.3s ease;
+    }
+
+    .btn-back {
+        background: #f0f0f0;
+        color: #666;
+    }
+
+    .btn-back:hover {
+        background: #e0e0e0;
+    }
+
+    @media (max-width: 1024px) {
+        .content-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="page-header">
+    <div class="page-title">
+        <i class="fas fa-project-diagram"></i>
+        知识点关系管理
+    </div>
+    <div class="page-subtitle">管理知识点之间的前置关系和依赖关系</div>
+</div>
+
+<!-- 图例 -->
+<div class="legend">
+    <div class="legend-item">
+        <div class="legend-color source"></div>
+        <span>前置知识点（绿色）</span>
+    </div>
+    <div class="legend-item">
+        <div class="legend-color target"></div>
+        <span>后续知识点（红色）</span>
+    </div>
+    <div class="legend-item">
+        <i class="fas fa-arrow-right" style="color: #667eea; font-size: 14px;"></i>
+        <span>表示前置关系</span>
+    </div>
+</div>
+
+<!-- 内容区域 -->
+<div class="content-grid">
+    <!-- 左侧：添加关系表单 -->
+    <div>
+        <div class="form-panel">
+            <div class="panel-title">
+                <i class="fas fa-plus-circle"></i> 添加新关系
+            </div>
+
+            <form id="add-relationship-form">
+                {% csrf_token %}
+
+                <div class="form-group">
+                    <label class="form-label">前置知识点（源）</label>
+                    <select name="source_id" class="form-select" required>
+                        <option value="">-- 请选择 --</option>
+                        {% for kp in knowledge_points %}
+                            <option value="{{ kp.id }}">{{ kp.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">后续知识点（目标）</label>
+                    <select name="target_id" class="form-select" required>
+                        <option value="">-- 请选择 --</option>
+                        {% for kp in knowledge_points %}
+                            <option value="{{ kp.id }}">{{ kp.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <button type="submit" class="btn-add">
+                    <i class="fas fa-plus"></i> 添加关系
+                </button>
+            </form>
+        </div>
+
+        <!-- 统计信息 -->
+        <div class="stats-panel" style="margin-top: 20px;">
+            <div class="panel-title" style="color: white; margin-bottom: 24px;">
+                <i class="fas fa-chart-bar"></i> 统计信息
+            </div>
+
+            <div class="stat-item">
+                <div class="stat-label">知识点总数</div>
+                <div class="stat-value">{{ knowledge_points.count }}</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">关系总数</div>
+                <div class="stat-value">{{ relationships.count }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 右侧：关系列表 -->
+    <div class="relationships-panel">
+        <div class="panel-title">
+            <i class="fas fa-list"></i> 所有关系
+        </div>
+
+        {% if relationships %}
+            {% for rel in relationships %}
+                <div class="relationship-item" data-relationship-id="{{ rel.id }}">
+                    <div class="relationship-content">
+                        <span class="kp-name source">{{ rel.source.name }}</span>
+                        <span class="relationship-arrow">→</span>
+                        <span class="kp-name target">{{ rel.target.name }}</span>
+                    </div>
+                    <button class="btn-delete" onclick="deleteRelationship({{ rel.id }}, this)">
+                        <i class="fas fa-trash"></i> 删除
+                    </button>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state">
+                <i class="fas fa-inbox"></i>
+                <h5>暂无关系</h5>
+                <p>点击左侧面板添加知识点关系</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 返回按钮 -->
+<div class="back-button">
+    <a href="{% url 'knowledge_point_list' subject_id=subject.id %}" class="btn btn-back">
+        <i class="fas fa-arrow-left me-2"></i> 返回知识点列表
+    </a>
+</div>
+
+<script>
+// 添加关系
+document.getElementById('add-relationship-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const sourceId = this.querySelector('[name="source_id"]').value;
+    const targetId = this.querySelector('[name="target_id"]').value;
+    
+    if (!sourceId || !targetId) {
+        showNotification('请选择前置和后续知识点', 'error');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('source_id', sourceId);
+    formData.append('target_id', targetId);
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    
+    fetch('{% url "add_knowledge_relationship" subject_id=subject.id %}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(data.message, 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showNotification(data.message, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('操作失败，请重试', 'error');
+    });
+});
+
+// 删除关系
+function deleteRelationship(relationshipId, button) {
+    if (!confirm('确定要删除该关系吗？')) {
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    
+    fetch('{% url "delete_knowledge_relationship" subject_id=subject.id relationship_id=0 %}'.replace('0', relationshipId), {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(data.message, 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showNotification(data.message, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('操作失败，请重试', 'error');
+    });
+}
+
+function showNotification(message, type) {
+    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+    const alertHtml = `
+        <div class="alert ${alertClass} alert-dismissible fade show" role="alert" style="margin-bottom: 20px; border-radius: 8px; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+            <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'} me-2"></i>
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    
+    const container = document.querySelector('.container');
+    const alertElement = document.createElement('div');
+    alertElement.innerHTML = alertHtml;
+    container.insertBefore(alertElement.firstElementChild, container.firstElementChild);
+    
+    setTimeout(() => {
+        const alert = container.querySelector('.alert');
+        if (alert) {
+            alert.remove();
+        }
+    }, 3000);
+}
+</script>
+{% endblock %}

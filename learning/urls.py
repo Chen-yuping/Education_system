@@ -2,7 +2,7 @@ from . import views_student,views_teacher,views_researcher
 from django.urls import path, include
 from .exercise_file import views_exercisefile
 from .diagnosis import views_diagnosis,views_personalized_recommendations
-from .knowledge import views_teacherknowledge,views_studentknowledge
+from .knowledge import views_teacherknowledge,views_studentknowledge,views_teacherknowledge_management
 
 urlpatterns = [
 
@@ -48,6 +48,17 @@ urlpatterns = [
     # 知识点关系图页面,知识点数据接口
     path('teacher/knowledge-graph/',views_teacherknowledge.knowledge_graph,name='teacher_knowledge_graph'),#知识点关系图
     path('teacher/api/knowledge-points/<int:subject_id>/',views_teacherknowledge.knowledge_points_api,name='knowledge_points_api'),
+
+    # 知识点管理
+    path('teacher/knowledge-points/<int:subject_id>/', views_teacherknowledge_management.knowledge_point_list, name='knowledge_point_list'),
+    path('teacher/knowledge-points/<int:subject_id>/add/', views_teacherknowledge_management.knowledge_point_add, name='knowledge_point_add'),
+    path('teacher/knowledge-points/<int:subject_id>/<int:kp_id>/edit/', views_teacherknowledge_management.knowledge_point_edit, name='knowledge_point_edit'),
+    path('teacher/knowledge-points/<int:subject_id>/<int:kp_id>/delete/', views_teacherknowledge_management.knowledge_point_delete, name='knowledge_point_delete'),
+    path('teacher/knowledge-points/<int:subject_id>/<int:kp_id>/exercises/', views_teacherknowledge_management.knowledge_point_exercise_association, name='knowledge_point_exercise_association'),
+    path('teacher/knowledge-points/<int:subject_id>/<int:kp_id>/toggle-exercise/', views_teacherknowledge_management.toggle_exercise_association, name='toggle_exercise_association'),
+    path('teacher/knowledge-points/<int:subject_id>/relationships/', views_teacherknowledge_management.knowledge_point_relationship, name='knowledge_point_relationship'),
+    path('teacher/knowledge-points/<int:subject_id>/relationships/add/', views_teacherknowledge_management.add_knowledge_relationship, name='add_knowledge_relationship'),
+    path('teacher/knowledge-points/<int:subject_id>/relationships/<int:relationship_id>/delete/', views_teacherknowledge_management.delete_knowledge_relationship, name='delete_knowledge_relationship'),
 
     path('teacher/subjects/', views_teacher.teacher_subject_management, name='teacher_subject_management'),#老师选择授课
     path('teacher/course-management/', views_teacher.teacher_course_management, name='teacher_course_management'),#课程管理

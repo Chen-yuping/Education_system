@@ -27,6 +27,13 @@
         </li>
         
         <li class="nav-item">
+            <a class="nav-link {% if request.resolver_match.url_name == 'knowledge_point_list' %}active{% endif %}" 
+               href="{% url 'knowledge_point_list' subject_id=subject.id %}">
+                <i class="fas fa-lightbulb"></i> 知识点管理
+            </a>
+        </li>
+        
+        <li class="nav-item">
             <a class="nav-link {% if request.resolver_match.url_name == 'grade_subjective' %}active{% endif %}" 
                href="{% url 'grade_subjective' %}?subject_id={{ subject.id }}">
                 <i class="fas fa-check-double"></i> 批改作业
@@ -35,7 +42,7 @@
 
         <li class="nav-item">
             <a class="nav-link {% if request.resolver_match.url_name == 'exercise_management' %}active{% endif %}" 
-               href="{% url 'exercise_management' %}?subject_id={{ subject.id }}">
+               href="{% url 'exercise_management' %}?subject={{ subject.id }}">
                 <i class="fas fa-book-open"></i> 题库管理
             </a>
         </li>
