@@ -273,28 +273,6 @@
         font-size: 13px;
     }
 
-    .back-button {
-        margin-top: 32px;
-        padding-top: 20px;
-        border-top: 2px solid #f0f0f0;
-    }
-
-    .back-button .btn {
-        padding: 12px 24px;
-        border-radius: 8px;
-        font-weight: 700;
-        transition: all 0.3s ease;
-    }
-
-    .btn-back {
-        background: #f0f0f0;
-        color: #666;
-    }
-
-    .btn-back:hover {
-        background: #e0e0e0;
-    }
-
     @media (max-width: 1024px) {
         .content-grid {
             grid-template-columns: 1fr;
@@ -303,28 +281,22 @@
 </style>
 
 <div class="page-header">
-    <div class="page-title">
-        <i class="fas fa-project-diagram"></i>
-        知识点关系管理
+    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+        <div>
+            <div class="page-title">
+                <i class="fas fa-project-diagram"></i>
+                知识点关系管理
+            </div>
+            <div class="page-subtitle">管理知识点之间的前置关系和依赖关系</div>
+        </div>
+        <div style="display: flex; gap: 12px;">
+            <a href="{% url 'knowledge_point_list' subject_id=subject.id %}" class="btn btn-secondary" style="height: fit-content;">
+                <i class="fas fa-arrow-left me-2"></i> 返回知识点列表
+            </a>
+        </div>
     </div>
-    <div class="page-subtitle">管理知识点之间的前置关系和依赖关系</div>
 </div>
 
-<!-- 图例 -->
-<div class="legend">
-    <div class="legend-item">
-        <div class="legend-color source"></div>
-        <span>前置知识点（绿色）</span>
-    </div>
-    <div class="legend-item">
-        <div class="legend-color target"></div>
-        <span>后续知识点（红色）</span>
-    </div>
-    <div class="legend-item">
-        <i class="fas fa-arrow-right" style="color: #667eea; font-size: 14px;"></i>
-        <span>表示前置关系</span>
-    </div>
-</div>
 
 <!-- 内容区域 -->
 <div class="content-grid">
@@ -384,7 +356,7 @@
     <!-- 右侧：关系列表 -->
     <div class="relationships-panel">
         <div class="panel-title">
-            <i class="fas fa-list"></i> 所有关系
+            <i class="fas fa-list"></i> 先决关系
         </div>
 
         {% if relationships %}
@@ -410,12 +382,7 @@
     </div>
 </div>
 
-<!-- 返回按钮 -->
-<div class="back-button">
-    <a href="{% url 'knowledge_point_list' subject_id=subject.id %}" class="btn btn-back">
-        <i class="fas fa-arrow-left me-2"></i> 返回知识点列表
-    </a>
-</div>
+
 
 <script>
 // 添加关系

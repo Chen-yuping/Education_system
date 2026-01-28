@@ -120,37 +120,48 @@
     }
 
     .tooltip {
-        position: absolute;
-        background: rgba(0, 0, 0, 0.85);
+        position: fixed;
+        background: rgba(0, 0, 0, 0.95);
         color: white;
         padding: 12px 15px;
-        border-radius: 6px;
-        font-size: 14px;
+        border-radius: 8px;
+        font-size: 13px;
         pointer-events: none;
-        z-index: 100;
-        max-width: 300px;
-        box-shadow: 0 3px 15px rgba(0,0,0,0.3);
-        /* 移除 transition: opacity 0.2s; 或者确保opacity为1 */
-        display: none;  /* 这个由JavaScript控制 */
+        z-index: 10000;
+        max-width: 320px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+        border: 1px solid rgba(255,255,255,0.1);
+        display: none;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.2s ease, visibility 0.2s ease;
     }
 
-    /* 确保显示时完全可见 */
-    .tooltip[style*="display: block"] {
+    .tooltip.hidden {
+        display: none !important;
+        opacity: 0 !important;
+        visibility: hidden !important;
+    }
+
+    .tooltip.visible {
+        display: block !important;
         opacity: 1 !important;
         visibility: visible !important;
     }
 
     .tooltip h6 {
-        margin: 0 0 5px 0;
+        margin: 0 0 8px 0;
         color: #ffcc00;
         font-weight: bold;
         border-bottom: 1px solid rgba(255,255,255,0.2);
         padding-bottom: 5px;
+        font-size: 14px;
     }
 
     .tooltip p {
-        margin: 3px 0;
-        font-size: 13px;
+        margin: 4px 0;
+        font-size: 12px;
+        line-height: 1.4;
     }
 
     .progress-thin {
@@ -334,15 +345,17 @@
             </div>
 
             <!-- 工具提示 -->
-            <div id="tooltip" class="tooltip"></div>
+            <div id="tooltip" class="tooltip hidden"></div>
 
             <!-- D3.js图表区域 -->
             <div id="chart"></div>
         </div>
 
         <!-- 柱状图视图 -->
-        <div id="chartContainer" style="height: 600px; border: 2px solid #dee2e6; border-radius: 8px; background-color: #f8f9fa; display: none; padding: 20px;">
+        <div id="chartContainer" style="height: 600px; border: 2px solid #dee2e6; border-radius: 8px; background-color: #f8f9fa; display: none; padding: 20px; position: relative; overflow: visible;">
             <div id="barChart" style="width: 100%; height: 100%;"></div>
+            <!-- 工具提示 -->
+            <div id="tooltip-bar" class="tooltip hidden"></div>
         </div>
     </div>
 </div>
@@ -878,25 +891,34 @@ function renderDiagnosisGraph(data) {
         if (tooltip && currentContainer) {
             const masteryPercent = d.mastery_percent || Math.round((d.mastery_level || 0) * 100);
             const accuracy = d.accuracy || 0;
+            const practiceCount = d.practice_count || 0;
+            const correctCount = d.correct_count || 0;
 
             tooltip.innerHTML = `
-                <h6>${d.full_name || d.name}</h6>
-                <p><strong>掌握程度:</strong> ${masteryPercent}%</p>
-                <div class="progress progress-thin">
-                    <div class="progress-bar" role="progressbar"
-                         style="width: ${masteryPercent}%; background-color: ${d.color};">
-                    </div>
+                <h6 style="margin: 0 0 8px 0; color: #ffcc00; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">
+                    ${d.full_name || d.name}
+                </h6>
+                <p style="margin: 4px 0;"><strong>掌握程度:</strong> <span style="color: #4ade80; font-weight: bold;">${masteryPercent}%</span></p>
+                <div style="background: rgba(255,255,255,0.1); border-radius: 3px; height: 6px; margin: 5px 0; overflow: hidden;">
+                    <div style="height: 100%; width: ${masteryPercent}%; background-color: ${d.color}; transition: width 0.3s ease;"></div>
                 </div>
-                <p><strong>练习次数:</strong> ${d.practice_count || 0}</p>
-                <p><strong>正确次数:</strong> ${d.correct_count || 0}</p>
-                <p><strong>正确率:</strong> ${accuracy.toFixed(1)}%</p>
-                ${d.last_practiced ? `<p><strong>最后练习:</strong> ${d.last_practiced}</p>` : ''}
+                <p style="margin: 4px 0;"><strong>练习次数:</strong> ${practiceCount}</p>
+                <p style="margin: 4px 0;"><strong>正确次数:</strong> ${correctCount}</p>
+                <p style="margin: 4px 0;"><strong>正确率:</strong> ${accuracy.toFixed(1)}%</p>
+                ${d.last_practiced ? `<p style="margin: 4px 0; font-size: 11px; color: #bbb;"><strong>最后练习:</strong> ${d.last_practiced}</p>` : ''}
             `;
 
+            // 相对于节点位置定位tooltip，而不是鼠标位置
             const rect = currentContainer.getBoundingClientRect();
-            tooltip.style.left = (event.clientX - rect.left + 15) + 'px';
-            tooltip.style.top = (event.clientY - rect.top - 100) + 'px';
-            tooltip.style.display = 'block';
+            const nodeX = d.x || 0;
+            const nodeY = d.y || 0;
+            
+            tooltip.style.left = (rect.left + nodeX + 35) + 'px';
+            tooltip.style.top = (rect.top + nodeY - 80) + 'px';
+            
+            // 使用class来控制显示
+            tooltip.classList.remove('hidden');
+            tooltip.classList.add('visible');
         }
     });
 
@@ -918,7 +940,10 @@ function renderDiagnosisGraph(data) {
 
         // 隐藏工具提示
         const tooltip = document.getElementById('tooltip');
-        if (tooltip) tooltip.style.display = 'none';
+        if (tooltip) {
+            tooltip.classList.remove('visible');
+            tooltip.classList.add('hidden');
+        }
     });
 
     console.log('图表绘制完成');
@@ -1020,9 +1045,9 @@ function renderBarChart(data) {
         return;
     }
 
-    // 按掌握程度排序
+    // 按知识点ID排序
     const sortedNodes = [...data.nodes].sort((a, b) => {
-        return (b.mastery_level || 0) - (a.mastery_level || 0);
+        return (a.id || 0) - (b.id || 0);
     });
 
     const container = document.getElementById('barChart');
@@ -1066,29 +1091,78 @@ function renderBarChart(data) {
         .attr('height', d => chartHeight - yScale(d.mastery_level || 0))
         .attr('fill', d => d.color)
         .attr('opacity', 0.8)
+        .style('cursor', 'pointer')
+        .style('transition', 'all 0.2s ease')
         .on('mouseover', function(event, d) {
-            d3.select(this).attr('opacity', 1);
+            console.log('柱状图悬停事件触发，数据:', d);
+            
+            // 高亮当前柱子
+            d3.select(this)
+                .transition()
+                .duration(200)
+                .attr('opacity', 1)
+                .attr('stroke', '#333')
+                .attr('stroke-width', 2);
+
             // 显示提示
-            const tooltip = document.getElementById('tooltip');
+            const tooltip = document.getElementById('tooltip-bar');
+            console.log('tooltip元素:', tooltip);
+            
             if (tooltip) {
                 const masteryPercent = Math.round((d.mastery_level || 0) * 100);
-                tooltip.innerHTML = `
-                    <h6>${d.full_name || d.name}</h6>
-                    <p><strong>掌握程度:</strong> ${masteryPercent}%</p>
-                    <p><strong>练习次数:</strong> ${d.practice_count || 0}</p>
-                    <p><strong>正确次数:</strong> ${d.correct_count || 0}</p>
+                const accuracy = d.accuracy || 0;
+                const practiceCount = d.practice_count || 0;
+                const correctCount = d.correct_count || 0;
+
+                const tooltipHTML = `
+                    <h6 style="margin: 0 0 8px 0; color: #ffcc00; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">
+                        ${d.full_name || d.name}
+                    </h6>
+                    <p style="margin: 4px 0;"><strong>掌握程度:</strong> <span style="color: #4ade80; font-weight: bold;">${masteryPercent}%</span></p>
+                    <div style="background: rgba(255,255,255,0.1); border-radius: 3px; height: 6px; margin: 5px 0; overflow: hidden;">
+                        <div style="height: 100%; width: ${masteryPercent}%; background-color: ${d.color}; transition: width 0.3s ease;"></div>
+                    </div>
+                    <p style="margin: 4px 0;"><strong>练习次数:</strong> ${practiceCount}</p>
+                    <p style="margin: 4px 0;"><strong>正确次数:</strong> ${correctCount}</p>
+                    <p style="margin: 4px 0;"><strong>正确率:</strong> ${accuracy.toFixed(1)}%</p>
+                    ${d.last_practiced ? `<p style="margin: 4px 0; font-size: 11px; color: #bbb;"><strong>最后练习:</strong> ${d.last_practiced}</p>` : ''}
                 `;
-                const container = document.getElementById('chartContainer');
-                const rect = container.getBoundingClientRect();
-                tooltip.style.left = (event.clientX - rect.left + 15) + 'px';
-                tooltip.style.top = (event.clientY - rect.top - 100) + 'px';
-                tooltip.style.display = 'block';
+                
+                tooltip.innerHTML = tooltipHTML;
+                console.log('tooltip内容已更新');
+                
+                // 使用fixed定位，相对于视口
+                const tooltipX = event.clientX + 15;
+                const tooltipY = event.clientY - 120;
+                
+                tooltip.style.left = tooltipX + 'px';
+                tooltip.style.top = tooltipY + 'px';
+                
+                // 使用class来控制显示
+                tooltip.classList.remove('hidden');
+                tooltip.classList.add('visible');
+                
+                console.log('tooltip位置:', tooltipX, tooltipY);
+                console.log('tooltip已显示');
             }
         })
         .on('mouseout', function() {
-            d3.select(this).attr('opacity', 0.8);
-            const tooltip = document.getElementById('tooltip');
-            if (tooltip) tooltip.style.display = 'none';
+            console.log('柱状图鼠标离开');
+            
+            // 恢复柱子样式
+            d3.select(this)
+                .transition()
+                .duration(200)
+                .attr('opacity', 0.8)
+                .attr('stroke', 'none')
+                .attr('stroke-width', 0);
+
+            const tooltip = document.getElementById('tooltip-bar');
+            if (tooltip) {
+                tooltip.classList.remove('visible');
+                tooltip.classList.add('hidden');
+                console.log('tooltip已隐藏');
+            }
         });
 
     // 添加X轴
@@ -1113,6 +1187,7 @@ function renderBarChart(data) {
         .attr('dy', '1em')
         .style('text-anchor', 'middle')
         .style('font-size', '14px')
+        .style('font-weight', 'bold')
         .text('掌握程度');
 
     // 添加X轴标签
@@ -1120,6 +1195,7 @@ function renderBarChart(data) {
         .attr('transform', `translate(${margin.left + chartWidth / 2}, ${height - 10})`)
         .style('text-anchor', 'middle')
         .style('font-size', '14px')
+        .style('font-weight', 'bold')
         .text('知识点');
 }
 

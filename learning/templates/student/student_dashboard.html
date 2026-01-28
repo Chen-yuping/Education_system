@@ -94,6 +94,30 @@
     </div>
 
     <div class="row">
+
+        <!-- 快速操作 -->
+        <div class="col-xl-4 col-lg-5">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">开始学习</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        {% for subject in subjects|slice:":3" %}
+                        <a href="{% url 'recommended_exercises' subject_id=subject.id %}" target="_blank" class="btn btn-outline-primary text-start">
+                            <i class="fas fa-play-circle me-2"></i>
+                            学习 {{ subject.name }}
+                        </a>
+                        {% endfor %}
+                        <a href="{% url 'student_diagnosis' %}" class="btn btn-outline-info text-start">
+                            <i class="fas fa-chart-bar me-2"></i>
+                            查看学习诊断
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- 最近练习记录 -->
         <div class="col-xl-8 col-lg-7">
             <div class="card shadow mb-4">
@@ -151,28 +175,7 @@
             </div>
         </div>
 
-        <!-- 快速操作 -->
-        <div class="col-xl-4 col-lg-5">
-            <div class="card shadow mb-4">
-                <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">快速操作</h6>
-                </div>
-                <div class="card-body">
-                    <div class="d-grid gap-2">
-                        {% for subject in subjects|slice:":3" %}
-                        <a href="{% url 'recommended_exercises' subject_id=subject.id %}" target="_blank" class="btn btn-outline-primary text-start">
-                            <i class="fas fa-play-circle me-2"></i>
-                            学习 {{ subject.name }}
-                        </a>
-                        {% endfor %}
-                        <a href="{% url 'student_diagnosis' %}" class="btn btn-outline-info text-start">
-                            <i class="fas fa-chart-bar me-2"></i>
-                            查看学习诊断
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
+        
     </div>
 
 </main>

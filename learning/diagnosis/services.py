@@ -97,7 +97,7 @@ class DiagnosisService:
             student_data[student.id] = {
                 'id': student.id,
                 'username': student.username,
-                'first_name': f"{student.first_name or ''} {student.last_name or ''}".strip() or student.username,
+                'first_name': f"{student.first_name or ''}{student.last_name or ''}" or student.username,
                 'answer_logs': [],
                 'exercise_scores': {}
             }
@@ -194,13 +194,17 @@ class DiagnosisService:
             {
                 'id': kp.id,
                 'name': kp.name,
-                'subject_id': kp.subject_id
+                'subject_id': kp.subject_id,
+                'exercise_count': QMatrix.objects.filter(knowledge_point=kp).count()
             }
             for kp in data['knowledge_points']
         ]
         result['total_students'] = len(data['students'])
         result['diagnosed_students'] = len(result.get('diagnosis_results', {}))
         result['diagnosis_time'] = timezone.now().isoformat()
+        
+        # 添加知识点关系
+        result['knowledge_relations'] = self._get_knowledge_relations(data['knowledge_points'])
 
         return result
 
@@ -236,13 +240,17 @@ class DiagnosisService:
             {
                 'id': kp.id,
                 'name': kp.name,
-                'subject_id': kp.subject_id
+                'subject_id': kp.subject_id,
+                'exercise_count': QMatrix.objects.filter(knowledge_point=kp).count()
             }
             for kp in data['knowledge_points']
         ]
         result['total_students'] = len(data['students'])
         result['diagnosed_students'] = len(result.get('diagnosis_results', {}))
         result['diagnosis_time'] = timezone.now().isoformat()
+        
+        # 添加知识点关系
+        result['knowledge_relations'] = self._get_knowledge_relations(data['knowledge_points'])
 
         return result
 
@@ -347,13 +355,15 @@ class DiagnosisService:
                 {
                     'id': kp.id,
                     'name': kp.name,
-                    'subject_id': kp.subject_id
+                    'subject_id': kp.subject_id,
+                    'exercise_count': QMatrix.objects.filter(knowledge_point=kp).count()
                 }
                 for kp in knowledge_points
             ],
             'total_students': len(students),
             'diagnosed_students': len(diagnosis_results),
-            'diagnosis_time': timezone.now().isoformat()
+            'diagnosis_time': timezone.now().isoformat(),
+            'knowledge_relations': self._get_knowledge_relations(knowledge_points)
         }
 
     # 保留旧方法名以兼容
@@ -492,3 +502,38 @@ class DiagnosisService:
             student_id=student_id,
             knowledge_point__subject_id=subject_id
         ).select_related('knowledge_point', 'diagnosis_model').order_by('-last_practiced')
+
+    def _get_knowledge_relations(self, knowledge_points: List) -> List[Dict]:
+        """
+        获取知识点之间的关系
+
+        Args:
+            knowledge_points: 知识点列表
+
+        Returns:
+            知识点关系列表
+        """
+        from ..models import KnowledgeGraph
+        
+        relations = []
+        kp_ids = [kp.id for kp in knowledge_points]
+        kp_id_set = set(kp_ids)
+        
+        # 从KnowledgeGraph模型中获取关系
+        if knowledge_points:
+            subject_id = knowledge_points[0].subject_id
+            
+            # 获取该科目的所有知识点关系
+            knowledge_graphs = KnowledgeGraph.objects.filter(
+                subject_id=subject_id,
+                source_id__in=kp_id_set,
+                target_id__in=kp_id_set
+            ).values_list('source_id', 'target_id')
+            
+            for source_id, target_id in knowledge_graphs:
+                relations.append({
+                    'source': source_id,
+                    'target': target_id
+                })
+        
+        return relations

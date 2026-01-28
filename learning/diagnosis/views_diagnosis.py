@@ -278,7 +278,9 @@ def get_student_diagnosis_detail(request, student_id, subject_id):
             'student': {
                 'id': student.id,
                 'username': student.username,
-                'first_name': f"{student.first_name or ''} {student.last_name or ''}".strip() or student.username,
+                'first_name': student.first_name or '',
+                'last_name': student.last_name or '',
+                'full_name': f"{student.first_name or ''}{student.last_name or ''}" or student.username,
                 'email': student.email if hasattr(student, 'email') else '',
                 'total_answers': answer_stats['total_answers'] or 0,
                 'correct_rate': correct_rate,

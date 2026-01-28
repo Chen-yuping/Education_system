@@ -30,6 +30,191 @@
         font-size: 14px;
     }
 
+    .two-column-container {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+        margin-bottom: 32px;
+    }
+
+    @media (max-width: 1200px) {
+        .two-column-container {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .column-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        height: 600px;
+    }
+
+    .column-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px;
+        font-size: 18px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .column-header.right {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    }
+
+    .search-box {
+        padding: 16px;
+        border-bottom: 1px solid #e0e0e0;
+    }
+
+    .search-box input {
+        width: 100%;
+        padding: 10px 16px;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        font-size: 14px;
+        transition: all 0.3s ease;
+    }
+
+    .search-box input:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .exercise-list-container {
+        flex: 1;
+        overflow-y: auto;
+        padding: 12px;
+    }
+
+    .exercise-item {
+        background: #f8f9fa;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 12px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .exercise-item:hover {
+        border-color: #667eea;
+        background: #f0f4ff;
+        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
+    }
+
+    .exercise-item.associated {
+        border-color: #10b981;
+        background: #f0fdf4;
+    }
+
+    .exercise-content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .exercise-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: #1a1a1a;
+        margin-bottom: 6px;
+        word-break: break-word;
+    }
+
+    .exercise-text {
+        font-size: 12px;
+        color: #666;
+        line-height: 1.4;
+        margin-bottom: 6px;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        word-break: break-word;
+    }
+
+    .exercise-type {
+        display: inline-block;
+        background: #667eea;
+        color: white;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+    }
+
+    .exercise-actions {
+        display: flex;
+        gap: 6px;
+        flex-shrink: 0;
+    }
+
+    .btn-action {
+        padding: 6px 12px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        white-space: nowrap;
+    }
+
+    .btn-add {
+        background: #667eea;
+        color: white;
+    }
+
+    .btn-add:hover {
+        background: #5568d3;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    }
+
+    .btn-remove {
+        background: #ef4444;
+        color: white;
+    }
+
+    .btn-remove:hover {
+        background: #dc2626;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+    }
+
+    .btn-action:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 40px 20px;
+        color: #999;
+    }
+
+    .empty-state i {
+        font-size: 32px;
+        margin-bottom: 12px;
+        opacity: 0.5;
+    }
+
+    .empty-state p {
+        font-size: 14px;
+    }
+
     .stats-bar {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -56,143 +241,6 @@
         font-weight: 700;
     }
 
-    .exercise-list {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-    }
-
-    .exercise-item {
-        background: white;
-        border: 2px solid #e0e0e0;
-        border-radius: 12px;
-        padding: 16px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        transition: all 0.3s ease;
-    }
-
-    .exercise-item:hover {
-        border-color: #667eea;
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
-    }
-
-    .exercise-info {
-        flex: 1;
-    }
-
-    .exercise-title {
-        font-size: 16px;
-        font-weight: 700;
-        color: #1a1a1a;
-        margin-bottom: 8px;
-    }
-
-    .exercise-type {
-        display: inline-block;
-        background: #667eea;
-        color: white;
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-size: 12px;
-        font-weight: 600;
-    }
-
-    .toggle-btn {
-        padding: 10px 20px;
-        border-radius: 8px;
-        border: none;
-        cursor: pointer;
-        font-weight: 700;
-        transition: all 0.3s ease;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-size: 13px;
-    }
-
-    .toggle-btn.associated {
-        background: #10b981;
-        color: white;
-    }
-
-    .toggle-btn.associated:hover {
-        background: #059669;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-    }
-
-    .toggle-btn.not-associated {
-        background: #e0e0e0;
-        color: #666;
-    }
-
-    .toggle-btn.not-associated:hover {
-        background: #d0d0d0;
-        transform: translateY(-2px);
-    }
-
-    .toggle-btn:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-        transform: none;
-    }
-
-    .empty-state {
-        text-align: center;
-        padding: 80px 40px;
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-        border-radius: 12px;
-        margin: 40px 0;
-    }
-
-    .empty-state i {
-        font-size: 64px;
-        color: #667eea;
-        margin-bottom: 20px;
-        opacity: 0.8;
-    }
-
-    .empty-state h5 {
-        font-size: 20px;
-        font-weight: 700;
-        color: #1a1a1a;
-        margin-bottom: 12px;
-    }
-
-    .empty-state p {
-        color: #666;
-        font-size: 14px;
-    }
-
-    .pagination {
-        margin-top: 32px;
-        justify-content: center;
-    }
-
-    .pagination .page-link {
-        border-radius: 6px;
-        border: 1px solid #e0e0e0;
-        color: #667eea;
-        margin: 0 4px;
-        padding: 8px 12px;
-        font-weight: 600;
-        transition: all 0.3s ease;
-    }
-
-    .pagination .page-link:hover {
-        background: #667eea;
-        color: white;
-        border-color: #667eea;
-    }
-
-    .pagination .page-item.active .page-link {
-        background: #667eea;
-        border-color: #667eea;
-        color: white;
-    }
-
     .back-button {
         margin-top: 32px;
         padding-top: 20px;
@@ -214,6 +262,25 @@
     .btn-back:hover {
         background: #e0e0e0;
     }
+
+    /* 滚动条美化 */
+    .exercise-list-container::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .exercise-list-container::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+    }
+
+    .exercise-list-container::-webkit-scrollbar-thumb {
+        background: #667eea;
+        border-radius: 10px;
+    }
+
+    .exercise-list-container::-webkit-scrollbar-thumb:hover {
+        background: #5568d3;
+    }
 </style>
 
 <div class="page-header">
@@ -232,79 +299,83 @@
     </div>
     <div class="stat-card" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);">
         <div class="stat-label">总习题数</div>
-        <div class="stat-value">{{ page_obj.paginator.count }}</div>
+        <div class="stat-value">{{ total_exercises }}</div>
     </div>
 </div>
 
-<!-- 习题列表 -->
-{% if page_obj %}
-    <div class="exercise-list">
-        {% for exercise in page_obj %}
-            <div class="exercise-item" data-exercise-id="{{ exercise.id }}">
-                <div class="exercise-info">
-                    <div class="exercise-title">{{ exercise.title }}</div>
-                    <span class="exercise-type">{{ exercise.get_question_type_display }}</span>
-                </div>
-                <button class="toggle-btn {% if exercise.is_associated %}associated{% else %}not-associated{% endif %}" 
-                        onclick="toggleAssociation({{ exercise.id }}, this)"
-                        data-associated="{% if exercise.is_associated %}true{% else %}false{% endif %}">
-                    {% if exercise.is_associated %}
-                        <i class="fas fa-check"></i> 已关联
-                    {% else %}
-                        <i class="fas fa-plus"></i> 关联
-                    {% endif %}
-                </button>
-            </div>
-        {% endfor %}
-    </div>
-
-    <!-- 分页 -->
-    {% if page_obj.has_other_pages %}
-        <nav aria-label="Page navigation">
-            <ul class="pagination">
-                {% if page_obj.has_previous %}
-                    <li class="page-item">
-                        <a class="page-link" href="?page=1">
-                            <i class="fas fa-chevron-left"></i> 首页
-                        </a>
-                    </li>
-                    <li class="page-item">
-                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}">上一页</a>
-                    </li>
-                {% endif %}
-
-                {% for num in page_obj.paginator.page_range %}
-                    {% if page_obj.number == num %}
-                        <li class="page-item active">
-                            <span class="page-link">{{ num }}</span>
-                        </li>
-                    {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ num }}">{{ num }}</a>
-                        </li>
-                    {% endif %}
+<!-- 两列布局 -->
+<div class="two-column-container">
+    <!-- 左列：已关联的习题 -->
+    <div class="column-card">
+        <div class="column-header">
+            <i class="fas fa-check-circle"></i>
+            已关联习题 (<span id="left-count">{{ associated_count }}</span>)
+        </div>
+        <div class="exercise-list-container" id="associated-list">
+            {% if associated_exercises %}
+                {% for exercise in associated_exercises %}
+                    <div class="exercise-item associated" data-exercise-id="{{ exercise.id }}">
+                        <div class="exercise-content">
+                            <div class="exercise-title">{{ exercise.title }}</div>
+                            <div class="exercise-text">{{ exercise.content|truncatewords:15 }}</div>
+                            <span class="exercise-type">{{ exercise.get_question_type_display }}</span>
+                        </div>
+                        <div class="exercise-actions">
+                            <button class="btn-action btn-remove" onclick="removeAssociation({{ exercise.id }}, this)" title="取消关联">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
                 {% endfor %}
-
-                {% if page_obj.has_next %}
-                    <li class="page-item">
-                        <a class="page-link" href="?page={{ page_obj.next_page_number }}">下一页</a>
-                    </li>
-                    <li class="page-item">
-                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">
-                            末页 <i class="fas fa-chevron-right"></i>
-                        </a>
-                    </li>
-                {% endif %}
-            </ul>
-        </nav>
-    {% endif %}
-{% else %}
-    <div class="empty-state">
-        <i class="fas fa-inbox"></i>
-        <h5>暂无习题</h5>
-        <p>该科目还没有添加习题</p>
+            {% else %}
+                <div class="empty-state">
+                    <i class="fas fa-inbox"></i>
+                    <p>暂无已关联习题</p>
+                </div>
+            {% endif %}
+        </div>
     </div>
-{% endif %}
+
+    <!-- 右列：全部习题 -->
+    <div class="column-card">
+        <div class="column-header right">
+            <i class="fas fa-book"></i>
+            全部习题 (<span id="right-count">{{ total_exercises }}</span>)
+        </div>
+        <div class="search-box">
+            <input type="text" id="exercise-search" placeholder="搜索习题标题或内容..." />
+        </div>
+        <div class="exercise-list-container" id="all-exercises-list">
+            {% if all_exercises %}
+                {% for exercise in all_exercises %}
+                    <div class="exercise-item {% if exercise.is_associated %}associated{% endif %}" data-exercise-id="{{ exercise.id }}" data-title="{{ exercise.title }}" data-content="{{ exercise.content }}">
+                        <div class="exercise-content">
+                            <div class="exercise-title">{{ exercise.title }}</div>
+                            <div class="exercise-text">{{ exercise.content|truncatewords:15 }}</div>
+                            <span class="exercise-type">{{ exercise.get_question_type_display }}</span>
+                        </div>
+                        <div class="exercise-actions">
+                            {% if exercise.is_associated %}
+                                <button class="btn-action btn-remove" onclick="removeAssociation({{ exercise.id }}, this)" title="取消关联">
+                                    <i class="fas fa-times"></i> 取消
+                                </button>
+                            {% else %}
+                                <button class="btn-action btn-add" onclick="addAssociation({{ exercise.id }}, this)" title="关联">
+                                    <i class="fas fa-plus"></i> 关联
+                                </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <i class="fas fa-inbox"></i>
+                    <p>暂无习题</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
 
 <!-- 返回按钮 -->
 <div class="back-button">
@@ -314,13 +385,31 @@
 </div>
 
 <script>
-function toggleAssociation(exerciseId, button) {
-    const isAssociated = button.dataset.associated === 'true';
+// 搜索功能
+document.getElementById('exercise-search').addEventListener('input', function(e) {
+    const searchText = e.target.value.toLowerCase();
+    const items = document.querySelectorAll('#all-exercises-list .exercise-item');
+    let visibleCount = 0;
     
-    // 禁用按钮
+    items.forEach(item => {
+        const title = item.dataset.title.toLowerCase();
+        const content = item.dataset.content.toLowerCase();
+        
+        if (title.includes(searchText) || content.includes(searchText)) {
+            item.style.display = '';
+            visibleCount++;
+        } else {
+            item.style.display = 'none';
+        }
+    });
+    
+    document.getElementById('right-count').textContent = visibleCount;
+});
+
+// 添加关联
+function addAssociation(exerciseId, button) {
     button.disabled = true;
     
-    // 发送请求
     fetch('{% url "toggle_exercise_association" subject_id=subject.id kp_id=knowledge_point.id %}', {
         method: 'POST',
         headers: {
@@ -332,28 +421,20 @@ function toggleAssociation(exerciseId, button) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            // 更新按钮状态
-            const newAssociated = data.action === 'added';
-            button.dataset.associated = newAssociated;
+            // 更新按钮
+            button.classList.remove('btn-add');
+            button.classList.add('btn-remove');
+            button.innerHTML = '<i class="fas fa-times"></i> 取消';
+            button.onclick = function() { removeAssociation(exerciseId, this); };
             
-            if (newAssociated) {
-                button.classList.remove('not-associated');
-                button.classList.add('associated');
-                button.innerHTML = '<i class="fas fa-check"></i> 已关联';
-            } else {
-                button.classList.remove('associated');
-                button.classList.add('not-associated');
-                button.innerHTML = '<i class="fas fa-plus"></i> 关联';
-            }
+            // 更新项目样式
+            const item = button.closest('.exercise-item');
+            item.classList.add('associated');
             
             // 更新计数
-            const countElement = document.getElementById('associated-count');
-            let count = parseInt(countElement.textContent);
-            count = newAssociated ? count + 1 : count - 1;
-            countElement.textContent = count;
+            updateCounts();
             
-            // 显示提示
-            showNotification(data.message, 'success');
+            showNotification('习题已关联', 'success');
         } else {
             showNotification(data.message, 'error');
         }
@@ -367,24 +448,73 @@ function toggleAssociation(exerciseId, button) {
     });
 }
 
+// 移除关联
+function removeAssociation(exerciseId, button) {
+    button.disabled = true;
+    
+    fetch('{% url "toggle_exercise_association" subject_id=subject.id kp_id=knowledge_point.id %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: 'exercise_id=' + exerciseId
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 更新按钮
+            button.classList.remove('btn-remove');
+            button.classList.add('btn-add');
+            button.innerHTML = '<i class="fas fa-plus"></i> 关联';
+            button.onclick = function() { addAssociation(exerciseId, this); };
+            
+            // 更新项目样式
+            const item = button.closest('.exercise-item');
+            item.classList.remove('associated');
+            
+            // 更新计数
+            updateCounts();
+            
+            showNotification('习题已取消关联', 'success');
+        } else {
+            showNotification(data.message, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('操作失败，请重试', 'error');
+    })
+    .finally(() => {
+        button.disabled = false;
+    });
+}
+
+// 更新计数
+function updateCounts() {
+    const associatedItems = document.querySelectorAll('#all-exercises-list .exercise-item.associated').length;
+    document.getElementById('associated-count').textContent = associatedItems;
+    document.getElementById('left-count').textContent = associatedItems;
+}
+
+// 显示通知
 function showNotification(message, type) {
     const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
     const alertHtml = `
-        <div class="alert ${alertClass} alert-dismissible fade show" role="alert" style="margin-bottom: 20px; border-radius: 8px; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+        <div class="alert ${alertClass} alert-dismissible fade show" role="alert" style="position: fixed; top: 20px; right: 20px; z-index: 1050; min-width: 300px; border-radius: 8px; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
             <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'} me-2"></i>
             ${message}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     `;
     
-    const container = document.querySelector('.container');
     const alertElement = document.createElement('div');
     alertElement.innerHTML = alertHtml;
-    container.insertBefore(alertElement.firstElementChild, container.firstElementChild);
+    document.body.appendChild(alertElement.firstElementChild);
     
     // 3秒后自动关闭
     setTimeout(() => {
-        const alert = container.querySelector('.alert');
+        const alert = document.querySelector('.alert');
         if (alert) {
             alert.remove();
         }

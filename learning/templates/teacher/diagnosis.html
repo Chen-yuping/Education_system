@@ -196,9 +196,6 @@
                         <button class="btn btn-success" id="startDiagnosisBtn">
                             <i class="fas fa-play me-2"></i>开始诊断分析
                         </button>
-                        <button class="btn btn-outline-info ms-2" id="exportReportBtn">
-                            <i class="fas fa-download me-2"></i>导出报告
-                        </button>
                     </div>
                     <div class="form-check form-switch align-self-center">
                         <input class="form-check-input" type="checkbox" id="realTimeUpdate" checked>
@@ -480,9 +477,7 @@ function setupEventListeners() {
     const subjectSelect = document.getElementById('subjectSelect');
     if (subjectSelect) {
         subjectSelect.addEventListener('change', function() {
-            if (this.value) {
-                loadSubjectSummary(this.value);
-            }
+            // 科目选择时不自动加载数据，等待用户点击"开始诊断"
         });
     }
 
@@ -507,10 +502,8 @@ function setupEventListeners() {
     const refreshBtn = document.getElementById('refreshBtn');
     if (refreshBtn) {
         refreshBtn.addEventListener('click', function() {
-            const subjectId = document.getElementById('subjectSelect').value;
-            if (subjectId) {
-                loadSubjectSummary(subjectId);
-            }
+            // 刷新按钮不再自动加载摘要数据
+            showAlert('请点击"开始诊断"按钮进行诊断分析', 'info');
         });
     }
 
@@ -591,33 +584,9 @@ function exportReport() {
     showAlert('报告导出功能开发中...', 'info');
 }
 
-// 加载科目摘要
+// 加载科目摘要（已弃用 - 不再自动加载）
 async function loadSubjectSummary(subjectId) {
-    try {
-        showLoading('正在加载科目数据...');
-        const response = await fetch(`/learning/teacher/api/diagnosis/summary/${subjectId}/`);
-
-        if (!response.ok) {
-            throw new Error(`HTTP错误: ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        if (data.success) {
-            updateStatsSummary(data.summary);
-
-            if (data.summary.knowledge_points.length > 0) {
-                renderOverallChartFromSummary(data.summary);
-            }
-        } else {
-            showAlert('加载数据失败: ' + data.error, 'error');
-        }
-    } catch (error) {
-        console.error('加载科目摘要失败:', error);
-        showAlert('加载科目数据失败: ' + error.message, 'error');
-    } finally {
-        hideLoading();
-    }
+    // 此函数已弃用，诊断数据只在点击"开始诊断"后显示
 }
 
 // 从摘要数据渲染总体图表
@@ -961,7 +930,7 @@ function renderBarChart(diagnosisData, kpAverages) {
 }
 
 
-// 渲染知识点关系图 - 简化版本，显示知识点之间的关系和学生平均掌握程度
+// 渲染知识点关系图 - 显示知识点之间的关系和学生平均掌握程度
 function renderKnowledgeGraph(diagnosisData, kpAverages) {
     const container = document.getElementById('knowledgeGraphContainer');
     const chartDiv = document.getElementById('knowledgeGraphChart');
@@ -996,23 +965,25 @@ function renderKnowledgeGraph(diagnosisData, kpAverages) {
         };
     });
     
-    // 准备连接数据
+    // 准备连接数据 - 使用知识点关系
     const links = [];
+    console.log('知识点关系数据:', diagnosisData.knowledge_relations);
+    
     if (diagnosisData.knowledge_relations && diagnosisData.knowledge_relations.length > 0) {
         diagnosisData.knowledge_relations.forEach(rel => {
-            links.push({
-                source: rel.source,
-                target: rel.target
-            });
+            // 确保source和target是节点对象
+            const sourceNode = nodes.find(n => n.id === rel.source);
+            const targetNode = nodes.find(n => n.id === rel.target);
+            if (sourceNode && targetNode) {
+                links.push({
+                    source: sourceNode,
+                    target: targetNode
+                });
+            }
         });
+        console.log('已加载的链接数:', links.length);
     } else {
-        // 如果没有关系数据，创建简单的链式连接
-        for (let i = 0; i < nodes.length - 1; i++) {
-            links.push({
-                source: nodes[i].id,
-                target: nodes[i + 1].id
-            });
-        }
+        console.log('没有知识点关系数据');
     }
     
     // 创建SVG
@@ -1034,67 +1005,90 @@ function renderKnowledgeGraph(diagnosisData, kpAverages) {
     defs.append('marker')
         .attr('id', 'arrowhead')
         .attr('viewBox', '0 -5 10 10')
-        .attr('refX', 20)
+        .attr('refX', 25)
         .attr('refY', 0)
-        .attr('markerWidth', 5)
-        .attr('markerHeight', 5)
+        .attr('markerWidth', 6)
+        .attr('markerHeight', 6)
         .attr('orient', 'auto')
         .append('path')
         .attr('d', 'M0,-5L10,0L0,5')
-        .attr('fill', '#666');
+        .attr('fill', '#999');
     
-    // 创建力导向图模拟
+    // 创建力导向图模拟 - 优化参数以获得更好的布局
     const simulation = d3.forceSimulation(nodes)
         .force('link', d3.forceLink(links)
             .id(d => d.id)
-            .distance(100)
-            .strength(0.5))
-        .force('charge', d3.forceManyBody().strength(-200))
-        .force('center', d3.forceCenter(width / 2, height / 2))
-        .force('collision', d3.forceCollide().radius(40));
+            .distance(d => {
+                // 根据节点数量动态调整距离
+                const baseDistance = Math.max(150, 300 - nodes.length * 2);
+                return baseDistance;
+            })
+            .strength(0.1))
+        .force('charge', d3.forceManyBody()
+            .strength(d => {
+                // 根据节点数量动态调整排斥力
+                return -Math.max(150, 200 - nodes.length);
+            })
+            .distanceMax(600))
+        .force('center', d3.forceCenter(width / 2, height / 2)
+            .strength(0.03))
+        .force('collision', d3.forceCollide()
+            .radius(50)
+            .strength(1.0)
+            .iterations(3))
+        .alphaDecay(0.005)
+        .velocityDecay(0.6)
+        .alpha(0.8);
     
     // 绘制链接
     const link = g.append('g')
+        .attr('class', 'links')
         .selectAll('line')
         .data(links)
         .enter()
         .append('line')
         .attr('stroke', '#ccc')
         .attr('stroke-width', 2)
+        .attr('stroke-opacity', 0.7)
         .attr('marker-end', 'url(#arrowhead)');
     
     // 绘制节点组
     const nodeGroup = g.append('g')
+        .attr('class', 'nodes')
         .selectAll('g')
         .data(nodes)
         .enter()
         .append('g')
-        .attr('class', 'knowledge-node');
+        .attr('class', 'knowledge-node')
+        .call(d3.drag()
+            .on('start', dragstarted)
+            .on('drag', dragged)
+            .on('end', dragended));
     
-    // 节点背景圆圈
+    // 节点背景圆圈 - 根据掌握度着色
     nodeGroup.append('circle')
         .attr('r', 35)
         .attr('fill', d => getMasteryColor(d.mastery))
-        .attr('opacity', 0.8)
+        .attr('opacity', 0.85)
         .attr('stroke', '#fff')
         .attr('stroke-width', 2);
     
-    // 节点文字
+    // 节点文字 - 知识点名称
     nodeGroup.append('text')
         .attr('text-anchor', 'middle')
         .attr('dy', '-0.3em')
         .attr('fill', 'white')
-        .style('font-size', '12px')
+        .style('font-size', '11px')
         .style('font-weight', 'bold')
         .style('pointer-events', 'none')
-        .text(d => d.name.length > 6 ? d.name.substring(0, 6) + '...' : d.name);
+        .text(d => d.name.length > 8 ? d.name.substring(0, 8) + '...' : d.name);
     
     // 掌握度百分比
     nodeGroup.append('text')
         .attr('text-anchor', 'middle')
         .attr('dy', '0.8em')
         .attr('fill', 'white')
-        .style('font-size', '11px')
+        .style('font-size', '12px')
         .style('font-weight', 'bold')
         .style('pointer-events', 'none')
         .text(d => d.mastery.toFixed(0) + '%');
@@ -1104,8 +1098,19 @@ function renderKnowledgeGraph(diagnosisData, kpAverages) {
         d3.select(this).select('circle')
             .transition()
             .duration(200)
-            .attr('r', 45)
+            .attr('r', 50)
             .attr('stroke-width', 3);
+        
+        // 高亮相关链接
+        link.style('stroke', function(l) {
+            if (l.source.id === d.id || l.target.id === d.id) {
+                return '#3498db';
+            }
+            return '#ccc';
+        })
+        .style('stroke-width', function(l) {
+            return (l.source.id === d.id || l.target.id === d.id) ? 3 : 2;
+        });
         
         // 显示工具提示
         const tooltip = document.getElementById('graphTooltip');
@@ -1113,7 +1118,7 @@ function renderKnowledgeGraph(diagnosisData, kpAverages) {
         const statusColor = d.mastery >= 80 ? '#52c41a' : (d.mastery >= 60 ? '#faad14' : '#f5222d');
         
         tooltip.innerHTML = `
-            <div style="font-weight: bold; margin-bottom: 8px;">${d.name}</div>
+            <div style="font-weight: bold; margin-bottom: 8px; color: ${statusColor};">${d.name}</div>
             <div><strong>平均掌握度:</strong> <span style="color: ${statusColor}; font-weight: bold;">${d.mastery.toFixed(1)}%</span></div>
             <div><strong>状态:</strong> <span style="color: ${statusColor};">${statusText}</span></div>
             <div><strong>习题数:</strong> ${d.exercise_count}</div>
@@ -1137,8 +1142,30 @@ function renderKnowledgeGraph(diagnosisData, kpAverages) {
             .attr('r', 35)
             .attr('stroke-width', 2);
         
+        // 恢复链接样式
+        link.style('stroke', '#ccc')
+            .style('stroke-width', 2);
+        
         document.getElementById('graphTooltip').style.display = 'none';
     });
+    
+    // 拖拽函数
+    function dragstarted(event) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        event.subject.fx = event.subject.x;
+        event.subject.fy = event.subject.y;
+    }
+
+    function dragged(event) {
+        event.subject.fx = event.x;
+        event.subject.fy = event.y;
+    }
+
+    function dragended(event) {
+        if (!event.active) simulation.alphaTarget(0);
+        event.subject.fx = null;
+        event.subject.fy = null;
+    }
     
     // 力导向图更新
     simulation.on('tick', () => {
@@ -1476,7 +1503,7 @@ function showStudentDetailModal(data) {
                 <div class="modal-header bg-primary text-white">
                     <h5 class="modal-title">
                         <i class="fas fa-user-graduate me-2"></i>
-                        ${data.student.first_name} - ${data.subject_name} 诊断详情
+                        ${data.student.full_name} - ${data.subject_name} 诊断详情
                     </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
@@ -1567,12 +1594,13 @@ function showStudentDetailModal(data) {
 
                     <!-- 知识点详细列表 -->
                     <div class="card mt-4">
-                        <div class="card-header">
+                        <div class="card-header d-flex justify-content-between align-items-center">
                             <h6 class="mb-0"><i class="fas fa-list-alt me-2"></i>知识点掌握详情</h6>
+                            <input type="text" class="form-control form-control-sm" style="width: 200px;" placeholder="搜索知识点..." id="kpSearchInput">
                         </div>
                         <div class="card-body p-0">
                             <div class="table-responsive">
-                                <table class="table table-hover mb-0">
+                                <table class="table table-hover mb-0" id="kpTable">
                                     <thead class="table-light">
                                         <tr>
                                             <th>知识点</th>
@@ -1582,76 +1610,21 @@ function showStudentDetailModal(data) {
                                             <th>状态</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
-                                        ${data.knowledge_data.map(kp => `
-                                            <tr>
-                                                <td class="fw-bold">${kp.name}</td>
-                                                <td>
-                                                    <div class="d-flex align-items-center">
-                                                        <div class="progress flex-grow-1 me-2" style="height: 10px;">
-                                                            <div class="progress-bar"
-                                                                 style="width: ${kp.mastery}%;
-                                                                        background-color: ${getMasteryColor(kp.mastery)}">
-                                                            </div>
-                                                        </div>
-                                                        <span class="fw-bold" style="min-width: 45px;">${kp.mastery}%</span>
-                                                    </div>
-                                                </td>
-                                                <td>${kp.practice_count}</td>
-                                                <td>${kp.correct_rate}%</td>
-                                                <td>
-                                                    <span class="badge ${kp.status === '优秀' ? 'bg-success' : kp.status === '良好' ? 'bg-warning' : 'bg-danger'}">
-                                                        ${kp.status}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        `).join('')}
+                                    <tbody id="kpTableBody">
                                     </tbody>
                                 </table>
                             </div>
-                        </div>
-                    </div>
-
-                    <!-- 诊断历史 -->
-                    ${data.diagnosis_history && data.diagnosis_history.length > 0 ? `
-                    <div class="card mt-4">
-                        <div class="card-header">
-                            <h6 class="mb-0"><i class="fas fa-history me-2"></i>最近诊断记录</h6>
-                        </div>
-                        <div class="card-body p-0">
-                            <div class="table-responsive">
-                                <table class="table table-sm mb-0">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th>知识点</th>
-                                            <th>掌握度</th>
-                                            <th>练习次数</th>
-                                            <th>正确次数</th>
-                                            <th>诊断模型</th>
-                                            <th>诊断时间</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        ${data.diagnosis_history.map(h => `
-                                            <tr>
-                                                <td>${h.knowledge_point}</td>
-                                                <td>
-                                                    <span class="badge" style="background-color: ${getMasteryColor(h.mastery_level)}">
-                                                        ${h.mastery_level}%
-                                                    </span>
-                                                </td>
-                                                <td>${h.practice_count}</td>
-                                                <td>${h.correct_count}</td>
-                                                <td><small class="text-muted">${h.model_name}</small></td>
-                                                <td><small class="text-muted">${h.last_practiced}</small></td>
-                                            </tr>
-                                        `).join('')}
-                                    </tbody>
-                                </table>
+                            <!-- 分页控件 -->
+                            <div class="d-flex justify-content-between align-items-center p-3 border-top" id="kpPaginationContainer" style="display: none;">
+                                <div class="text-muted small">
+                                    显示第 <span id="kpPageStart">1</span> - <span id="kpPageEnd">10</span> 条，共 <span id="kpTotal">0</span> 条
+                                </div>
+                                <nav>
+                                    <ul class="pagination mb-0" id="kpPaginationList"></ul>
+                                </nav>
                             </div>
                         </div>
                     </div>
-                    ` : ''}
                 </div>
                 <div class="modal-footer">
                     <div class="me-auto">
@@ -1672,9 +1645,10 @@ function showStudentDetailModal(data) {
     const modalInstance = new bootstrap.Modal(modal);
     modalInstance.show();
 
-    // 模态框显示后初始化雷达图
+    // 模态框显示后初始化雷达图和知识点表
     modal.addEventListener('shown.bs.modal', function() {
         initStudentRadarChart(data.knowledge_data);
+        initKnowledgePointTable(data.knowledge_data);
     });
 
     // 清理模态框
@@ -1744,6 +1718,121 @@ function initStudentRadarChart(knowledgeData) {
     };
 
     radarChart.setOption(option);
+}
+
+// 初始化知识点表格（带分页和搜索）
+function initKnowledgePointTable(knowledgeData) {
+    const kpPageSize = 10;
+    let kpCurrentPage = 1;
+    let kpFilteredData = [...knowledgeData];
+
+    // 渲染表格
+    function renderKnowledgePointPage() {
+        const tbody = document.getElementById('kpTableBody');
+        if (!tbody) return;
+
+        const start = (kpCurrentPage - 1) * kpPageSize;
+        const end = start + kpPageSize;
+        const pageData = kpFilteredData.slice(start, end);
+
+        tbody.innerHTML = pageData.map(kp => `
+            <tr>
+                <td class="fw-bold">${kp.name}</td>
+                <td>
+                    <div class="d-flex align-items-center">
+                        <div class="progress flex-grow-1 me-2" style="height: 10px;">
+                            <div class="progress-bar"
+                                 style="width: ${kp.mastery}%;
+                                        background-color: ${getMasteryColor(kp.mastery)}">
+                            </div>
+                        </div>
+                        <span class="fw-bold" style="min-width: 45px;">${kp.mastery}%</span>
+                    </div>
+                </td>
+                <td>${kp.practice_count}</td>
+                <td>${kp.correct_rate}%</td>
+                <td>
+                    <span class="badge ${kp.status === '优秀' ? 'bg-success' : kp.status === '良好' ? 'bg-warning' : 'bg-danger'}">
+                        ${kp.status}
+                    </span>
+                </td>
+            </tr>
+        `).join('');
+
+        // 更新分页信息
+        const totalPages = Math.ceil(kpFilteredData.length / kpPageSize);
+        document.getElementById('kpPageStart').textContent = kpFilteredData.length > 0 ? start + 1 : 0;
+        document.getElementById('kpPageEnd').textContent = Math.min(end, kpFilteredData.length);
+        document.getElementById('kpTotal').textContent = kpFilteredData.length;
+
+        // 显示/隐藏分页控件
+        const paginationContainer = document.getElementById('kpPaginationContainer');
+        if (kpFilteredData.length > kpPageSize) {
+            paginationContainer.style.display = 'flex';
+            renderKnowledgePointPagination(totalPages);
+        } else {
+            paginationContainer.style.display = 'none';
+        }
+    }
+
+    // 渲染分页按钮
+    function renderKnowledgePointPagination(totalPages) {
+        const paginationList = document.getElementById('kpPaginationList');
+        if (!paginationList) return;
+
+        paginationList.innerHTML = '';
+
+        // 上一页
+        const prevLi = document.createElement('li');
+        prevLi.className = `page-item ${kpCurrentPage === 1 ? 'disabled' : ''}`;
+        prevLi.innerHTML = `<a class="page-link" href="#" onclick="changeKnowledgePointPage(${kpCurrentPage - 1}); return false;">上一页</a>`;
+        paginationList.appendChild(prevLi);
+
+        // 页码
+        for (let i = 1; i <= totalPages; i++) {
+            const li = document.createElement('li');
+            li.className = `page-item ${i === kpCurrentPage ? 'active' : ''}`;
+            li.innerHTML = `<a class="page-link" href="#" onclick="changeKnowledgePointPage(${i}); return false;">${i}</a>`;
+            paginationList.appendChild(li);
+        }
+
+        // 下一页
+        const nextLi = document.createElement('li');
+        nextLi.className = `page-item ${kpCurrentPage === totalPages ? 'disabled' : ''}`;
+        nextLi.innerHTML = `<a class="page-link" href="#" onclick="changeKnowledgePointPage(${kpCurrentPage + 1}); return false;">下一页</a>`;
+        paginationList.appendChild(nextLi);
+    }
+
+    // 搜索知识点
+    function filterKnowledgePoints() {
+        const searchInput = document.getElementById('kpSearchInput');
+        if (!searchInput) return;
+
+        const searchText = searchInput.value.toLowerCase();
+        kpFilteredData = knowledgeData.filter(kp =>
+            kp.name.toLowerCase().includes(searchText)
+        );
+        kpCurrentPage = 1;
+        renderKnowledgePointPage();
+    }
+
+    // 改变页码
+    window.changeKnowledgePointPage = function(page) {
+        const totalPages = Math.ceil(kpFilteredData.length / kpPageSize);
+        if (page >= 1 && page <= totalPages) {
+            kpCurrentPage = page;
+            renderKnowledgePointPage();
+        }
+    };
+
+    // 添加搜索事件监听
+    const searchInput = document.getElementById('kpSearchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', filterKnowledgePoints);
+    }
+
+    // 初始化表格
+    renderKnowledgePointPage();
 }
 
 // 工具函数

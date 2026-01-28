@@ -854,6 +854,8 @@ def update_knowledge_mastery(student, exercise, is_correct):
 
         #计算掌握程度
         calculate_mastery(diagnosis)
+
+        
 #计算掌握程度公式
 def calculate_mastery(self):
     if self.practice_count > 0:

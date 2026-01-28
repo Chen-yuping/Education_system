@@ -59,6 +59,15 @@ urlpatterns = [
     path('teacher/knowledge-points/<int:subject_id>/relationships/', views_teacherknowledge_management.knowledge_point_relationship, name='knowledge_point_relationship'),
     path('teacher/knowledge-points/<int:subject_id>/relationships/add/', views_teacherknowledge_management.add_knowledge_relationship, name='add_knowledge_relationship'),
     path('teacher/knowledge-points/<int:subject_id>/relationships/<int:relationship_id>/delete/', views_teacherknowledge_management.delete_knowledge_relationship, name='delete_knowledge_relationship'),
+    
+    # 知识点管理 API
+    path('teacher/api/knowledge-point/<int:kp_id>/', views_teacherknowledge_management.get_knowledge_point, name='get_knowledge_point'),
+    path('teacher/api/knowledge-point/<int:kp_id>/update/', views_teacherknowledge_management.update_knowledge_point, name='update_knowledge_point'),
+    path('teacher/api/knowledge-point/<int:kp_id>/exercises/', views_teacherknowledge_management.get_knowledge_point_exercises, name='get_knowledge_point_exercises'),
+    path('teacher/api/knowledge-point/<int:kp_id>/toggle-exercise/', views_teacherknowledge_management.toggle_exercise_association_api, name='toggle_exercise_association_api'),
+    path('teacher/api/knowledge-points/<int:subject_id>/relationships/', views_teacherknowledge_management.get_knowledge_point_relationships, name='get_knowledge_point_relationships'),
+    path('teacher/api/knowledge-point-relationship/add/<int:subject_id>/', views_teacherknowledge_management.add_knowledge_point_relationship_api, name='add_knowledge_point_relationship_api'),
+    path('teacher/api/knowledge-point-relationship/delete/<int:subject_id>/<int:relationship_id>/', views_teacherknowledge_management.delete_knowledge_point_relationship_api, name='delete_knowledge_point_relationship_api'),
 
     path('teacher/subjects/', views_teacher.teacher_subject_management, name='teacher_subject_management'),#老师选择授课
     path('teacher/course-management/', views_teacher.teacher_course_management, name='teacher_course_management'),#课程管理

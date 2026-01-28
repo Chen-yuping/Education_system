@@ -226,30 +226,6 @@
         color: white;
     }
 
-    .bottom-actions {
-        display: flex;
-        gap: 12px;
-        margin-top: 32px;
-        padding-top: 20px;
-        border-top: 2px solid #f0f0f0;
-    }
-
-    .bottom-actions .btn {
-        padding: 12px 24px;
-        border-radius: 8px;
-        font-weight: 600;
-        transition: all 0.3s ease;
-    }
-
-    .btn-secondary-custom {
-        background: #6c757d;
-        color: white;
-    }
-
-    .btn-secondary-custom:hover {
-        background: #5a6268;
-    }
-
     .btn-outline-custom {
         background: white;
         color: #667eea;
@@ -262,17 +238,11 @@
     }
 </style>
 
-<div class="page-header">
-    <div class="page-title">
-        <i class="fas fa-lightbulb"></i>
-        知识点管理
-    </div>
-    <a href="{% url 'knowledge_point_add' subject_id=subject.id %}" class="btn btn-primary" style="padding: 12px 24px; border-radius: 8px; font-weight: 600;">
-        <i class="fas fa-plus me-2"></i> 添加知识点
-    </a>
+<div class="page-header" style="border-bottom: none; margin-bottom: 0; padding-bottom: 0;">
+    <!-- 移除了页面标题 -->
 </div>
 
-<!-- 搜索框 -->
+<!-- 搜索框和添加按钮放在一行 -->
 {% if page_obj or search %}
 <div class="search-section">
     <form method="get" class="search-form">
@@ -285,7 +255,18 @@
                 <i class="fas fa-times me-2"></i> 清除
             </a>
         {% endif %}
+        <button type="button" class="btn btn-primary" style="padding: 12px 24px; border-radius: 8px; font-weight: 600; margin-left: auto;" onclick="openAddKnowledgePointModal()">
+            <i class="fas fa-plus me-2"></i> 添加知识点
+        </button>
     </form>
+</div>
+{% else %}
+<div class="search-section">
+    <div class="search-form">
+        <button type="button" class="btn btn-primary" style="padding: 12px 24px; border-radius: 8px; font-weight: 600; margin-left: auto;" onclick="openAddKnowledgePointModal()">
+            <i class="fas fa-plus me-2"></i> 添加知识点
+        </button>
+    </div>
 </div>
 {% endif %}
 
@@ -319,21 +300,15 @@
                 {% endif %}
 
                 <div class="kp-actions">
-                    <a href="{% url 'knowledge_point_exercise_association' subject_id=subject.id kp_id=kp.id %}" 
-                       class="btn btn-link" title="管理关联习题">
+                    <button class="btn btn-link" title="管理关联习题" onclick="openAssociationModal({{ kp.id }}, '{{ kp.name|escapejs }}')">
                         <i class="fas fa-link"></i> 关联
-                    </a>
-                    <a href="{% url 'knowledge_point_edit' subject_id=subject.id kp_id=kp.id %}" 
-                       class="btn btn-edit" title="编辑">
+                    </button>
+                    <button class="btn btn-edit" title="编辑" onclick="openEditModal({{ kp.id }}, '{{ kp.name|escapejs }}')">
                         <i class="fas fa-edit"></i> 编辑
-                    </a>
-                    <form method="post" action="{% url 'knowledge_point_delete' subject_id=subject.id kp_id=kp.id %}" 
-                          style="display: contents;" onsubmit="return confirm('确定要删除该知识点吗？');">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-delete" title="删除">
-                            <i class="fas fa-trash"></i> 删除
-                        </button>
-                    </form>
+                    </button>
+                    <button class="btn btn-delete" title="删除" onclick="openDeleteModal({{ kp.id }}, '{{ kp.name|escapejs }}')">
+                        <i class="fas fa-trash"></i> 删除
+                    </button>
                 </div>
             </div>
         {% endfor %}
@@ -387,20 +362,573 @@
     <div class="empty-state">
         <i class="fas fa-lightbulb"></i>
         <h5>暂无知识点</h5>
-        <p>点击上方按钮添加知识点开始管理</p>
-        <a href="{% url 'knowledge_point_add' subject_id=subject.id %}" class="btn btn-primary" style="padding: 12px 24px; border-radius: 8px; font-weight: 600; display: inline-block;">
+        <p>点击下方按钮添加知识点开始管理</p>
+        <button type="button" class="btn btn-primary" style="padding: 12px 24px; border-radius: 8px; font-weight: 600; display: inline-block;" onclick="openAddKnowledgePointModal()">
             <i class="fas fa-plus me-2"></i> 添加知识点
-        </a>
+        </button>
     </div>
 {% endif %}
 
-<!-- 底部操作按钮 -->
-<div class="bottom-actions">
-    <a href="{% url 'knowledge_point_relationship' subject_id=subject.id %}" class="btn btn-secondary-custom">
-        <i class="fas fa-project-diagram me-2"></i> 管理知识点关系
-    </a>
-    <a href="{% url 'teacher_course_management' %}" class="btn btn-outline-custom">
-        <i class="fas fa-arrow-left me-2"></i> 返回课程管理
-    </a>
+
+
+<!-- 添加知识点弹窗 -->
+<div class="modal fade" id="addKnowledgePointModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-plus me-2"></i>添加知识点
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addKnowledgePointForm" method="post" action="{% url 'knowledge_point_add' subject_id=subject.id %}">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">
+                            <i class="fas fa-heading me-2"></i>知识点名称
+                            <span style="color: #ef4444;">*</span>
+                        </label>
+                        <input type="text" class="form-control" id="addKpName" name="name" placeholder="例如：一次函数、二次函数等" required>
+                        <small class="text-muted d-block mt-2">
+                            <i class="fas fa-lightbulb me-1"></i>输入清晰、简洁的知识点名称
+                        </small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">
+                            <i class="fas fa-sitemap me-2"></i>父知识点（可选）
+                        </label>
+                        <select class="form-select" id="addKpParent" name="parent">
+                            <option value="">-- 无父知识点 --</option>
+                            {% for kp in all_knowledge_points %}
+                                <option value="{{ kp.id }}">{{ kp.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted d-block mt-2">
+                            <i class="fas fa-lightbulb me-1"></i>选择此知识点的上级知识点，用于构建知识点层级
+                        </small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="submitAddKnowledgePoint()">保存</button>
+            </div>
+        </div>
+    </div>
 </div>
+
+<!-- 编辑知识点弹窗 -->
+<div class="modal fade" id="editKnowledgePointModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" style="word-break: break-word; max-width: 90%;">
+                    <i class="fas fa-edit me-2"></i>编辑知识点
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editKnowledgePointForm">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">知识点名称</label>
+                        <input type="text" class="form-control" id="kpName" name="name" required style="word-break: break-word;">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">父知识点</label>
+                        <select class="form-select" id="kpParent" name="parent">
+                            <option value="">-- 无 --</option>
+                            {% for kp in all_knowledge_points %}
+                                <option value="{{ kp.id }}">{{ kp.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveKnowledgePoint()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 关联习题弹窗 -->
+<div class="modal fade" id="associationModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content" style="display: flex; flex-direction: column; max-height: 90vh;">
+            <div class="modal-header bg-primary text-white" style="flex-wrap: wrap; flex-shrink: 0;">
+                <h5 class="modal-title" style="word-break: break-word; max-width: 85%;">
+                    <i class="fas fa-link me-2"></i>管理习题关联 - <span id="associationKpName"></span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="flex: 1; overflow: hidden; display: flex; flex-direction: column; padding: 0;">
+                <div style="display: flex; flex: 1; gap: 12px; padding: 20px; overflow: hidden;">
+                    <!-- 左列：已关联的习题 -->
+                    <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+                        <h6 class="mb-3" style="flex-shrink: 0;"><i class="fas fa-check-circle me-2" style="color: #10b981;"></i>已关联习题</h6>
+                        <div class="flex-grow-1 border rounded p-3" id="associatedExercisesList" style="background: #f8f9fa; overflow-y: auto; overflow-x: hidden;">
+                            <div class="text-center text-muted py-5">
+                                <i class="fas fa-inbox fa-2x mb-2"></i>
+                                <p>暂无已关联习题</p>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 右列：全部习题 -->
+                    <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+                        <h6 class="mb-3" style="flex-shrink: 0;"><i class="fas fa-book me-2" style="color: #667eea;"></i>全部习题</h6>
+                        <input type="text" class="form-control form-control-sm mb-3" id="exerciseSearchInput" placeholder="搜索习题..." style="flex-shrink: 0;">
+                        <div class="flex-grow-1 border rounded p-3" id="allExercisesList" style="background: #f8f9fa; overflow-y: auto; overflow-x: hidden;">
+                            <div class="text-center text-muted py-5">
+                                <i class="fas fa-inbox fa-2x mb-2"></i>
+                                <p>加载中...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="flex-shrink: 0;">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 删除确认弹窗 -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle me-2"></i>删除确认
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>确定要删除知识点 <strong id="deleteKpName"></strong> 吗？</p>
+                <p class="text-muted small">此操作无法撤销。</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDelete()">删除</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .exercise-item {
+        background: white;
+        border: 1px solid #e0e0e0;
+        border-radius: 6px;
+        padding: 10px;
+        margin-bottom: 10px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .exercise-item:hover {
+        border-color: #667eea;
+        background: #f0f4ff;
+        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
+    }
+
+    .exercise-item.associated {
+        border-color: #10b981;
+        background: #f0fdf4;
+    }
+
+    .exercise-content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .exercise-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: #1a1a1a;
+        margin-bottom: 4px;
+        word-break: break-word;
+    }
+
+    .exercise-text {
+        font-size: 12px;
+        color: #666;
+        line-height: 1.3;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        word-break: break-word;
+    }
+
+    .exercise-type {
+        display: inline-block;
+        background: #667eea;
+        color: white;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-size: 10px;
+        font-weight: 600;
+        margin-top: 4px;
+    }
+
+    .exercise-btn {
+        padding: 4px 10px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 11px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    .exercise-btn-add {
+        background: #667eea;
+        color: white;
+    }
+
+    .exercise-btn-add:hover {
+        background: #5568d3;
+    }
+
+    .exercise-btn-remove {
+        background: #ef4444;
+        color: white;
+    }
+
+    .exercise-btn-remove:hover {
+        background: #dc2626;
+    }
+</style>
+
+<script>
+let currentKpId = null;
+let currentKpName = null;
+let allExercises = [];
+let associatedExerciseIds = new Set();
+let deleteKpId = null;
+let deleteKpName = null;
+let subjectId = null;
+
+// 获取科目ID
+function getSubjectId() {
+    if (!subjectId) {
+        const pathParts = window.location.pathname.split('/');
+        subjectId = pathParts[pathParts.length - 2];
+    }
+    return subjectId;
+}
+
+// 打开添加知识点弹窗
+function openAddKnowledgePointModal() {
+    const modal = new bootstrap.Modal(document.getElementById('addKnowledgePointModal'));
+    modal.show();
+}
+
+// 提交添加知识点表单
+function submitAddKnowledgePoint() {
+    const form = document.getElementById('addKnowledgePointForm');
+    const name = document.getElementById('addKpName').value;
+    
+    if (!name.trim()) {
+        alert('知识点名称不能为空');
+        return;
+    }
+    
+    form.submit();
+}
+
+// 打开删除确认弹窗
+function openDeleteModal(kpId, kpName) {
+    deleteKpId = kpId;
+    deleteKpName = kpName;
+    document.getElementById('deleteKpName').textContent = kpName;
+    
+    const modal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+    modal.show();
+}
+
+// 确认删除
+function confirmDelete() {
+    if (!deleteKpId) return;
+    
+    const subId = getSubjectId();
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = `/learning/teacher/knowledge-points/${subId}/${deleteKpId}/delete/`;
+    
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = 'csrfmiddlewaretoken';
+    csrfInput.value = csrfToken;
+    
+    form.appendChild(csrfInput);
+    document.body.appendChild(form);
+    form.submit();
+}
+
+// 打开编辑弹窗
+function openEditModal(kpId, kpName) {
+    currentKpId = kpId;
+    
+    // 从页面加载知识点数据
+    fetch(`/learning/teacher/api/knowledge-point/${kpId}/`, {
+        method: 'GET',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            document.getElementById('kpName').value = data.knowledge_point.name;
+            document.getElementById('kpParent').value = data.knowledge_point.parent_id || '';
+            
+            const modal = new bootstrap.Modal(document.getElementById('editKnowledgePointModal'));
+            modal.show();
+        } else {
+            alert('加载失败: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('加载失败: ' + error.message);
+    });
+}
+
+// 保存知识点
+function saveKnowledgePoint() {
+    const name = document.getElementById('kpName').value;
+    const parent = document.getElementById('kpParent').value;
+    
+    if (!name.trim()) {
+        alert('知识点名称不能为空');
+        return;
+    }
+    
+    fetch(`/learning/teacher/api/knowledge-point/${currentKpId}/update/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+            name: name,
+            parent: parent || null
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            alert('知识点已更新');
+            location.reload();
+        } else {
+            alert('更新失败: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('更新失败: ' + error.message);
+    });
+}
+
+// 打开关联弹窗
+function openAssociationModal(kpId, kpName) {
+    currentKpId = kpId;
+    currentKpName = kpName;
+    document.getElementById('associationKpName').textContent = kpName;
+    
+    // 加载习题数据
+    loadExercisesForAssociation();
+    
+    const modal = new bootstrap.Modal(document.getElementById('associationModal'));
+    modal.show();
+}
+
+// 加载习题数据
+function loadExercisesForAssociation() {
+    fetch(`/learning/teacher/api/knowledge-point/${currentKpId}/exercises/`, {
+        method: 'GET',
+        headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            allExercises = data.all_exercises;
+            associatedExerciseIds = new Set(data.associated_exercise_ids);
+            renderExerciseLists();
+        } else {
+            alert('加载失败: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('加载失败: ' + error.message);
+    });
+}
+
+// 渲染习题列表
+function renderExerciseLists() {
+    // 渲染已关联习题
+    const associatedList = document.getElementById('associatedExercisesList');
+    const associatedExercises = allExercises.filter(ex => associatedExerciseIds.has(ex.id));
+    
+    if (associatedExercises.length === 0) {
+        associatedList.innerHTML = `
+            <div class="text-center text-muted py-5">
+                <i class="fas fa-inbox fa-2x mb-2"></i>
+                <p>暂无已关联习题</p>
+            </div>
+        `;
+    } else {
+        associatedList.innerHTML = associatedExercises.map(ex => `
+            <div class="exercise-item associated" data-exercise-id="${ex.id}">
+                <div class="exercise-content">
+                    <div class="exercise-title">${ex.title}</div>
+                    <div class="exercise-text">${ex.content}</div>
+                    <span class="exercise-type">${ex.question_type}</span>
+                </div>
+                <button class="exercise-btn exercise-btn-remove" onclick="removeAssociation(${ex.id})">
+                    <i class="fas fa-times"></i> 取消
+                </button>
+            </div>
+        `).join('');
+    }
+    
+    // 渲染全部习题
+    renderAllExercises();
+}
+
+// 渲染全部习题
+function renderAllExercises() {
+    const allList = document.getElementById('allExercisesList');
+    const searchText = document.getElementById('exerciseSearchInput').value.toLowerCase();
+    
+    const filteredExercises = allExercises.filter(ex => 
+        ex.title.toLowerCase().includes(searchText) || 
+        ex.content.toLowerCase().includes(searchText)
+    );
+    
+    if (filteredExercises.length === 0) {
+        allList.innerHTML = `
+            <div class="text-center text-muted py-5">
+                <i class="fas fa-inbox fa-2x mb-2"></i>
+                <p>暂无习题</p>
+            </div>
+        `;
+    } else {
+        allList.innerHTML = filteredExercises.map(ex => {
+            const isAssociated = associatedExerciseIds.has(ex.id);
+            return `
+                <div class="exercise-item ${isAssociated ? 'associated' : ''}" data-exercise-id="${ex.id}">
+                    <div class="exercise-content">
+                        <div class="exercise-title">${ex.title}</div>
+                        <div class="exercise-text">${ex.content}</div>
+                        <span class="exercise-type">${ex.question_type}</span>
+                    </div>
+                    <button class="exercise-btn ${isAssociated ? 'exercise-btn-remove' : 'exercise-btn-add'}" 
+                            onclick="${isAssociated ? `removeAssociation(${ex.id})` : `addAssociation(${ex.id})`}">
+                        <i class="fas ${isAssociated ? 'fa-times' : 'fa-plus'}"></i> ${isAssociated ? '取消' : '关联'}
+                    </button>
+                </div>
+            `;
+        }).join('');
+    }
+}
+
+// 添加关联
+function addAssociation(exerciseId) {
+    fetch(`/learning/teacher/api/knowledge-point/${currentKpId}/toggle-exercise/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({ exercise_id: exerciseId })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            associatedExerciseIds.add(exerciseId);
+            renderExerciseLists();
+        } else {
+            alert('操作失败: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('操作失败: ' + error.message);
+    });
+}
+
+// 移除关联
+function removeAssociation(exerciseId) {
+    fetch(`/learning/teacher/api/knowledge-point/${currentKpId}/toggle-exercise/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({ exercise_id: exerciseId })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            associatedExerciseIds.delete(exerciseId);
+            renderExerciseLists();
+        } else {
+            alert('操作失败: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('操作失败: ' + error.message);
+    });
+}
+
+// 搜索习题
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('exerciseSearchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', renderAllExercises);
+    }
+});
+</script>
 {% endblock %}

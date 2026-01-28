@@ -1,0 +1,27 @@
+[Unit]
+Description=Gunicorn application server for aikgedu
+After=network.target
+
+[Service]
+Type=notify
+User=root
+Group=root
+WorkingDirectory=/www/wwwroot/aikgedu.com.cn/Education_system
+ExecStart=/usr/bin/python3.6 /usr/local/bin/gunicorn \
+    --workers 3 \
+    --worker-class sync \
+    --bind unix:/www/wwwroot/aikgedu.com.cn/Education_system/Education_system.sock \
+    --timeout 120 \
+    --access-logfile /tmp/gunicorn_access.log \
+    --error-logfile /tmp/gunicorn_error.log \
+    edu_system.wsgi:application
+
+# 自动重启
+Restart=always
+RestartSec=10
+
+# 环境变量
+Environment="PYTHONUNBUFFERED=1"
+
+[Install]
+WantedBy=multi-user.target
