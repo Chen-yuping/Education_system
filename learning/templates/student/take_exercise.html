@@ -262,9 +262,15 @@
 
                 <!-- 操作按钮 -->
                 <div class="d-flex justify-content-between align-items-center mt-4 pt-3 border-top">
+                    {% if single_mode %}
+                    <a href="{% url 'personalized_recommendations' exercise.subject.id %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-1"></i>返回推荐
+                    </a>
+                    {% else %}
                     <a href="{% url 'subject_learning' exercise.subject.id %}" class="btn btn-outline-secondary">
                         <i class="fas fa-arrow-left me-1"></i>返回章节
                     </a>
+                    {% endif %}
                     <button type="submit" class="btn btn-submit text-white" id="submit-btn">
                         <i class="fas fa-paper-plane me-1"></i>提交答案
                     </button>

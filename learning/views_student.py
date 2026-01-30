@@ -192,7 +192,7 @@ def my_subjects(request):
     context = {
         'enrolled_records': enrolled_records,  # 直接传递完整记录
     }
-    return render(request, 'student/my_subjects.html', context)
+    return render(request, 'student/student_onlinelearning.html', context)
 
 #所有课程
 @login_required
@@ -291,7 +291,7 @@ def student_course_management(request):
         'my_subjects': my_subjects,
         'available_subjects': available_subjects,
     }
-    return render(request, 'student/course_management.html', context)
+    return render(request, 'student/student_coursemanage.html', context)
 
 #"单个课程列表页面"""
 @login_required
@@ -379,9 +379,11 @@ def exercise_list(request, subject_id):
 
 #"""答题页面，做题页面"""
 @login_required
+@login_required
 @user_passes_test(is_student)
 def take_exercise(request, exercise_id):
     exercise = get_object_or_404(Exercise, id=exercise_id)
+    single_mode = request.GET.get('single', '0') == '1'  # 检查是否是单个习题模式
 
     if request.method == 'POST':
         # 处理答题提交
@@ -412,15 +414,19 @@ def take_exercise(request, exercise_id):
         # 更新知识点掌握情况
         update_knowledge_mastery(request.user, exercise, answer_log.is_correct)
 
+        # 设置单题模式标志到session
+        if single_mode:
+            request.session['single_mode'] = True
+
         return redirect('exercise_result', log_id=answer_log.id)
 
-    # 获取推荐习题列表（如果存在）
+    # 获取推荐习题列表（如果存在且不是单个习题模式）
     subject = exercise.subject
     session_key = f'recommended_exercises_{subject.id}'
     recommended_exercises = []
     current_exercise_index = -1
     
-    if session_key in request.session:
+    if not single_mode and session_key in request.session:
         exercise_ids = request.session[session_key]
         current_exercise_index = exercise_ids.index(exercise_id) if exercise_id in exercise_ids else -1
         
@@ -437,6 +443,7 @@ def take_exercise(request, exercise_id):
         'exercise': exercise,
         'recommended_exercises': recommended_exercises,
         'current_exercise_index': current_exercise_index,
+        'single_mode': single_mode,
     })
 
 #显示答题结果，并提供下一题链接
@@ -472,12 +479,15 @@ def exercise_result(request, log_id):
     # 3. 获取用户选择的选项ID列表（如果需要的话）
     selected_choice_ids = list(answer_log.selected_choices.values_list('id', flat=True))
 
-    # 4. 检查是否在推荐练习集中 - 如果是，提供"下一题"功能
+    # 4. 检查是否在单题模式中
+    single_mode = request.session.get('single_mode', False)
+    
+    # 5. 检查是否在推荐练习集中 - 如果是，提供"下一题"功能
     next_exercise = None
     session_key = f'recommended_exercises_{current_subject.id}'
     
-    if session_key in request.session:
-        # 用户在做推荐练习集
+    if not single_mode and session_key in request.session:
+        # 用户在做推荐练习集（非单题模式）
         exercise_ids = request.session[session_key]
         current_index = exercise_ids.index(current_exercise.id) if current_exercise.id in exercise_ids else -1
         
@@ -486,7 +496,7 @@ def exercise_result(request, log_id):
             next_exercise_id = exercise_ids[current_index + 1]
             next_exercise = Exercise.objects.get(id=next_exercise_id)
 
-    # 5. 准备上下文数据
+    # 6. 准备上下文数据
     # 检查是否已收藏
     from .models import ExerciseFavorite
     is_favorited = ExerciseFavorite.objects.filter(
@@ -499,7 +509,13 @@ def exercise_result(request, log_id):
         'selected_choice_ids': selected_choice_ids,
         'next_exercise': next_exercise,
         'is_favorited': is_favorited,
+        'single_mode': single_mode,
     }
+
+    # 如果在单题模式中，清除session标志
+    if single_mode:
+        if 'single_mode' in request.session:
+            del request.session['single_mode']
 
     return render(request, 'student/exercise_result.html', context)
 
@@ -925,6 +941,41 @@ def remove_favorite(request):
     
     except Exception as e:
         return JsonResponse({'success': False, 'message': str(e)})
+
+
+@login_required
+@user_passes_test(is_student)
+@require_http_methods(["POST"])
+def update_favorite_note(request):
+    """更新收藏笔记"""
+    import json
+    from .models import ExerciseFavorite
+    
+    try:
+        data = json.loads(request.body)
+        exercise_id = data.get('exercise_id')
+        note = data.get('note', '')
+        
+        if not exercise_id:
+            return JsonResponse({'success': False, 'message': '缺少习题ID'})
+        
+        # 获取收藏记录
+        favorite = ExerciseFavorite.objects.get(
+            student=request.user,
+            exercise_id=exercise_id
+        )
+        
+        # 更新笔记
+        favorite.note = note
+        favorite.save()
+        
+        return JsonResponse({'success': True, 'message': '笔记已保存'})
+    
+    except ExerciseFavorite.DoesNotExist:
+        return JsonResponse({'success': False, 'message': '未找到收藏记录'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)})
+
 
 @login_required
 @user_passes_test(is_student)

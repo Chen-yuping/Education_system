@@ -83,7 +83,7 @@
         background: #fff;
         display: flex;
         justify-content: space-between;
-        align-items: center;
+        align-items: flex-start;
     }
 
     .exercise-list-item:hover {
@@ -101,6 +101,7 @@
         border-radius: 50%;
         font-weight: bold;
         margin-right: 12px;
+        flex-shrink: 0;
     }
 
     .exercise-info {
@@ -110,6 +111,11 @@
     .exercise-title {
         font-weight: 500;
         margin-bottom: 5px;
+        line-height: 1.5;
+    }
+
+    .exercise-choices {
+        margin: 10px 0;
     }
 
     .exercise-meta {
@@ -185,27 +191,41 @@
                     <div class="mb-4">
                         {% for exercise in exercises %}
                         <div class="exercise-list-item">
-                            <div class="d-flex align-items-start flex-grow-1">
-                                <span class="exercise-number">{{ forloop.counter }}</span>
-                                <div class="exercise-info">
-                                    <div class="exercise-title">{{ exercise.title }}</div>
-                                    <div class="exercise-meta">
-                                        {% if exercise.question_type == '1' %}单选题
-                                        {% elif exercise.question_type == '2' %}多选题
-                                        {% elif exercise.question_type == '3' %}投票题
-                                        {% elif exercise.question_type == '4' %}填空题
-                                        {% elif exercise.question_type == '5' %}主观题
-                                        {% else %}判断题{% endif %}
-                                        
-                                        {% with weak_knowledge_count=exercise.qmatrix_set.count %}
-                                        {% if weak_knowledge_count > 0 %}
-                                        • <span class="badge-recommend" style="display: inline-block; margin-left: 8px;">薄弱知识点相关</span>
-                                        {% else %}
-                                        • <span class="badge-new" style="display: inline-block; margin-left: 8px;">新习题</span>
+                            <div class="d-flex align-items-start flex-grow-1 flex-column">
+                                <div class="d-flex align-items-start w-100 mb-3">
+                                    <span class="exercise-number">{{ forloop.counter }}</span>
+                                    <div class="exercise-info flex-grow-1">
+                                        <div class="exercise-title mb-2">{{ exercise.content }}</div>
+                                        {% if exercise.choices.all %}
+                                        <div class="exercise-choices">
+                                            {% for choice in exercise.choices.all %}
+                                            <div style="padding: 8px 12px; background: #f8f9fa; border-radius: 4px; margin-bottom: 6px; font-size: 0.9rem;">
+                                                {{ choice.content }}
+                                            </div>
+                                            {% endfor %}
+                                        </div>
                                         {% endif %}
-                                        {% endwith %}
+                                        <div class="exercise-meta mt-2">
+                                            {% if exercise.question_type == '1' %}单选题
+                                            {% elif exercise.question_type == '2' %}多选题
+                                            {% elif exercise.question_type == '3' %}投票题
+                                            {% elif exercise.question_type == '4' %}填空题
+                                            {% elif exercise.question_type == '5' %}主观题
+                                            {% else %}判断题{% endif %}
+                                            
+                                            {% with weak_knowledge_count=exercise.qmatrix_set.count %}
+                                            {% if weak_knowledge_count > 0 %}
+                                            • <span class="badge-recommend" style="display: inline-block; margin-left: 8px;">薄弱知识点相关</span>
+                                            {% else %}
+                                            • <span class="badge-new" style="display: inline-block; margin-left: 8px;">新习题</span>
+                                            {% endif %}
+                                            {% endwith %}
+                                        </div>
                                     </div>
                                 </div>
+                                <a href="{% url 'take_exercise' exercise.id %}?single=1" class="btn btn-sm btn-primary" style="align-self: flex-start;">
+                                    <i class="fas fa-play me-1"></i>开始练习
+                                </a>
                             </div>
                         </div>
                         {% endfor %}

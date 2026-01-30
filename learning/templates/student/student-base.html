@@ -1,3 +1,4 @@
+<!-- 主页面base -->
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -38,7 +39,7 @@
     <div class="container mt-4">
         <div class="teacher-container">
             <nav class="teacher-sidebar">
-                {% include 'student/sidebar_student.html' %}
+                {% include 'student/student_sidebar.html' %}
             </nav>
             <main class="teacher-main-content">
                 {% block content %}{% endblock %}
@@ -109,3 +110,4 @@
 
 
 </style>
+

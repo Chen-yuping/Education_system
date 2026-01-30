@@ -234,6 +234,22 @@
         opacity: 0.9;
     }
 
+    .btn-edit-note {
+        padding: 8px 20px;
+        background-color: #17a2b8;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-edit-note:hover {
+        background-color: #138496;
+        opacity: 0.9;
+    }
+
     .empty-state {
         text-align: center;
         padding: 60px 20px;
@@ -255,6 +271,17 @@
 
     .no-results.show {
         display: block;
+    }
+
+    .note-badge {
+        display: inline-block;
+        background-color: #e7f3ff;
+        border: 1px solid #b3d9ff;
+        color: #004085;
+        padding: 8px 12px;
+        border-radius: 4px;
+        font-size: 13px;
+        margin-top: 10px;
     }
 </style>
 {% endblock %}
@@ -325,12 +352,21 @@
                 {% endfor %}
             </div>
             {% endif %}
+
+            {% if favorite.note %}
+            <div class="note-badge">
+                <i class="fas fa-sticky-note me-1"></i>{{ favorite.note }}
+            </div>
+            {% endif %}
         </div>
         
         <div class="favorite-actions">
             <a href="{% url 'take_exercise' exercise_id=favorite.exercise.id %}" class="btn-practice">
                 <i class="fas fa-play me-1"></i>开始练习
             </a>
+            <button class="btn-edit-note" onclick="openEditNoteModal({{ favorite.exercise.id }}, '{{ favorite.exercise.title|escapejs }}', '{{ favorite.note|escapejs }}')">
+                <i class="fas fa-edit me-1"></i>编辑笔记
+            </button>
             <button class="btn-remove" onclick="removeFavorite({{ favorite.exercise.id }}, this)">
                 <i class="fas fa-trash me-1"></i>取消收藏
             </button>
@@ -343,6 +379,31 @@
     <i class="fas fa-search fa-3x mb-3"></i>
     <h5>没有找到匹配的收藏</h5>
     <p>试试其他筛选条件或搜索关键词</p>
+</div>
+
+<!-- 编辑笔记模态框 -->
+<div class="modal fade" id="editNoteModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-edit me-2"></i>编辑笔记
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="noteContent" class="form-label fw-bold">笔记内容</label>
+                    <textarea class="form-control" id="noteContent" rows="5" placeholder="输入你的笔记..."></textarea>
+                    <small class="text-muted">最多500个字符</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-info" id="saveNoteBtn">保存笔记</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 {% else %}
@@ -358,6 +419,56 @@
 <script>
 let currentType = 'all';
 let currentSearch = '';
+let currentExerciseId = null;
+
+// 打开编辑笔记模态框
+function openEditNoteModal(exerciseId, exerciseTitle, note) {
+    currentExerciseId = exerciseId;
+    document.getElementById('noteContent').value = note || '';
+    
+    const modal = new bootstrap.Modal(document.getElementById('editNoteModal'));
+    modal.show();
+}
+
+// 保存笔记
+document.addEventListener('DOMContentLoaded', function() {
+    const saveNoteBtn = document.getElementById('saveNoteBtn');
+    if (saveNoteBtn) {
+        saveNoteBtn.addEventListener('click', function() {
+            const note = document.getElementById('noteContent').value;
+            
+            if (note.length > 500) {
+                alert('笔记内容不能超过500个字符');
+                return;
+            }
+            
+            fetch('/learning/favorite/update-note/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    exercise_id: currentExerciseId,
+                    note: note
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('笔记已保存');
+                    location.reload();
+                } else {
+                    alert(data.message || '保存失败');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('保存失败，请重试');
+            });
+        });
+    }
+});
 
 // 按题型筛选
 function filterByType(type) {

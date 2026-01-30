@@ -8,10 +8,14 @@ urlpatterns = [
 
 #学生功能
     path('dashboard/', views_student.dashboard, name='dashboard'),#用户身份判断
-    path('student/dashboard/', views_student.student_dashboard, name='student_dashboard'),#学生面板
+
+    path('student/dashboard/', views_student.student_dashboard, name='student_dashboard'),#学习面板
+    path('student/my-subjects/', views_student.my_subjects, name='my_subjects'),  # 在线学习
+    path('diagnosis/',views_studentknowledge.student_knowledge_diagnosis,name='student_diagnosis'),#学习诊断
     path('student/course-management/', views_student.student_course_management, name='student_course_management'),#课程管理
+    
     path('student/subject/', views_student.student_subject, name='student_subject'),#所有科目
-    path('student/my-subjects/', views_student.my_subjects, name='my_subjects'),  # 学生我的科目
+    
     path('student/subjects/select/', views_student.student_subject_selection, name='student_subject_selection'),#课程选择
 
     #学习诊断
@@ -21,6 +25,7 @@ urlpatterns = [
     # 收藏功能
     path('favorite/add/', views_student.add_favorite, name='add_favorite'),
     path('favorite/remove/', views_student.remove_favorite, name='remove_favorite'),
+    path('favorite/update-note/', views_student.update_favorite_note, name='update_favorite_note'),
     path('my-favorites/', views_student.my_favorites, name='my_favorites'),
     path('subject/<int:subject_id>/favorites/', views_student.subject_favorites, name='subject_favorites'),  # 科目收藏页面
 
