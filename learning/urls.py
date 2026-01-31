@@ -11,10 +11,8 @@ urlpatterns = [
 
     path('student/dashboard/', views_student.student_dashboard, name='student_dashboard'),#学习面板
     path('student/my-subjects/', views_student.my_subjects, name='my_subjects'),  # 在线学习
-    path('diagnosis/',views_studentknowledge.student_knowledge_diagnosis,name='student_diagnosis'),#学习诊断
+    path('student/diagnosis/',views_studentknowledge.student_knowledge_diagnosis,name='student_diagnosis'),#学习诊断
     path('student/course-management/', views_student.student_course_management, name='student_course_management'),#课程管理
-    
-    path('student/subject/', views_student.student_subject, name='student_subject'),#所有科目
     
     path('student/subjects/select/', views_student.student_subject_selection, name='student_subject_selection'),#课程选择
 

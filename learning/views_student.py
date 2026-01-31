@@ -196,25 +196,6 @@ def my_subjects(request):
 
 #所有课程
 @login_required
-@user_passes_test(is_student)
-def student_subject(request):
-    subjects = Subject.objects.all()
-    recent_logs = AnswerLog.objects.filter(student=request.user).order_by('-submitted_at')[:10]
-
-    # 计算总体掌握情况
-    total_diagnosis = StudentDiagnosis.objects.filter(student=request.user)
-    if total_diagnosis.exists():
-        avg_mastery = total_diagnosis.aggregate(avg=Avg('mastery_level'))['avg']
-    else:
-        avg_mastery = 0
-
-    return render(request, 'student/subject.html', {
-        'subjects': subjects,
-        'recent_logs': recent_logs,
-        'avg_mastery': round(avg_mastery * 100, 1),
-        'first_subject': subjects.first()
-    })
-
 #课程管理
 @login_required
 @user_passes_test(is_student)
