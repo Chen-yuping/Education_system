@@ -104,6 +104,10 @@ urlpatterns = [
     path('teacher/api/answer/<int:log_id>/grade/', views_teacher.grade_answer, name='grade_answer'),
     path('teacher/api/answer/<int:log_id>/ai-grade/', views_teacher.ai_grade_answer, name='ai_grade_answer'),
 
+    # 上传习题
+    path('teacher/upload/exercise/', views_exercisefile.upload_exercise, name='upload_exercise'),
+    path('teacher/delete/file/<int:file_id>/', views_exercisefile.delete_exercise_file, name='delete_exercise_file'),
+
     #研究者功能
     path('researcher/dashboard/', views_researcher.researcher_dashboard, name='researcher_dashboard'),
 ]
