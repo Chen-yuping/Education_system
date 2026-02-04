@@ -47,6 +47,8 @@ urlpatterns = [
 #老师功能
     path('teacher/dashboard/', views_teacher.teacher_dashboard, name='teacher_dashboard'),#教师面板
     path('teacher/upload/exercise/', views_exercisefile.upload_exercise, name='upload_exercise'),#上传习题页面
+    path('teacher/delete/file/<int:file_id>/', views_exercisefile.delete_exercise_file, name='delete_exercise_file'),#上传习题删除页面
+
 
     # 知识点关系图页面,知识点数据接口
     path('teacher/knowledge-graph/',views_teacherknowledge.knowledge_graph,name='teacher_knowledge_graph'),#知识点关系图
