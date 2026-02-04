@@ -104,7 +104,15 @@ urlpatterns = [
     path('teacher/api/answer/<int:log_id>/grade/', views_teacher.grade_answer, name='grade_answer'),
     path('teacher/api/answer/<int:log_id>/ai-grade/', views_teacher.ai_grade_answer, name='ai_grade_answer'),
 
+<<<<<<< HEAD
 #研究者功能
+=======
+    # 上传习题
+    path('teacher/upload/exercise/', views_exercisefile.upload_exercise, name='upload_exercise'),
+    path('teacher/delete/file/<int:file_id>/', views_exercisefile.delete_exercise_file, name='delete_exercise_file'),
+
+    #研究者功能
+>>>>>>> ca71d30712c00e22bf316e3f3e820b3dbc54c9ef
     path('researcher/dashboard/', views_researcher.researcher_dashboard, name='researcher_dashboard'),
     path('researcher/data-analysis/', views_researcher.researcher_data_analysis, name='researcher_data_analysis'),
     path('researcher/algorithm-comparison/', views_researcher.researcher_algorithm_comparison, name='researcher_algorithm_comparison'),

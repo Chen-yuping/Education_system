@@ -1,11 +1,15 @@
 from django import forms
-from ..models import ExerciseFile
-
+from learning.models import ExerciseFile
 
 class ExerciseFileForm(forms.ModelForm):
     class Meta:
         model = ExerciseFile
-        fields = ['subject', 'file']
+        fields = ['file']
         widgets = {
-            'file': forms.FileInput(attrs={'accept': '.txt,.pdf,.doc,.docx,.xls,.xlsx'})
+            'file': forms.FileInput(attrs={
+                'class': 'd-none',
+                'id': 'fileInput',
+                # 👇 这里加了 .txt
+                'accept': '.docx,.doc,.xlsx,.xls,.pdf,.txt'
+            })
         }
