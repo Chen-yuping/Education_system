@@ -95,17 +95,25 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <div class="btn-group btn-group-sm">
-                                        {% if file.status == 'completed' and file.exercise_count > 0 %}
-                                            <a href="#" class="btn btn-outline-success" title="查看习题">
-                                                <i class="bi bi-eye"></i>
-                                            </a>
-                                        {% endif %}
-                                        <a href="{{ file.file.url }}" class="btn btn-outline-primary" title="下载原文件" download>
-                                            <i class="bi bi-download"></i>
-                                        </a>
-                                    </div>
-                                </td>
+    <div class="btn-group btn-group-sm">
+        {% if file.status == 'completed' %}
+            <a href="/learning/exercise-management/" class="btn btn-outline-success" title="查看入库习题">
+                <i class="bi bi-eye"></i>
+            </a>
+        {% endif %}
+
+        <a href="{{ file.file.url }}" class="btn btn-outline-primary" title="下载原文件" download>
+            <i class="bi bi-download"></i>
+        </a>
+
+        <a href="javascript:void(0);"
+           onclick="confirmDelete('/learning/upload/delete/{{ file.id }}/')"
+           class="btn btn-outline-danger"
+           title="删除记录">
+            <i class="bi bi-trash"></i>
+        </a>
+    </div>
+</td>
                             </tr>
                         {% endfor %}
                     </tbody>
