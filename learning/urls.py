@@ -104,6 +104,10 @@ urlpatterns = [
     path('teacher/api/answer/<int:log_id>/grade/', views_teacher.grade_answer, name='grade_answer'),
     path('teacher/api/answer/<int:log_id>/ai-grade/', views_teacher.ai_grade_answer, name='ai_grade_answer'),
 
-    #研究者功能
+#研究者功能
     path('researcher/dashboard/', views_researcher.researcher_dashboard, name='researcher_dashboard'),
+    path('researcher/data-analysis/', views_researcher.researcher_data_analysis, name='researcher_data_analysis'),
+    path('researcher/algorithm-comparison/', views_researcher.researcher_algorithm_comparison, name='researcher_algorithm_comparison'),
+    path('researcher/performance-analysis/', views_researcher.researcher_performance_analysis, name='researcher_performance_analysis'),
+    path('researcher/reports/', views_researcher.researcher_reports, name='researcher_reports'),
 ]

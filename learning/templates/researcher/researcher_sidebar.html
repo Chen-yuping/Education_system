@@ -1,0 +1,64 @@
+<!-- 研究者左侧导航栏 -->
+<nav class="researcher-sidebar">
+    <div class="sidebar-nav">
+        <ul class="nav flex-column">
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'researcher_dashboard' %}active{% endif %}"
+                   href="{% url 'researcher_dashboard' %}">
+                    <i class="fas fa-chart-line"></i> 科研面板
+                </a>
+            </li>
+            
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'researcher_data_analysis' %}active{% endif %}"
+                   href="{% url 'researcher_data_analysis' %}">
+                    <i class="fas fa-database"></i> 数据集分析
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'researcher_algorithm_comparison' %}active{% endif %}"
+                   href="{% url 'researcher_algorithm_comparison' %}">
+                    <i class="fas fa-code-branch"></i> 算法对比
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'researcher_performance_analysis' %}active{% endif %}"
+                   href="{% url 'researcher_performance_analysis' %}">
+                    <i class="fas fa-chart-bar"></i> 性能分析
+                </a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'researcher_reports' %}active{% endif %}"
+                   href="{% url 'researcher_reports' %}">
+                    <i class="fas fa-file-pdf"></i> 研究报告
+                </a>
+            </li>
+        </ul>
+    </div>
+</nav>
+
+<style>
+    /* 侧边栏导航链接样式 */
+    .sidebar-nav .nav-link {
+        padding: 12px 20px;
+        color: #333;
+        border-radius: 0;
+        border-left: 3px solid transparent;
+        transition: all 0.2s ease;
+    }
+
+    .sidebar-nav .nav-link:hover {
+        background-color: #e9ecef;
+        color: #007bff;
+        border-left-color: #007bff;
+    }
+
+    .sidebar-nav .nav-link.active {
+        background-color: #007bff;
+        color: white;
+        border-left-color: #007bff;
+    }
+</style>

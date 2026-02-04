@@ -1,10 +1,213 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Title</title>
-</head>
-<body>
+{% extends 'researcher/researcher-base.html' %}
 
-</body>
-</html>
+{% block title %}科研面板 - 在线学习诊断系统{% endblock %}
+
+{% block content %}
+<style>
+    .stat-card {
+        border: none;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        transition: all 0.3s ease;
+        padding: 20px;
+        text-align: center;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 20px rgba(0,0,0,0.12);
+    }
+
+    .stat-value {
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: #007bff;
+        margin: 10px 0;
+    }
+
+    .stat-label {
+        font-size: 0.95rem;
+        color: #6c757d;
+        margin-bottom: 0;
+    }
+
+    .stat-icon {
+        font-size: 2rem;
+        color: #007bff;
+        margin-bottom: 10px;
+    }
+
+    .quick-links {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-top: 20px;
+    }
+
+    .quick-link-btn {
+        padding: 15px;
+        border-radius: 8px;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 500;
+    }
+
+    .quick-link-btn:hover {
+        transform: translateX(5px);
+    }
+
+    .quick-link-btn.primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    .quick-link-btn.success {
+        background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+        color: white;
+    }
+
+    .quick-link-btn.warning {
+        background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        color: white;
+    }
+
+    .quick-link-btn.info {
+        background: linear-gradient(135deg, #30cfd0 0%, #330867 100%);
+        color: white;
+    }
+
+    .section-title {
+        font-size: 1.3rem;
+        font-weight: 600;
+        margin-top: 30px;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #007bff;
+    }
+
+    .info-box {
+        background: #f8f9fa;
+        border-left: 4px solid #007bff;
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 15px;
+    }
+
+    .info-box h6 {
+        margin-bottom: 8px;
+        color: #333;
+    }
+
+    .info-box p {
+        margin-bottom: 0;
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h2">
+        <i class="fas fa-chart-line me-2"></i>科研面板
+    </h1>
+    <span class="badge bg-primary">研究者</span>
+</div>
+
+<!-- 统计卡片 -->
+<div class="row mb-4">
+    <div class="col-md-3 mb-3">
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-book"></i>
+            </div>
+            <p class="stat-label">总科目数</p>
+            <div class="stat-value">{{ total_subjects }}</div>
+        </div>
+    </div>
+
+    <div class="col-md-3 mb-3">
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-dumbbell"></i>
+            </div>
+            <p class="stat-label">总习题数</p>
+            <div class="stat-value">{{ total_exercises }}</div>
+        </div>
+    </div>
+
+    <div class="col-md-3 mb-3">
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-brain"></i>
+            </div>
+            <p class="stat-label">知识点总数</p>
+            <div class="stat-value">{{ total_knowledge_points }}</div>
+        </div>
+    </div>
+
+    <div class="col-md-3 mb-3">
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-users"></i>
+            </div>
+            <p class="stat-label">学生总数</p>
+            <div class="stat-value">{{ total_students }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- 快速链接 -->
+<div class="section-title">快速导航</div>
+<div class="quick-links">
+    <a href="{% url 'researcher_data_analysis' %}" class="quick-link-btn primary">
+        <i class="fas fa-database"></i>
+        <span>数据集分析</span>
+    </a>
+    <a href="{% url 'researcher_algorithm_comparison' %}" class="quick-link-btn success">
+        <i class="fas fa-code-branch"></i>
+        <span>算法对比</span>
+    </a>
+    <a href="{% url 'researcher_performance_analysis' %}" class="quick-link-btn warning">
+        <i class="fas fa-chart-bar"></i>
+        <span>性能分析</span>
+    </a>
+    <a href="{% url 'researcher_reports' %}" class="quick-link-btn info">
+        <i class="fas fa-file-pdf"></i>
+        <span>研究报告</span>
+    </a>
+</div>
+
+<!-- 系统信息 -->
+<div class="section-title">系统概览</div>
+<div class="row">
+    <div class="col-md-6">
+        <div class="info-box">
+            <h6>
+                <i class="fas fa-info-circle me-2"></i>数据集信息
+            </h6>
+            <p>
+                系统包含 <strong>{{ total_subjects }}</strong> 个科目，
+                <strong>{{ total_exercises }}</strong> 道习题，
+                <strong>{{ total_knowledge_points }}</strong> 个知识点。
+                可用于教学诊断和学习分析研究。
+            </p>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="info-box">
+            <h6>
+                <i class="fas fa-lightbulb me-2"></i>研究功能
+            </h6>
+            <p>
+                支持多种诊断算法对比、性能分析、
+                数据可视化等功能。可导出研究报告
+                用于学术发表和教学改进。
+            </p>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

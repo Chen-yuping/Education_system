@@ -1,0 +1,395 @@
+{% extends 'researcher/researcher-base.html' %}
+{% load static %}
+
+{% block title %}性能分析 - 在线学习诊断系统{% endblock %}
+
+{% block extra_css %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<style>
+    .metric-card {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 15px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        border-top: 3px solid #007bff;
+    }
+
+    .metric-card.warning {
+        border-top-color: #ffc107;
+    }
+
+    .metric-card.danger {
+        border-top-color: #dc3545;
+    }
+
+    .metric-card.success {
+        border-top-color: #28a745;
+    }
+
+    .metric-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+
+    .metric-title {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #333;
+    }
+
+    .metric-trend {
+        font-size: 0.9rem;
+        padding: 4px 12px;
+        border-radius: 20px;
+        background: #e8f5e9;
+        color: #2e7d32;
+    }
+
+    .metric-trend.down {
+        background: #ffebee;
+        color: #c62828;
+    }
+
+    .metric-value {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #007bff;
+        margin-bottom: 10px;
+    }
+
+    .metric-desc {
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+
+    .progress-bar-custom {
+        height: 8px;
+        background: #e9ecef;
+        border-radius: 4px;
+        overflow: hidden;
+        margin-top: 10px;
+    }
+
+    .progress-bar-custom .bar {
+        height: 100%;
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        border-radius: 4px;
+    }
+
+    .chart-container {
+        position: relative;
+        height: 400px;
+        margin-bottom: 30px;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    }
+
+    .filter-section {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+    }
+
+    .time-range-btn {
+        padding: 8px 16px;
+        border: 1px solid #dee2e6;
+        background: white;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .time-range-btn.active {
+        background: #007bff;
+        color: white;
+        border-color: #007bff;
+    }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h2">
+        <i class="fas fa-chart-bar me-2"></i>性能分析
+    </h1>
+</div>
+
+<!-- 时间范围选择 -->
+<div class="filter-section">
+    <div class="row">
+        <div class="col-md-6">
+            <label class="form-label">时间范围</label>
+            <div class="btn-group w-100" role="group">
+                <button type="button" class="time-range-btn active" onclick="setTimeRange('week')">本周</button>
+                <button type="button" class="time-range-btn" onclick="setTimeRange('month')">本月</button>
+                <button type="button" class="time-range-btn" onclick="setTimeRange('quarter')">本季度</button>
+                <button type="button" class="time-range-btn" onclick="setTimeRange('year')">本年</button>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label">选择科目</label>
+            <select class="form-select" id="subjectFilter">
+                <option value="">全部科目</option>
+                {% for subject in subjects %}
+                <option value="{{ subject.id }}">{{ subject.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+</div>
+
+<!-- 关键指标 -->
+<div class="row">
+    <div class="col-md-3">
+        <div class="metric-card success">
+            <div class="metric-header">
+                <span class="metric-title">系统可用性</span>
+                <span class="metric-trend">↑ 2.3%</span>
+            </div>
+            <div class="metric-value">99.8%</div>
+            <div class="metric-desc">系统正常运行时间占比</div>
+            <div class="progress-bar-custom">
+                <div class="bar" style="width: 99.8%"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="metric-card">
+            <div class="metric-header">
+                <span class="metric-title">平均响应时间</span>
+                <span class="metric-trend down">↑ 0.5s</span>
+            </div>
+            <div class="metric-value">1.2s</div>
+            <div class="metric-desc">API 平均响应延迟</div>
+            <div class="progress-bar-custom">
+                <div class="bar" style="width: 60%; background: #ffc107;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="metric-card success">
+            <div class="metric-header">
+                <span class="metric-title">诊断准确率</span>
+                <span class="metric-trend">↑ 1.2%</span>
+            </div>
+            <div class="metric-value">94.2%</div>
+            <div class="metric-desc">NCD 算法诊断准确度</div>
+            <div class="progress-bar-custom">
+                <div class="bar" style="width: 94.2%"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="metric-card">
+            <div class="metric-header">
+                <span class="metric-title">用户活跃度</span>
+                <span class="metric-trend">↑ 5.1%</span>
+            </div>
+            <div class="metric-value">2,847</div>
+            <div class="metric-desc">日均活跃用户数</div>
+            <div class="progress-bar-custom">
+                <div class="bar" style="width: 75%; background: #28a745;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 性能趋势图 -->
+<div class="row">
+    <div class="col-lg-6">
+        <div class="chart-container">
+            <canvas id="responseTimeChart"></canvas>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="chart-container">
+            <canvas id="accuracyTrendChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- 资源使用情况 -->
+<div class="row">
+    <div class="col-lg-6">
+        <div class="chart-container">
+            <canvas id="cpuMemoryChart"></canvas>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="chart-container">
+            <canvas id="databaseChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- 性能建议 -->
+<div class="card mt-4">
+    <div class="card-header bg-light">
+        <h5 class="mb-0">
+            <i class="fas fa-lightbulb me-2"></i>性能优化建议
+        </h5>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info mb-3">
+            <strong>✓ 系统运行良好</strong><br>
+            当前系统性能指标均在正常范围内，建议继续监控。
+        </div>
+        <div class="alert alert-warning mb-3">
+            <strong>⚠ 注意事项</strong><br>
+            数据库查询时间有所增加，建议检查索引优化。
+        </div>
+        <div class="alert alert-success">
+            <strong>✓ 优化成果</strong><br>
+            本月通过缓存优化，API 响应时间降低 15%。
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 响应时间趋势
+    const responseTimeCtx = document.getElementById('responseTimeChart').getContext('2d');
+    new Chart(responseTimeCtx, {
+        type: 'line',
+        data: {
+            labels: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
+            datasets: [{
+                label: '平均响应时间 (ms)',
+                data: [1200, 1150, 1300, 1100, 1250, 1180, 1220],
+                borderColor: '#667eea',
+                backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                tension: 0.4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: '响应时间趋势'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+
+    // 诊断准确率趋势
+    const accuracyCtx = document.getElementById('accuracyTrendChart').getContext('2d');
+    new Chart(accuracyCtx, {
+        type: 'line',
+        data: {
+            labels: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
+            datasets: [{
+                label: '诊断准确率 (%)',
+                data: [92.5, 93.1, 93.8, 94.2, 94.0, 93.9, 94.2],
+                borderColor: '#28a745',
+                backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                tension: 0.4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: '诊断准确率趋势'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100
+                }
+            }
+        }
+    });
+
+    // CPU 和内存使用
+    const cpuMemoryCtx = document.getElementById('cpuMemoryChart').getContext('2d');
+    new Chart(cpuMemoryCtx, {
+        type: 'bar',
+        data: {
+            labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', '24:00'],
+            datasets: [
+                {
+                    label: 'CPU 使用率 (%)',
+                    data: [35, 28, 42, 65, 58, 45, 32],
+                    backgroundColor: '#667eea'
+                },
+                {
+                    label: '内存使用率 (%)',
+                    data: [48, 42, 55, 72, 68, 52, 45],
+                    backgroundColor: '#764ba2'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'CPU 和内存使用情况'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100
+                }
+            }
+        }
+    });
+
+    // 数据库性能
+    const databaseCtx = document.getElementById('databaseChart').getContext('2d');
+    new Chart(databaseCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['查询时间', '写入时间', '索引时间', '其他'],
+            datasets: [{
+                data: [45, 25, 20, 10],
+                backgroundColor: ['#667eea', '#764ba2', '#f093fb', '#4facfe']
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: '数据库操作时间分布'
+                }
+            }
+        }
+    });
+});
+
+function setTimeRange(range) {
+    document.querySelectorAll('.time-range-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    event.target.classList.add('active');
+    console.log('Time range set to:', range);
+}
+</script>
+
+{% endblock %}

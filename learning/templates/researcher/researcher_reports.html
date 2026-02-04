@@ -1,0 +1,427 @@
+{% extends 'researcher/researcher-base.html' %}
+
+{% block title %}研究报告 - 在线学习诊断系统{% endblock %}
+
+{% block content %}
+<style>
+    .report-card {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        transition: all 0.3s ease;
+    }
+
+    .report-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 5px 20px rgba(0,0,0,0.12);
+    }
+
+    .report-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 15px;
+    }
+
+    .report-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 5px;
+    }
+
+    .report-meta {
+        font-size: 0.85rem;
+        color: #6c757d;
+        margin-bottom: 10px;
+    }
+
+    .report-desc {
+        font-size: 0.9rem;
+        color: #555;
+        line-height: 1.6;
+        margin-bottom: 15px;
+    }
+
+    .report-tags {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 15px;
+    }
+
+    .report-tag {
+        display: inline-block;
+        padding: 4px 12px;
+        background: #e3f2fd;
+        color: #1976d2;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+
+    .report-actions {
+        display: flex;
+        gap: 10px;
+    }
+
+    .report-actions .btn {
+        flex: 1;
+        font-size: 0.9rem;
+        padding: 8px 12px;
+    }
+
+    .filter-section {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+    }
+
+    .status-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+
+    .status-badge.published {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .status-badge.draft {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .status-badge.processing {
+        background: #cfe2ff;
+        color: #084298;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #6c757d;
+    }
+
+    .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 15px;
+        opacity: 0.5;
+    }
+
+    .create-report-btn {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        color: white;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+
+    .create-report-btn:hover {
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        color: white;
+    }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h2">
+        <i class="fas fa-file-pdf me-2"></i>研究报告
+    </h1>
+    <button class="create-report-btn" data-bs-toggle="modal" data-bs-target="#createReportModal">
+        <i class="fas fa-plus me-2"></i>生成新报告
+    </button>
+</div>
+
+<!-- 筛选区域 -->
+<div class="filter-section">
+    <div class="row">
+        <div class="col-md-3">
+            <label class="form-label">报告类型</label>
+            <select class="form-select" id="reportTypeFilter">
+                <option value="">全部类型</option>
+                <option value="data">数据分析报告</option>
+                <option value="algorithm">算法对比报告</option>
+                <option value="performance">性能分析报告</option>
+                <option value="research">研究论文</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">报告状态</label>
+            <select class="form-select" id="statusFilter">
+                <option value="">全部状态</option>
+                <option value="published">已发布</option>
+                <option value="draft">草稿</option>
+                <option value="processing">处理中</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">时间范围</label>
+            <select class="form-select" id="timeFilter">
+                <option value="">全部时间</option>
+                <option value="week">最近一周</option>
+                <option value="month">最近一月</option>
+                <option value="quarter">最近一季度</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">&nbsp;</label>
+            <button class="btn btn-primary w-100" onclick="filterReports()">
+                <i class="fas fa-search me-2"></i>筛选
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- 报告列表 -->
+<div id="reportsList">
+    <!-- 数据分析报告 -->
+    <div class="report-card">
+        <div class="report-header">
+            <div>
+                <div class="report-title">
+                    <i class="fas fa-chart-bar me-2"></i>2024年Q1数据分析报告
+                </div>
+                <div class="report-meta">
+                    <i class="fas fa-calendar me-1"></i>2024-03-15
+                    <span class="ms-3">
+                        <span class="status-badge published">已发布</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="report-desc">
+            本报告详细分析了2024年第一季度系统数据，包括用户行为分析、
+            学习效果评估、知识点掌握情况等。数据显示学生平均诊断准确率达到94.2%，
+            系统可用性达到99.8%。
+        </div>
+        <div class="report-tags">
+            <span class="report-tag">数据分析</span>
+            <span class="report-tag">用户行为</span>
+            <span class="report-tag">学习效果</span>
+            <span class="report-tag">Q1 2024</span>
+        </div>
+        <div class="report-actions">
+            <a href="#" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-eye me-1"></i>查看
+            </a>
+            <a href="#" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-download me-1"></i>下载
+            </a>
+            <button class="btn btn-sm btn-outline-danger" onclick="deleteReport(this)">
+                <i class="fas fa-trash me-1"></i>删除
+            </button>
+        </div>
+    </div>
+
+    <!-- 算法对比报告 -->
+    <div class="report-card">
+        <div class="report-header">
+            <div>
+                <div class="report-title">
+                    <i class="fas fa-code-branch me-2"></i>诊断算法性能对比研究
+                </div>
+                <div class="report-meta">
+                    <i class="fas fa-calendar me-1"></i>2024-02-28
+                    <span class="ms-3">
+                        <span class="status-badge published">已发布</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="report-desc">
+            对比分析了IRT、NCD和简单诊断三种算法的性能表现。
+            研究结果表明NCD算法在诊断准确率和用户体验方面表现最优，
+            建议作为主要诊断方法。
+        </div>
+        <div class="report-tags">
+            <span class="report-tag">算法对比</span>
+            <span class="report-tag">IRT</span>
+            <span class="report-tag">NCD</span>
+            <span class="report-tag">性能评估</span>
+        </div>
+        <div class="report-actions">
+            <a href="#" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-eye me-1"></i>查看
+            </a>
+            <a href="#" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-download me-1"></i>下载
+            </a>
+            <button class="btn btn-sm btn-outline-danger" onclick="deleteReport(this)">
+                <i class="fas fa-trash me-1"></i>删除
+            </button>
+        </div>
+    </div>
+
+    <!-- 性能分析报告 -->
+    <div class="report-card">
+        <div class="report-header">
+            <div>
+                <div class="report-title">
+                    <i class="fas fa-tachometer-alt me-2"></i>系统性能优化报告
+                </div>
+                <div class="report-meta">
+                    <i class="fas fa-calendar me-1"></i>2024-02-10
+                    <span class="ms-3">
+                        <span class="status-badge published">已发布</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="report-desc">
+            记录了本月系统性能优化工作成果。通过数据库索引优化和缓存策略改进，
+            API响应时间降低15%，系统吞吐量提升20%。
+        </div>
+        <div class="report-tags">
+            <span class="report-tag">性能优化</span>
+            <span class="report-tag">数据库</span>
+            <span class="report-tag">缓存</span>
+            <span class="report-tag">2024年2月</span>
+        </div>
+        <div class="report-actions">
+            <a href="#" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-eye me-1"></i>查看
+            </a>
+            <a href="#" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-download me-1"></i>下载
+            </a>
+            <button class="btn btn-sm btn-outline-danger" onclick="deleteReport(this)">
+                <i class="fas fa-trash me-1"></i>删除
+            </button>
+        </div>
+    </div>
+
+    <!-- 草稿报告 -->
+    <div class="report-card">
+        <div class="report-header">
+            <div>
+                <div class="report-title">
+                    <i class="fas fa-file-alt me-2"></i>学生学习行为分析研究
+                </div>
+                <div class="report-meta">
+                    <i class="fas fa-calendar me-1"></i>2024-01-20
+                    <span class="ms-3">
+                        <span class="status-badge draft">草稿</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="report-desc">
+            正在进行中的研究项目，分析学生在线学习行为特征、
+            学习路径选择、知识点掌握规律等。
+        </div>
+        <div class="report-tags">
+            <span class="report-tag">学习行为</span>
+            <span class="report-tag">数据挖掘</span>
+            <span class="report-tag">进行中</span>
+        </div>
+        <div class="report-actions">
+            <a href="#" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-edit me-1"></i>编辑
+            </a>
+            <button class="btn btn-sm btn-outline-success" onclick="publishReport(this)">
+                <i class="fas fa-check me-1"></i>发布
+            </button>
+            <button class="btn btn-sm btn-outline-danger" onclick="deleteReport(this)">
+                <i class="fas fa-trash me-1"></i>删除
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- 创建报告模态框 -->
+<div class="modal fade" id="createReportModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">生成新报告</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createReportForm">
+                    <div class="mb-3">
+                        <label class="form-label">报告标题</label>
+                        <input type="text" class="form-control" placeholder="输入报告标题" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">报告类型</label>
+                        <select class="form-select" required>
+                            <option value="">选择报告类型</option>
+                            <option value="data">数据分析报告</option>
+                            <option value="algorithm">算法对比报告</option>
+                            <option value="performance">性能分析报告</option>
+                            <option value="research">研究论文</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">报告描述</label>
+                        <textarea class="form-control" rows="4" placeholder="输入报告描述"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">选择科目</label>
+                        <select class="form-select" multiple>
+                            <option value="">全部科目</option>
+                            {% for subject in subjects %}
+                            <option value="{{ subject.id }}">{{ subject.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="submitCreateReport()">生成报告</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function filterReports() {
+    const type = document.getElementById('reportTypeFilter').value;
+    const status = document.getElementById('statusFilter').value;
+    const time = document.getElementById('timeFilter').value;
+    console.log('Filtering reports:', { type, status, time });
+}
+
+function deleteReport(btn) {
+    if (confirm('确定要删除这份报告吗？')) {
+        btn.closest('.report-card').remove();
+    }
+}
+
+function publishReport(btn) {
+    const card = btn.closest('.report-card');
+    const badge = card.querySelector('.status-badge');
+    badge.textContent = '已发布';
+    badge.className = 'status-badge published';
+    
+    const actions = card.querySelector('.report-actions');
+    actions.innerHTML = `
+        <a href="#" class="btn btn-sm btn-outline-primary">
+            <i class="fas fa-eye me-1"></i>查看
+        </a>
+        <a href="#" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-download me-1"></i>下载
+        </a>
+        <button class="btn btn-sm btn-outline-danger" onclick="deleteReport(this)">
+            <i class="fas fa-trash me-1"></i>删除
+        </button>
+    `;
+}
+
+function submitCreateReport() {
+    console.log('Creating new report');
+    alert('报告生成成功！');
+    bootstrap.Modal.getInstance(document.getElementById('createReportModal')).hide();
+}
+</script>
+
+{% endblock %}
