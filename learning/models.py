@@ -157,7 +157,7 @@ class AnswerLog(models.Model):
         return f"{self.student.username} - {self.exercise.title}"
 
 
-# 添加models
+# 添加算法models
 class DiagnosisModel(models.Model):
     name = models.CharField('模型名称', max_length=100)
     description = models.TextField('模型描述', blank=True)
