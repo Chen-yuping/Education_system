@@ -336,9 +336,9 @@
                                      data-question="{{ log.question_text|escapejs }}"
                                      data-question-type="{{ log.question_type }}"
                                      data-selected-option="{{ log.selected_option|escapejs }}"
-                                     data-correct-option="{{ log.correct_option|escapejs }}"
+                                     data-correct-option='{{ log.correct_option|safe }}'
                                      data-options='{{ log.options_json }}'
-                                     data-text-answer="{{ log.text_answer|escapejs }}"
+                                     data-text-answer='{{ log.text_answer|safe }}'
                                      data-status="{% if log.is_correct == True %}correct{% elif log.is_correct == False %}incorrect{% else %}unmarked{% endif %}"
                                      data-time="{{ log.submitted_at|date:'Y-m-d H:i:s' }}">
                                     {{ forloop.counter }}
@@ -711,7 +711,7 @@ function showQuestionModal(logId) {
     // 清空并重新设置选项或答案
     answerOptions.innerHTML = '';
     
-    // 判断题型：主观题（类型5）显示文本答案，其他显示选项
+    // 判断题型：主观题（类型5）显示文本答案，填空题（类型4）显示填空答案，其他显示选项
     if (questionType === '5') {
         // 主观题：显示文本答案
         answerOptions.innerHTML = `
@@ -720,6 +720,48 @@ function showQuestionModal(logId) {
                 ${textAnswer || '未作答'}
             </div>
         `;
+    } else if (questionType === '4') {
+        // 填空题：显示填空答案
+        try {
+            const studentAnswers = textAnswer ? JSON.parse(textAnswer) : {};
+            const correctAnswers = correctOption ? JSON.parse(correctOption) : {};
+            
+            let html = '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">';
+            
+            // 获取所有填空位置
+            const allBlanks = new Set([...Object.keys(studentAnswers), ...Object.keys(correctAnswers)]);
+            
+            allBlanks.forEach(blankKey => {
+                // 处理数据格式：answer中的值是数组 ["value"]
+                const studentAnswerArray = studentAnswers[blankKey] || [];
+                const correctAnswerArray = correctAnswers[blankKey] || [];
+                
+                const studentAnswer = Array.isArray(studentAnswerArray) ? studentAnswerArray[0] : studentAnswerArray;
+                const correctAnswer = Array.isArray(correctAnswerArray) ? correctAnswerArray[0] : correctAnswerArray;
+                
+                const isCorrect = studentAnswer === correctAnswer;
+                
+                const bgColor = isCorrect ? '#d4edda' : '#f8d7da';
+                const textColor = isCorrect ? '#155724' : '#721c24';
+                
+                html += `
+                    <div style="padding: 12px; background-color: ${bgColor}; border-radius: 4px; border-left: 3px solid ${isCorrect ? '#28a745' : '#dc3545'};">
+                        <div style="font-size: 0.85rem; color: #666; margin-bottom: 5px;">我的答案：</div>
+                        <div style="color: ${textColor}; font-weight: 500; margin-bottom: 8px;">${studentAnswer || '未作答'}</div>
+                        <div style="font-size: 0.85rem; color: #666; margin-bottom: 5px;">正确答案：</div>
+                        <div style="color: #0066cc; font-weight: 500;">${correctAnswer || '未设置'}</div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            answerOptions.innerHTML = html;
+        } catch (e) {
+            answerOptions.innerHTML = `
+                <h6>我的作答：</h6>
+                <div class="p-3 bg-light rounded">${textAnswer || '未作答'}</div>
+            `;
+        }
     } else if (options && options.length > 0) {
         // 选择题：显示选项
         answerOptions.innerHTML = '<h6>选项：</h6>';

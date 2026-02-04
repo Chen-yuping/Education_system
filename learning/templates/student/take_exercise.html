@@ -109,6 +109,90 @@
     .recommended-exercises-list {
         display: none;
     }
+
+    /* 填空题样式 */
+    .fib-container {
+        padding: 1rem 0;
+    }
+
+    .question-display {
+        font-size: 1.1rem;
+        line-height: 1.8;
+        padding: 1.5rem;
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        word-break: break-word;
+    }
+
+    .blank-input {
+        display: inline-block;
+        min-width: 80px;
+        padding: 0.4rem 0.6rem;
+        margin: 0 0.2rem;
+        border: none;
+        border-bottom: 2px solid #667eea;
+        border-radius: 0;
+        font-size: 1rem;
+        text-align: center;
+        background-color: transparent;
+        transition: all 0.3s ease;
+    }
+
+    .blank-input:focus {
+        outline: none;
+        border-bottom-color: #764ba2;
+        background-color: #f0f4ff;
+    }
+
+    .blank-input.filled {
+        border-bottom-color: #28a745;
+        background-color: transparent;
+    }
+
+    .blanks-input-area {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1rem;
+        margin-top: 1.5rem;
+    }
+
+    .blank-item {
+        padding: 1rem;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        background-color: #fff;
+    }
+
+    .blank-label {
+        display: block;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 0.5rem;
+        font-size: 0.9rem;
+    }
+
+    .blank-input-field {
+        width: 100%;
+        padding: 0.6rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+    }
+
+    .blank-input-field:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .blank-hint {
+        display: block;
+        font-size: 0.85rem;
+        color: #6c757d;
+        margin-top: 0.5rem;
+        font-style: italic;
+    }
 </style>
 
 <div class="exercise-container">
@@ -150,7 +234,7 @@
                 {% csrf_token %}
                 <input type="hidden" name="time_spent" id="time-spent" value="0">
 
-                <h6 class="text-muted mb-3">请选择答案：</h6>
+                <h6 class="text-muted mb-3">请作答：</h6>
 
                 {% if exercise.question_type == '1' %}
                 <!-- 单选题 -->
@@ -210,22 +294,9 @@
                 </div>
 
                 {% elif exercise.question_type == '4' %}
-                <!-- 填空 -->
-                <div class="choices-container">
-                    {% for choice in exercise.choices.all %}
-                    <div class="choice-item" onclick="toggleMultipleChoice({{ choice.id }})">
-                        <div class="form-check">
-                            <input class="form-check-input choice-input"
-                                   type="checkbox"
-                                   name="choices"
-                                   id="choice_{{ choice.id }}"
-                                   value="{{ choice.id }}">
-                            <label class="form-check-label w-100" for="choice_{{ choice.id }}">
-                                {{ choice.content }}
-                            </label>
-                        </div>
-                    </div>
-                    {% endfor %}
+                <!-- 填空题 -->
+                <div class="fib-container">
+                    <div id="blanks-input-area" class="blanks-input-area"></div>
                 </div>
 
                 {% elif exercise.question_type == '5' %}
@@ -337,6 +408,53 @@ function toggleMultipleChoice(choiceId) {
         choiceElement.classList.remove('selected');
     }
 }
+
+// 处理填空题
+function processFillInTheBlanks() {
+    const content = '{{ exercise.content|escapejs }}';
+    const blankRegex = /\[填空(\d+)\]/g;
+    let blankCount = 0;
+    let match;
+
+    // 计算填空数量
+    while ((match = blankRegex.exec(content)) !== null) {
+        blankCount = Math.max(blankCount, parseInt(match[1]));
+    }
+
+    // 生成输入框网格
+    const blanksInputArea = document.getElementById('blanks-input-area');
+    if (!blanksInputArea || blankCount === 0) return;
+
+    let html = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">';
+    
+    for (let i = 1; i <= blankCount; i++) {
+        html += `
+            <div class="blank-item">
+                <label class="blank-label">填空${i}</label>
+                <input type="text" class="blank-input-field" name="blank_${i}" placeholder="请输入答案">
+            </div>
+        `;
+    }
+    
+    html += '</div>';
+    blanksInputArea.innerHTML = html;
+
+    // 为所有输入框添加事件监听
+    document.querySelectorAll('.blank-input-field').forEach(input => {
+        input.addEventListener('input', function() {
+            if (this.value.trim()) {
+                this.style.borderColor = '#667eea';
+            } else {
+                this.style.borderColor = '#ddd';
+            }
+        });
+    });
+}
+
+// 页面加载时处理填空题
+document.addEventListener('DOMContentLoaded', function() {
+    processFillInTheBlanks();
+});
 
 // 表单提交
 document.getElementById('answer-form').addEventListener('submit', function(e) {

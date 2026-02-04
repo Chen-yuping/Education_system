@@ -57,6 +57,7 @@ urlpatterns = [
     # 知识点管理
     path('teacher/knowledge-points/<int:subject_id>/', views_teacherknowledge_management.knowledge_point_list, name='knowledge_point_list'),
     path('teacher/knowledge-points/<int:subject_id>/add/', views_teacherknowledge_management.knowledge_point_add, name='knowledge_point_add'),
+    path('teacher/knowledge-points/<int:subject_id>/batch-upload/', views_teacherknowledge_management.batch_upload_knowledge_points, name='batch_upload_knowledge_points'),
     path('teacher/knowledge-points/<int:subject_id>/<int:kp_id>/edit/', views_teacherknowledge_management.knowledge_point_edit, name='knowledge_point_edit'),
     path('teacher/knowledge-points/<int:subject_id>/<int:kp_id>/delete/', views_teacherknowledge_management.knowledge_point_delete, name='knowledge_point_delete'),
     path('teacher/knowledge-points/<int:subject_id>/<int:kp_id>/exercises/', views_teacherknowledge_management.knowledge_point_exercise_association, name='knowledge_point_exercise_association'),

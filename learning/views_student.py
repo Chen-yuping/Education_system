@@ -372,6 +372,19 @@ def take_exercise(request, exercise_id):
         text_answer = request.POST.get('text_answer', '')
         time_spent = request.POST.get('time_spent', 0)
 
+        # 处理填空题答案
+        if exercise.question_type == '4':
+            # 提取所有blank_X参数
+            blank_answers = {}
+            for key, value in request.POST.items():
+                if key.startswith('blank_') and value.strip():
+                    blank_num = key.replace('blank_', '')
+                    # 格式转换为 {"1": ["value"], "2": ["value"]} 的格式
+                    blank_answers[blank_num] = [value.strip()]
+            
+            # 将填空答案保存为JSON格式
+            text_answer = json.dumps(blank_answers, ensure_ascii=False)
+
         # 创建答题记录
         answer_log = AnswerLog.objects.create(
             student=request.user,
@@ -389,6 +402,18 @@ def take_exercise(request, exercise_id):
             correct_choices = set(exercise.choices.filter(is_correct=True))
             selected_choices_set = set(selected_choices)
             answer_log.is_correct = correct_choices == selected_choices_set
+        
+        # 处理填空题答案正确性判断
+        elif exercise.question_type == '4':
+            try:
+                student_answers = json.loads(text_answer)
+                correct_answers = json.loads(exercise.answer) if exercise.answer else {}
+                
+                # 比较答案 - 需要处理数组格式
+                # 将学生答案转换为与正确答案相同的格式进行比较
+                answer_log.is_correct = student_answers == correct_answers
+            except (json.JSONDecodeError, TypeError):
+                answer_log.is_correct = False
 
         answer_log.save()
 
@@ -667,6 +692,12 @@ def subject_exercise_logs(request, subject_id):
             # 获取所有选项文本
             options_text = [c.content for c in choices]
 
+            # 对于填空题，correct_option应该是exercise.answer
+            if exercise.question_type == '4':
+                correct_option_value = exercise.answer if exercise.answer else ""
+            else:
+                correct_option_value = " | ".join(correct_options_text) if correct_options_text else "未设置正确答案"
+
             # 准备日志数据
             log_data = {
                 'id': log.id,
@@ -675,7 +706,7 @@ def subject_exercise_logs(request, subject_id):
                 'question_text': exercise.content,
                 'question_type': exercise.question_type,
                 'selected_option': " | ".join(selected_options_text) if selected_options_text else "未选择",
-                'correct_option': " | ".join(correct_options_text) if correct_options_text else "未设置正确答案",
+                'correct_option': correct_option_value,
                 'options_json': json.dumps(options_text, ensure_ascii=False),
                 'text_answer': log.text_answer if log.text_answer else "",  # 主观题答案
             }

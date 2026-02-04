@@ -219,9 +219,9 @@
                     {{ forloop.parentloop.counter }}.{{ forloop.counter }} 
                     {% if exercise.question_type == '1' %}单选题
                     {% elif exercise.question_type == '2' %}多选题
-                    {% elif exercise.question_type == '3' %}填空题
-                    {% elif exercise.question_type == '4' %}简答题
-                    {% elif exercise.question_type == '5' %}编程题
+                    {% elif exercise.question_type == '3' %}投票题
+                    {% elif exercise.question_type == '4' %}填空题
+                    {% elif exercise.question_type == '5' %}主观题
                     {% elif exercise.question_type == '6' %}判断题
                     {% else %}习题{% endif %}
                 </div>

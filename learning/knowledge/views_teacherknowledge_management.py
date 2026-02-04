@@ -695,3 +695,120 @@ def delete_knowledge_point_relationship_api(request, subject_id, relationship_id
             'success': False,
             'message': str(e)
         }, status=500)
+
+
+# ==================== 批量上传知识点 ====================
+@login_required
+@user_passes_test(is_teacher)
+@require_POST
+def batch_upload_knowledge_points(request, subject_id):
+    """批量上传知识点"""
+    try:
+        import csv
+        import io
+        
+        teacher = request.user
+        subject = get_object_or_404(Subject, id=subject_id)
+        
+        # 验证教师权限
+        if not TeacherSubject.objects.filter(teacher=teacher, subject=subject).exists():
+            return JsonResponse({'success': False, 'message': '您没有权限'}, status=403)
+        
+        # 获取上传的文件
+        if 'file' not in request.FILES:
+            return JsonResponse({'success': False, 'message': '未找到文件'})
+        
+        file = request.FILES['file']
+        
+        # 检查文件类型
+        if not file.name.endswith('.csv'):
+            return JsonResponse({'success': False, 'message': '请上传CSV格式的文件'})
+        
+        # 读取CSV文件
+        try:
+            # 处理编码问题
+            content = file.read().decode('utf-8-sig')
+        except UnicodeDecodeError:
+            try:
+                content = file.read().decode('gbk')
+            except UnicodeDecodeError:
+                content = file.read().decode('latin-1')
+        
+        # 解析CSV
+        csv_reader = csv.reader(io.StringIO(content))
+        
+        created_count = 0
+        skipped_count = 0
+        errors = []
+        
+        # 创建一个字典来缓存已创建的知识点，用于处理父子关系
+        kp_cache = {}
+        
+        for row_num, row in enumerate(csv_reader, 1):
+            if not row or not row[0].strip():
+                continue
+            
+            try:
+                kp_name = row[0].strip()
+                parent_name = row[1].strip() if len(row) > 1 else None
+                
+                # 检查知识点是否已存在
+                existing_kp = KnowledgePoint.objects.filter(
+                    subject=subject,
+                    name=kp_name
+                ).first()
+                
+                if existing_kp:
+                    skipped_count += 1
+                    continue
+                
+                # 处理父知识点
+                parent = None
+                if parent_name:
+                    # 先从缓存中查找
+                    if parent_name in kp_cache:
+                        parent = kp_cache[parent_name]
+                    else:
+                        # 从数据库中查找
+                        parent = KnowledgePoint.objects.filter(
+                            subject=subject,
+                            name=parent_name
+                        ).first()
+                        
+                        if not parent:
+                            # 如果父知识点不存在，先创建它
+                            parent = KnowledgePoint.objects.create(
+                                subject=subject,
+                                name=parent_name
+                            )
+                            kp_cache[parent_name] = parent
+                
+                # 创建知识点
+                kp = KnowledgePoint.objects.create(
+                    subject=subject,
+                    name=kp_name,
+                    parent=parent
+                )
+                
+                # 加入缓存
+                kp_cache[kp_name] = kp
+                created_count += 1
+                
+            except Exception as e:
+                errors.append(f'第 {row_num} 行出错: {str(e)}')
+        
+        return JsonResponse({
+            'success': True,
+            'created_count': created_count,
+            'skipped_count': skipped_count,
+            'errors': errors,
+            'message': f'成功上传 {created_count} 个知识点，{skipped_count} 个已存在'
+        })
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        }, status=500)

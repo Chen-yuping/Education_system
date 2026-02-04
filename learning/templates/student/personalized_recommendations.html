@@ -200,6 +200,9 @@
                                         <div class="exercise-choices">
                                             {% for choice in exercise.choices.all %}
                                             <div style="padding: 8px 12px; background: #f8f9fa; border-radius: 4px; margin-bottom: 6px; font-size: 0.9rem;">
+                                                {% if exercise.question_type in '1236' %}
+                                                    {% if forloop.counter == 1 %}A.{% elif forloop.counter == 2 %}B.{% elif forloop.counter == 3 %}C.{% elif forloop.counter == 4 %}D.{% elif forloop.counter == 5 %}E.{% elif forloop.counter == 6 %}F.{% endif %}
+                                                {% endif %}
                                                 {{ choice.content }}
                                             </div>
                                             {% endfor %}
