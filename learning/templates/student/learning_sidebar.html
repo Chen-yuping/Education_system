@@ -37,16 +37,15 @@
             </a>
         </li>
         <li class="nav-item">
-            <a class="nav-link {% if request.resolver_match.url_name == 'subject_exercise_logs' %}active{% endif %}"
-               href="{% url 'subject_exercise_logs' subject.id %}">
-                <i class="fas fa-history"></i> 做题记录
-            </a>
-        </li>
-
-        <li class="nav-item">
-            <a class="nav-link {% if request.resolver_match.url_name == 'personalized_recommendations' %}active{% endif %}"
+            <a class="nav-link {% if request.resolver_match.url_name == 'personalized_recommendations' %}active{% endif %}" 
                href="{% url 'personalized_recommendations' subject_id=subject.id %}">
                 <i class="fas fa-magic"></i> 个性化习题推荐
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if request.resolver_match.url_name == 'subject_exercise_logs' %}active{% endif %}" 
+               href="{% url 'subject_exercise_logs' subject.id %}">
+                <i class="fas fa-history"></i> 做题记录
             </a>
         </li>
         
