@@ -1,0 +1,579 @@
+{% extends 'researcher/researcher-base.html' %}
+
+{% block title %}性能对比 - 科研管理{% endblock %}
+
+{% block extra_css %}
+<style>
+    .comparison-container {
+        padding: 20px;
+    }
+
+    .comparison-header {
+        margin-bottom: 30px;
+    }
+
+    .comparison-header h1 {
+        font-size: 2rem;
+        font-weight: bold;
+        margin-bottom: 10px;
+        color: #333;
+    }
+
+    .comparison-description {
+        color: #666;
+        font-size: 1rem;
+        line-height: 1.6;
+        margin-bottom: 20px;
+    }
+
+    /* 诊断配置区域 */
+    .diagnosis-config {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+    }
+
+    .config-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+    }
+
+    .config-title i {
+        margin-right: 8px;
+        color: #007bff;
+    }
+
+    .config-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 15px;
+        margin-bottom: 15px;
+    }
+
+    .config-item {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .config-item label {
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: #555;
+        margin-bottom: 8px;
+    }
+
+    .config-item select {
+        padding: 10px 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 0.95rem;
+        background-color: white;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .config-item select:focus {
+        outline: none;
+        border-color: #007bff;
+        box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+    }
+
+    .config-actions {
+        display: flex;
+        gap: 10px;
+        align-items: flex-end;
+    }
+
+    .btn-analyze {
+        padding: 10px 20px;
+        background-color: #28a745;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .btn-analyze:hover {
+        background-color: #218838;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+    }
+
+    .btn-analyze i {
+        font-size: 1rem;
+    }
+
+    .toggle-section {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-left: auto;
+    }
+
+    .toggle-label {
+        font-size: 0.9rem;
+        color: #555;
+        font-weight: 500;
+    }
+
+    .toggle-switch {
+        position: relative;
+        display: inline-block;
+        width: 50px;
+        height: 24px;
+    }
+
+    .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ccc;
+        transition: 0.4s;
+        border-radius: 24px;
+    }
+
+    .toggle-slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: 0.4s;
+        border-radius: 50%;
+    }
+
+    input:checked + .toggle-slider {
+        background-color: #007bff;
+    }
+
+    input:checked + .toggle-slider:before {
+        transform: translateX(26px);
+    }
+
+    /* 结果区域 */
+    .analysis-result {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        display: none;
+    }
+
+    .analysis-result.active {
+        display: block;
+    }
+
+    .result-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 15px;
+    }
+
+    .comparison-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+    }
+
+    .comparison-table thead {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    .comparison-table th {
+        padding: 15px;
+        font-weight: 600;
+        text-align: center;
+        border: none;
+    }
+
+    .comparison-table td {
+        padding: 12px 15px;
+        border-bottom: 1px solid #dee2e6;
+        text-align: left;
+    }
+
+    .comparison-table tbody tr:hover {
+        background-color: #f8f9fa;
+    }
+
+    .comparison-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 40px 20px;
+        color: #999;
+    }
+
+    .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 15px;
+        color: #ddd;
+    }
+
+    .empty-state p {
+        font-size: 1.1rem;
+    }
+
+    @media (max-width: 768px) {
+        .config-row {
+            grid-template-columns: 1fr;
+        }
+
+        .config-actions {
+            flex-direction: column;
+        }
+
+        .btn-analyze {
+            width: 100%;
+            justify-content: center;
+        }
+
+        .toggle-section {
+            margin-left: 0;
+            margin-top: 10px;
+        }
+    }
+
+    /* 模型选择器样式 */
+    .model-selector {
+        position: relative;
+        display: inline-block;
+        width: 100%;
+    }
+
+    .model-selector-button {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        background-color: white;
+        font-size: 0.95rem;
+        cursor: pointer;
+        text-align: left;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: all 0.3s ease;
+    }
+
+    .model-selector-button:hover {
+        border-color: #007bff;
+    }
+
+    .model-selector-button.active {
+        border-color: #007bff;
+        box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+    }
+
+    .model-selector-dropdown {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: white;
+        border: 1px solid #ddd;
+        border-top: none;
+        border-radius: 0 0 4px 4px;
+        max-height: 250px;
+        overflow-y: auto;
+        z-index: 1000;
+        display: none;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+
+    .model-selector-dropdown.show {
+        display: block;
+    }
+
+    .model-selector-item {
+        display: flex;
+        align-items: center;
+        padding: 10px 12px;
+        border-bottom: 1px solid #f0f0f0;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+    }
+
+    .model-selector-item:hover {
+        background-color: #f8f9fa;
+    }
+
+    .model-selector-item:last-child {
+        border-bottom: none;
+    }
+
+    .model-selector-item input[type="checkbox"] {
+        margin-right: 10px;
+        cursor: pointer;
+    }
+
+    .model-selector-item label {
+        margin: 0;
+        cursor: pointer;
+        flex: 1;
+    }
+
+    .model-selector-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        flex: 1;
+    }
+
+    .model-tag {
+        display: inline-block;
+        background-color: #e7f3ff;
+        color: #0066cc;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+
+    .model-selector-arrow {
+        font-size: 0.8rem;
+        transition: transform 0.3s ease;
+        margin-left: 8px;
+    }
+
+    .model-selector-arrow.open {
+        transform: rotate(180deg);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="comparison-container">
+    
+    <!-- 诊断配置区域 -->
+    <div class="diagnosis-config">
+        <div class="config-title">
+            <i class="fas fa-cog"></i>诊断配置
+        </div>
+
+        <form id="comparisonForm">
+            <div class="config-row">
+                <div class="config-item">
+                    <label for="datasetSelect">数据集</label>
+                    <select id="datasetSelect" name="dataset">
+                        <option value="">-- 选择数据集 --</option>
+                        {% for dataset in datasets %}
+                        <option value="{{ dataset.id }}">{{ dataset.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="config-item">
+                    <label>诊断模型</label>
+                    <div class="model-selector">
+                        <button type="button" class="model-selector-button" id="modelSelectorBtn" onclick="toggleModelSelector(event)">
+                            <div class="model-selector-tags" id="modelTags">
+                                <span style="color: #999;">-- 选择诊断模型 --</span>
+                            </div>
+                            <span class="model-selector-arrow" id="modelArrow">▼</span>
+                        </button>
+                        <div class="model-selector-dropdown" id="modelDropdown">
+                            {% for model in models %}
+                            <div class="model-selector-item">
+                                <input type="checkbox" id="model_{{ model.id }}" name="models" value="{{ model.id }}" onchange="updateModelTags()">
+                                <label for="model_{{ model.id }}">{{ model.name }}</label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="config-item">
+                    <label for="paramSelect">模型参数</label>
+                    <select id="paramSelect" name="param">
+                        <option value="default" selected>默认参数</option>
+                        <option value="custom">自定义参数</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- 自定义模型参数区域 -->
+            <div id="customParamsSection" style="margin-top: 20px; display: none;">
+                <div class="config-title">
+                    <i class="fas fa-sliders-h"></i>自定义模型参数
+                </div>
+
+                <div class="config-row">
+                    <div class="config-item">
+                        <label for="learningRate">学习率</label>
+                        <input type="number" id="learningRate" name="learningRate" value="0.001" step="0.0001" min="0" style="padding: 10px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.95rem;">
+                    </div>
+
+                    <div class="config-item">
+                        <label for="iterations">迭代次数</label>
+                        <input type="number" id="iterations" name="iterations" value="100" step="10" min="1" style="padding: 10px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.95rem;">
+                    </div>
+
+                    <div class="config-item">
+                        <label for="batchSize">批次大小</label>
+                        <input type="number" id="batchSize" name="batchSize" value="64" step="1" min="1" style="padding: 10px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.95rem;">
+                    </div>
+
+                    <div class="config-item">
+                        <label for="regularization">正则化系数</label>
+                        <input type="number" id="regularization" name="regularization" value="0.01" step="0.001" min="0" style="padding: 10px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.95rem;">
+                    </div>
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 20px;">
+                <div class="config-actions">
+                    <button type="button" class="btn-analyze" onclick="startAnalysis()">
+                        <i class="fas fa-play"></i>开始诊断分析
+                    </button>
+                </div>
+
+                <div class="toggle-section">
+                    <span class="toggle-label">记录数据</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="recordToggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- 分析结果区域 -->
+    <div class="analysis-result" id="analysisResult">
+        <div class="result-title">
+            <i class="fas fa-chart-bar me-2"></i>分析结果
+        </div>
+
+        <table class="comparison-table">
+            <thead>
+                <tr>
+                    <th style="text-align: left;">指标</th>
+                    <th>数值</th>
+                    <th>说明</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>准确率 (Accuracy)</td>
+                    <td style="text-align: center; font-weight: 600; color: #007bff;">--</td>
+                    <td>模型预测正确的比例</td>
+                </tr>
+                <tr>
+                    <td>精确率 (Precision)</td>
+                    <td style="text-align: center; font-weight: 600; color: #007bff;">--</td>
+                    <td>预测为正的样本中实际为正的比例</td>
+                </tr>
+                <tr>
+                    <td>召回率 (Recall)</td>
+                    <td style="text-align: center; font-weight: 600; color: #007bff;">--</td>
+                    <td>实际为正的样本中被正确预测的比例</td>
+                </tr>
+                <tr>
+                    <td>F1 分数</td>
+                    <td style="text-align: center; font-weight: 600; color: #007bff;">--</td>
+                    <td>精确率和召回率的调和平均数</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div style="margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 4px; border-left: 4px solid #007bff;">
+            <p style="margin: 0; color: #666; font-size: 0.9rem;">
+                <strong>提示：</strong>分析结果为示例数据。实际性能指标需要基于真实的诊断数据和模型评估。
+            </p>
+        </div>
+    </div>
+
+<script>
+// 模型选择器功能
+function toggleModelSelector(event) {
+    event.preventDefault();
+    const dropdown = document.getElementById('modelDropdown');
+    const arrow = document.getElementById('modelArrow');
+    const btn = document.getElementById('modelSelectorBtn');
+    
+    dropdown.classList.toggle('show');
+    arrow.classList.toggle('open');
+    btn.classList.toggle('active');
+}
+
+function updateModelTags() {
+    const selectedModels = Array.from(document.querySelectorAll('input[name="models"]:checked'));
+    const tagsContainer = document.getElementById('modelTags');
+    
+    if (selectedModels.length === 0) {
+        tagsContainer.innerHTML = '<span style="color: #999;">-- 选择诊断模型 --</span>';
+    } else {
+        tagsContainer.innerHTML = selectedModels.map(checkbox => {
+            const label = document.querySelector(`label[for="${checkbox.id}"]`).textContent;
+            return `<span class="model-tag">${label}</span>`;
+        }).join('');
+    }
+}
+
+// 点击外部关闭下拉菜单
+document.addEventListener('click', function(event) {
+    const selector = document.querySelector('.model-selector');
+    if (selector && !selector.contains(event.target)) {
+        const dropdown = document.getElementById('modelDropdown');
+        const arrow = document.getElementById('modelArrow');
+        const btn = document.getElementById('modelSelectorBtn');
+        dropdown.classList.remove('show');
+        arrow.classList.remove('open');
+        btn.classList.remove('active');
+    }
+});
+
+// 监听参数选择变化
+document.getElementById('paramSelect').addEventListener('change', function() {
+    const customParamsSection = document.getElementById('customParamsSection');
+    if (this.value === 'custom') {
+        customParamsSection.style.display = 'block';
+    } else {
+        customParamsSection.style.display = 'none';
+    }
+});
+
+function startAnalysis() {
+    // 获取选中的模型
+    const selectedModels = Array.from(document.querySelectorAll('input[name="models"]:checked')).map(el => el.value);
+    const dataset = document.getElementById('datasetSelect').value;
+
+    if (selectedModels.length === 0 || !dataset) {
+        alert('请选择至少一个诊断模型和一个数据集');
+        return;
+    }
+
+    // 显示结果区域
+    document.getElementById('analysisResult').classList.add('active');
+
+    // 这里可以添加实际的分析逻辑
+    console.log('开始分析:', { models: selectedModels, dataset });
+}
+</script>
+{% endblock %}

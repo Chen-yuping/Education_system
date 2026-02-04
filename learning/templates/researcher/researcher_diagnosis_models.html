@@ -1,0 +1,399 @@
+{% extends 'researcher/researcher-base.html' %}
+
+{% block title %}诊断模型 - 科研管理{% endblock %}
+
+{% block extra_css %}
+<style>
+    .models-container {
+        padding: 20px;
+    }
+
+    .models-header {
+        margin-bottom: 30px;
+    }
+
+    .models-header h1 {
+        font-size: 2rem;
+        font-weight: bold;
+        margin-bottom: 10px;
+        color: #333;
+    }
+
+    .models-description {
+        color: #666;
+        font-size: 1rem;
+        line-height: 1.6;
+        margin-bottom: 20px;
+    }
+
+    .info-section {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        border-left: 4px solid #007bff;
+    }
+
+    .info-section h5 {
+        font-weight: bold;
+        margin-bottom: 10px;
+        color: #333;
+    }
+
+    .info-section p {
+        margin: 5px 0;
+        color: #666;
+        font-size: 0.95rem;
+    }
+
+    .models-table {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+
+    .models-table table {
+        margin-bottom: 0;
+    }
+
+    .models-table thead {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    .models-table th {
+        padding: 15px;
+        font-weight: 600;
+        border: none;
+        text-align: left;
+    }
+
+    .models-table th:first-child {
+        text-align: center;
+    }
+
+    .models-table td {
+        padding: 12px 15px;
+        border-bottom: 1px solid #dee2e6;
+        text-align: left;
+        vertical-align: middle;
+    }
+
+    .models-table tbody tr:hover {
+        background-color: #f8f9fa;
+    }
+
+    .models-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .model-name {
+        font-weight: 600;
+        color: #333;
+        text-align: left;
+    }
+
+    .model-description {
+        color: #666;
+        font-size: 0.9rem;
+        text-align: left;
+        max-width: 300px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .status-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    .status-active {
+        background-color: #d4edda;
+        color: #28a745;
+    }
+
+    .status-inactive {
+        background-color: #f8d7da;
+        color: #dc3545;
+    }
+
+    .links-cell {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .link-btn {
+        display: inline-block;
+        padding: 6px 12px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 500;
+        text-decoration: none;
+        transition: all 0.2s ease;
+        cursor: pointer;
+        border: 1px solid #ddd;
+    }
+
+    .link-btn.paper {
+        background-color: #fff3cd;
+        color: #856404;
+        border-color: #856404;
+    }
+
+    .link-btn.paper:hover {
+        background-color: #856404;
+        color: white;
+    }
+
+    .link-btn.disabled {
+        background-color: #e9ecef;
+        color: #6c757d;
+        border-color: #dee2e6;
+        cursor: not-allowed;
+    }
+
+    /* 查询框样式 */
+    .search-section {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+    }
+
+    .search-form {
+        display: flex;
+        gap: 10px;
+    }
+
+    .search-input {
+        flex: 1;
+        min-width: 200px;
+        padding: 10px 15px;
+        border: 2px solid #dee2e6;
+        border-radius: 4px;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+    }
+
+    .search-input:focus {
+        outline: none;
+        border-color: #007bff;
+        box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+    }
+
+    .search-form .btn {
+        padding: 10px 20px;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+
+    .search-result-info {
+        color: #666;
+    }
+
+    /* 分页样式 */
+    .pagination {
+        margin-top: 20px;
+    }
+
+    .page-link {
+        color: #007bff;
+        border-color: #dee2e6;
+        transition: all 0.2s ease;
+    }
+
+    .page-link:hover {
+        color: white;
+        background-color: #007bff;
+        border-color: #007bff;
+    }
+
+    .page-item.active .page-link {
+        background-color: #007bff;
+        border-color: #007bff;
+    }
+
+    .page-item.disabled .page-link {
+        color: #6c757d;
+        cursor: not-allowed;
+    }
+
+    @media (max-width: 768px) {
+        .search-form {
+            flex-direction: column;
+        }
+
+        .search-input {
+            min-width: 100%;
+        }
+
+        .search-form .btn {
+            width: 100%;
+        }
+
+        .models-table {
+            font-size: 0.85rem;
+        }
+
+        .models-table th,
+        .models-table td {
+            padding: 8px 5px;
+        }
+
+        .link-btn {
+            padding: 4px 8px;
+            font-size: 11px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="models-container">
+   
+    
+
+    <!-- 查询框 -->
+    <div class="search-section">
+        <form method="get" class="search-form">
+            <div class="input-group">
+                <input type="text" class="form-control search-input" name="search" placeholder="搜索模型名称..." value="{{ search_query }}">
+                <button class="btn btn-primary" type="submit">
+                    <i class="fas fa-search me-1"></i>搜索
+                </button>
+                {% if search_query %}
+                <a href="{% url 'researcher_diagnosis_models' %}" class="btn btn-secondary">
+                    <i class="fas fa-times me-1"></i>清除
+                </a>
+                {% endif %}
+            </div>
+        </form>
+        {% if search_query %}
+        <div class="search-result-info mt-2">
+            <small class="text-muted">搜索结果：找到 <strong>{{ total_count }}</strong> 个模型</small>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 诊断模型表格 -->
+    <div class="models-table">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>模型名称</th>
+                    <th>描述</th>
+                    <th>状态</th>
+                    <th>论文</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for model in page_obj %}
+                <tr>
+                    <td class="model-name">{{ model.name }}</td>
+                    <td class="model-description" title="{{ model.description }}">{{ model.description }}</td>
+                    <td>
+                        {% if model.is_active %}
+                            <span class="status-badge status-active">启用</span>
+                        {% else %}
+                            <span class="status-badge status-inactive">禁用</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="links-cell">
+                            {% if model.paper_link %}
+                                <a href="{{ model.paper_link }}" class="link-btn paper" target="_blank">
+                                    <i class="fas fa-file-pdf me-1"></i>论文
+                                </a>
+                            {% else %}
+                                <span class="link-btn disabled">
+                                    <i class="fas fa-file-pdf me-1"></i>暂无
+                                </span>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="text-center py-4 text-muted">
+                        <i class="fas fa-inbox fa-2x mb-3"></i>
+                        <p>暂无诊断模型</p>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 分页控件 -->
+    {% if page_obj.has_other_pages %}
+    <nav aria-label="分页导航" class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page=1">&laquo;&laquo;</a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">&laquo;</a>
+            </li>
+            {% else %}
+            <li class="page-item disabled">
+                <span class="page-link">&laquo;&laquo;</span>
+            </li>
+            <li class="page-item disabled">
+                <span class="page-link">&laquo;</span>
+            </li>
+            {% endif %}
+
+            {% for num in page_obj.paginator.page_range %}
+                {% if page_obj.number == num %}
+                <li class="page-item active">
+                    <span class="page-link">{{ num }}</span>
+                </li>
+                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                </li>
+                {% endif %}
+            {% endfor %}
+
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}">&raquo;</a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">&raquo;&raquo;</a>
+            </li>
+            {% else %}
+            <li class="page-item disabled">
+                <span class="page-link">&raquo;</span>
+            </li>
+            <li class="page-item disabled">
+                <span class="page-link">&raquo;&raquo;</span>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+
+    <div class="text-center text-muted mt-3 mb-4">
+        <small>第 {{ page_obj.number }} 页，共 {{ page_obj.paginator.num_pages }} 页 | 共 {{ total_count }} 个模型</small>
+    </div>
+    {% endif %}
+
+    <!-- 信息说明 -->
+    <div class="info-section">
+        <h5><i class="fas fa-info-circle me-2"></i>模型说明</h5>
+        <p><strong>模型名称：</strong>诊断算法模型的名称</p>
+        <p><strong>描述：</strong>模型的详细描述和应用场景</p>
+        <p><strong>状态：</strong>模型是否启用</p>
+        <p><strong>论文：</strong>相关研究论文的链接</p>
+    </div>
+</div>
+{% endblock %}

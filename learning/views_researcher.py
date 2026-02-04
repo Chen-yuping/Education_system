@@ -29,6 +29,8 @@ def researcher_dashboard(request):
     total_exercises = Exercise.objects.count()
     total_knowledge_points = KnowledgePoint.objects.count()
     total_students = User.objects.filter(user_type='student').count()
+    datasets_count = Dataset.objects.count()
+    models_count = DiagnosisModel.objects.filter(is_active=True).count()
 
     context = {
         'subjects': subjects,
@@ -36,99 +38,72 @@ def researcher_dashboard(request):
         'total_exercises': total_exercises,
         'total_knowledge_points': total_knowledge_points,
         'total_students': total_students,
+        'datasets_count': datasets_count,
+        'models_count': models_count,
     }
     return render(request, 'researcher/researcher_dashboard.html', context)
 
 
 @login_required
 @user_passes_test(is_researcher)
-def researcher_data_analysis(request):
-    """数据集分析 - 分析系统中的数据"""
-    # 获取所有科目
-    all_subjects = Subject.objects.all()
+def researcher_datasets(request):
+    """数据集 - 展示常用的公开数据集"""
+    # 从数据库查询所有数据集
+    all_datasets = Dataset.objects.all()
     
-    # 获取筛选参数
-    subject_filter = request.GET.get('subject', '')
-    data_type_filter = request.GET.get('data_type', 'all')
+    # 获取搜索关键词
+    search_query = request.GET.get('search', '').strip()
+    if search_query:
+        all_datasets = all_datasets.filter(name__icontains=search_query)
     
-    # 应用科目筛选
-    if subject_filter:
-        subjects_filtered = all_subjects.filter(id=subject_filter)
-    else:
-        subjects_filtered = all_subjects
-    
-    # 计算每个科目的统计信息
-    for subject in subjects_filtered:
-        subject.answer_count = AnswerLog.objects.filter(
-            exercise__subject=subject
-        ).count()
-        
-        # 计算平均正确率
-        correct_answers = AnswerLog.objects.filter(
-            exercise__subject=subject,
-            is_correct=True
-        ).count()
-        
-        if subject.answer_count > 0:
-            subject.avg_correct_rate = round((correct_answers / subject.answer_count) * 100, 1)
-        else:
-            subject.avg_correct_rate = 0
-
     # 分页处理 - 每页10条
-    paginator = Paginator(subjects_filtered, 10)
+    paginator = Paginator(all_datasets, 10)
     page_number = request.GET.get('page', 1)
     page_obj = paginator.get_page(page_number)
 
-    # 计算总体统计
-    total_subjects = all_subjects.count()
-    total_exercises = Exercise.objects.count()
-    total_knowledge_points = KnowledgePoint.objects.count()
-    total_answers = AnswerLog.objects.count()
-
     context = {
-        'all_subjects': all_subjects,  # 用于图表和筛选下拉框
-        'page_obj': page_obj,  # 用于表格分页显示
-        'total_subjects': total_subjects,
-        'total_exercises': total_exercises,
-        'total_knowledge_points': total_knowledge_points,
-        'total_answers': total_answers,
-        'subject_filter': subject_filter,
-        'data_type_filter': data_type_filter,
+        'page_obj': page_obj,
+        'total_count': all_datasets.count(),
+        'search_query': search_query,
     }
-    return render(request, 'researcher/researcher_data_analysis.html', context)
+    return render(request, 'researcher/researcher_datasets.html', context)
 
 
 @login_required
 @user_passes_test(is_researcher)
-def researcher_algorithm_comparison(request):
-    """算法对比 - 对比不同诊断算法的性能"""
-    subjects = Subject.objects.all()
+def researcher_diagnosis_models(request):
+    """诊断模型 - 展示各种诊断算法模型"""
+    # 从数据库查询所有诊断模型
+    all_models = DiagnosisModel.objects.filter(is_active=True)
+    
+    # 获取搜索关键词
+    search_query = request.GET.get('search', '').strip()
+    if search_query:
+        all_models = all_models.filter(name__icontains=search_query)
+    
+    # 分页处理 - 每页10条
+    paginator = Paginator(all_models, 10)
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
 
     context = {
-        'subjects': subjects,
+        'page_obj': page_obj,
+        'total_count': all_models.count(),
+        'search_query': search_query,
     }
-    return render(request, 'researcher/researcher_algorithm_comparison.html', context)
+    return render(request, 'researcher/researcher_diagnosis_models.html', context)
 
 
 @login_required
 @user_passes_test(is_researcher)
-def researcher_performance_analysis(request):
-    """性能分析 - 分析系统性能指标"""
-    subjects = Subject.objects.all()
+def researcher_performance_comparison(request):
+    """性能对比 - 对比不同诊断模型在不同数据集上的性能"""
+    # 从数据库查询所有诊断模型和数据集
+    models = DiagnosisModel.objects.filter(is_active=True)
+    datasets = Dataset.objects.all()
 
     context = {
-        'subjects': subjects,
+        'models': models,
+        'datasets': datasets,
     }
-    return render(request, 'researcher/researcher_performance_analysis.html', context)
-
-
-@login_required
-@user_passes_test(is_researcher)
-def researcher_reports(request):
-    """研究报告 - 管理和生成研究报告"""
-    subjects = Subject.objects.all()
-
-    context = {
-        'subjects': subjects,
-    }
-    return render(request, 'researcher/researcher_reports.html', context)
+    return render(request, 'researcher/researcher_performance_comparison.html', context)

@@ -162,8 +162,14 @@ class DiagnosisModel(models.Model):
     name = models.CharField('模型名称', max_length=100)
     description = models.TextField('模型描述', blank=True)
     is_active = models.BooleanField('是否启用', default=True)
+    paper_link = models.URLField('论文链接', blank=True)
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+
+    class Meta:
+        verbose_name = "诊断模型"
+        verbose_name_plural = "诊断模型"
+        ordering = ['id']
 
     def __str__(self):
         return self.name
@@ -255,3 +261,89 @@ class ExerciseFile(models.Model):
             if os.path.isfile(self.file.path):
                 os.remove(self.file.path)
         super().delete(*args, **kwargs)
+
+
+# 数据集模型
+class Dataset(models.Model):
+    """公开数据集信息"""
+    name = models.CharField(max_length=100, verbose_name="数据集名称", unique=True)
+    description = models.TextField(blank=True, verbose_name="数据集描述")
+    
+    # 数据集特征
+    student_info = models.CharField(
+        max_length=50,
+        default='',
+        blank=True,
+        verbose_name="学生端信息",
+        help_text="是否包含学生特征信息。可选值：True/False/文本描述"
+    )
+    exercise_info = models.CharField(
+        max_length=50,
+        default='',
+        blank=True,
+        verbose_name="习题端信息",
+        help_text="是否包含习题的文本信息。可选值：True/False/文本描述"
+    )
+    knowledge_relation = models.CharField(
+        max_length=50,
+        default='',
+        blank=True,
+        verbose_name="知识点关系",
+        help_text="是否包含知识点之间的关系。可选值：True/False/文本描述"
+    )
+    
+    # 链接信息
+    doc_link = models.URLField(blank=True, verbose_name="文档链接")
+    download_link = models.URLField(blank=True, verbose_name="下载链接")
+    paper_link = models.URLField(blank=True, verbose_name="论文链接")
+    
+    # 元数据
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="更新时间")
+    order = models.IntegerField(default=0, verbose_name="排序")
+    
+    class Meta:
+        verbose_name = "数据集"
+        verbose_name_plural = "数据集"
+        ordering = ['order', 'name']
+    
+    def __str__(self):
+        return self.name
+    
+    def get_links(self):
+        """获取所有链接"""
+        links = []
+        if self.doc_link:
+            links.append({'type': 'doc', 'url': self.doc_link})
+        if self.download_link:
+            links.append({'type': 'download', 'url': self.download_link})
+        if self.paper_link:
+            links.append({'type': 'paper', 'url': self.paper_link})
+        return links
+    
+    def get_student_info_display(self):
+        """获取学生信息的显示值"""
+        if self.student_info.lower() == 'true':
+            return True
+        elif self.student_info.lower() == 'false':
+            return False
+        else:
+            return self.student_info
+    
+    def get_exercise_info_display(self):
+        """获取习题信息的显示值"""
+        if self.exercise_info.lower() == 'true':
+            return True
+        elif self.exercise_info.lower() == 'false':
+            return False
+        else:
+            return self.exercise_info
+    
+    def get_knowledge_relation_display(self):
+        """获取知识点关系的显示值"""
+        if self.knowledge_relation.lower() == 'true':
+            return True
+        elif self.knowledge_relation.lower() == 'false':
+            return False
+        else:
+            return self.knowledge_relation
