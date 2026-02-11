@@ -63,14 +63,14 @@ class DatasetAdmin(admin.ModelAdmin):
 
 @admin.register(DiagnosisModel)
 class DiagnosisModelAdmin(admin.ModelAdmin):
-    list_display = ['name', 'is_active', 'created_at', 'created_by']
-    list_filter = ['is_active', 'created_at']
+    list_display = ['name', 'category', 'is_active', 'created_at', 'created_by']
+    list_filter = ['category', 'is_active', 'created_at']
     search_fields = ['name', 'description']
     readonly_fields = ['created_at']
     
     fieldsets = (
         ('基本信息', {
-            'fields': ('name', 'description', 'is_active')
+            'fields': ('name', 'description', 'category', 'is_active')
         }),
         ('链接信息', {
             'fields': ('paper_link',)

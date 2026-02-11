@@ -81,6 +81,34 @@ def researcher_diagnosis_models(request):
     if search_query:
         all_models = all_models.filter(name__icontains=search_query)
     
+    # 获取分类筛选
+    category_filter = request.GET.get('category', '').strip()
+    if category_filter:
+        all_models = all_models.filter(category=category_filter)
+    
+    # 获取所有分类选项
+    category_choices = DiagnosisModel.MODEL_CATEGORY_CHOICES
+    
+    # 统计各分类的模型数量
+    from django.db.models import Count
+    category_stats = DiagnosisModel.objects.filter(is_active=True).values('category').annotate(count=Count('id'))
+    category_stats_dict = {stat['category']: stat['count'] for stat in category_stats}
+    
+    # 构建分类统计数据
+    category_data = []
+    for value, label in category_choices:
+        category_data.append({
+            'value': value,
+            'label': label,
+            'count': category_stats_dict.get(value, 0)
+        })
+    
+    # 获取各分类的模型列表（用于树形图）
+    probability_models = DiagnosisModel.objects.filter(is_active=True, category='probability')
+    nn_models = DiagnosisModel.objects.filter(is_active=True, category='nn')
+    gnn_models = DiagnosisModel.objects.filter(is_active=True, category='gnn')
+    llm_models = DiagnosisModel.objects.filter(is_active=True, category='llm')
+    
     # 分页处理 - 每页10条
     paginator = Paginator(all_models, 10)
     page_number = request.GET.get('page', 1)
@@ -90,6 +118,13 @@ def researcher_diagnosis_models(request):
         'page_obj': page_obj,
         'total_count': all_models.count(),
         'search_query': search_query,
+        'category_filter': category_filter,
+        'category_choices': category_choices,
+        'category_data': category_data,
+        'probability_models': probability_models,
+        'nn_models': nn_models,
+        'gnn_models': gnn_models,
+        'llm_models': llm_models,
     }
     return render(request, 'researcher/researcher_diagnosis_models.html', context)
 

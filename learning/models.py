@@ -159,8 +159,16 @@ class AnswerLog(models.Model):
 
 # 添加算法models
 class DiagnosisModel(models.Model):
+    MODEL_CATEGORY_CHOICES = [
+        ('probability', 'Probability'),
+        ('nn', 'NN'),
+        ('gnn', 'GNN'),
+        ('llm', 'LLM'),
+    ]
+    
     name = models.CharField('模型名称', max_length=100)
     description = models.TextField('模型描述', blank=True)
+    category = models.CharField('模型分类', max_length=20, choices=MODEL_CATEGORY_CHOICES, default='probability')
     is_active = models.BooleanField('是否启用', default=True)
     paper_link = models.URLField('论文链接', blank=True)
     created_at = models.DateTimeField('创建时间', auto_now_add=True)

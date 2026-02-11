@@ -26,6 +26,230 @@
         margin-bottom: 20px;
     }
 
+    /* 分类统计卡片 */
+    .category-stats {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+
+    .category-stats-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+   #category-chart {
+    width: 100%;
+    min-height: 900px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    overflow: visible;
+    position: relative;
+    }
+
+    .hierarchy-diagram {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        min-height: 900px;
+        font-family: Arial, sans-serif;
+        overflow: visible !important;
+    }
+
+    .hierarchy-svg {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        overflow: visible !important;
+    }
+
+    .hierarchy-content {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        min-height: 900px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 40px 20px;
+        z-index: 2;
+    }
+
+    .center-node {
+        padding: 15px 30px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 8px;
+        font-weight: bold;
+        font-size: 16px;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        z-index: 10;
+        margin-bottom: 0;
+        position: relative;
+    }
+
+    /* Model节点下的连接线 */
+    .center-node::after {
+        content: '';
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        width: 2px;
+        height: 40px;
+        background: #667eea;
+        transform: translateX(-50%);
+    }
+
+    .hierarchy-content {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        min-height: 900px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 40px 20px;
+        z-index: 2;
+    }
+
+    .branch-container {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        gap: 80px;
+        flex-wrap: wrap;
+        position: relative;
+        margin-top: 80px;
+    }
+
+    /* 四个分支之间的横线 - 只在四个分支之间 */
+    .branch-container::before {
+        content: '';
+        position: absolute;
+        top: -40px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 900px;
+        max-width: 80%;
+        height: 2px;
+        background: linear-gradient(to right, #1976d2 0%, #1976d2 25%, #7b1fa2 25%, #7b1fa2 50%, #388e3c 50%, #388e3c 75%, #f57c00 75%, #f57c00 100%);
+        opacity: 0.6;
+    }
+
+    .branch {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        align-items: center;
+        flex: 0 1 220px;
+        position: relative;
+    }
+
+    /* 从横线到分类标题的竖线 */
+    .branch::before {
+        content: '';
+        position: absolute;
+        top: -40px;
+        left: 50%;
+        width: 2px;
+        height: 40px;
+        transform: translateX(-50%);
+    }
+
+    .branch#branch-probability::before {
+        background: linear-gradient(to bottom, #1976d2, transparent);
+    }
+
+    .branch#branch-nn::before {
+        background: linear-gradient(to bottom, #7b1fa2, transparent);
+    }
+
+    .branch#branch-gnn::before {
+        background: linear-gradient(to bottom, #388e3c, transparent);
+    }
+
+    .branch#branch-llm::before {
+        background: linear-gradient(to bottom, #f57c00, transparent);
+    }
+
+    .branch-title {
+        padding: 10px 20px;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 14px;
+        text-align: center;
+        min-width: 100px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        position: relative;
+    }
+
+    .branch-title.probability {
+        background: #e3f2fd;
+        color: #1976d2;
+        border: 2px solid #1976d2;
+    }
+
+    .branch-title.nn {
+        background: #f3e5f5;
+        color: #7b1fa2;
+        border: 2px solid #7b1fa2;
+    }
+
+    .branch-title.gnn {
+        background: #e8f5e9;
+        color: #388e3c;
+        border: 2px solid #388e3c;
+    }
+
+    .branch-title.llm {
+        background: #fff3e0;
+        color: #f57c00;
+        border: 2px solid #f57c00;
+    }
+
+    .branch-models {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .model-item {
+        padding: 6px 12px;
+        background: white;
+        border-radius: 4px;
+        font-size: 12px;
+        border: 1px solid #ddd;
+        white-space: nowrap;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    }
+
+    .model-item.probability {
+        border-left: 3px solid #1976d2;
+    }
+
+    .model-item.nn {
+        border-left: 3px solid #7b1fa2;
+    }
+
+    .model-item.gnn {
+        border-left: 3px solid #388e3c;
+    }
+
+    .model-item.llm {
+        border-left: 3px solid #f57c00;
+    }
+
     .info-section {
         background-color: #f8f9fa;
         padding: 15px;
@@ -74,14 +298,14 @@
     }
 
     .models-table td {
-        padding: 12px 15px;
-        border-bottom: 1px solid #dee2e6;
+        padding: 15px;
+        border-bottom: 1px solid #f0f0f0;
         text-align: left;
         vertical-align: middle;
     }
 
     .models-table tbody tr:hover {
-        background-color: #f8f9fa;
+        background-color: #fafafa;
     }
 
     .models-table tbody tr:last-child td {
@@ -120,6 +344,35 @@
     .status-inactive {
         background-color: #f8d7da;
         color: #dc3545;
+    }
+
+    .category-badge {
+        display: inline-block;
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        margin-right: 5px;
+    }
+
+    .category-probability {
+        background-color: #e3f2fd;
+        color: #1976d2;
+    }
+
+    .category-nn {
+        background-color: #f3e5f5;
+        color: #7b1fa2;
+    }
+
+    .category-gnn {
+        background-color: #e8f5e9;
+        color: #388e3c;
+    }
+
+    .category-llm {
+        background-color: #fff3e0;
+        color: #f57c00;
     }
 
     .links-cell {
@@ -170,33 +423,84 @@
 
     .search-form {
         display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .search-input-wrapper {
+        flex: 1;
+        min-width: 250px;
+        display: flex;
         gap: 10px;
+        align-items: center;
     }
 
     .search-input {
-        flex: 1;
-        min-width: 200px;
+        flex: 2;
         padding: 10px 15px;
-        border: 2px solid #dee2e6;
-        border-radius: 4px;
+        border: 2px solid #e0e0e0;
+        border-radius: 6px;
         font-size: 1rem;
         transition: all 0.3s ease;
     }
 
     .search-input:focus {
         outline: none;
-        border-color: #007bff;
-        box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .category-select {
+        flex: 1;
+        padding: 10px 15px;
+        border: 2px solid #e0e0e0;
+        border-radius: 6px;
+        font-size: 1rem;
+        background-color: white;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        min-width: 100px;
+    }
+
+    .category-select:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
     }
 
     .search-form .btn {
-        padding: 10px 20px;
+        padding: 10px 24px;
         font-weight: 500;
         white-space: nowrap;
+        border-radius: 6px;
+        transition: all 0.3s ease;
+    }
+
+    .search-form .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+    }
+
+    .search-form .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .search-form .btn-secondary {
+        background-color: #f0f0f0;
+        color: #333;
+        border: none;
+    }
+
+    .search-form .btn-secondary:hover {
+        background-color: #e0e0e0;
     }
 
     .search-result-info {
         color: #666;
+        margin-top: 12px;
+        font-size: 0.95rem;
     }
 
     /* 分页样式 */
@@ -231,7 +535,16 @@
             flex-direction: column;
         }
 
+        .search-input-wrapper {
+            flex-direction: column;
+            min-width: 100%;
+        }
+
         .search-input {
+            min-width: 100%;
+        }
+
+        .category-select {
             min-width: 100%;
         }
 
@@ -245,12 +558,20 @@
 
         .models-table th,
         .models-table td {
-            padding: 8px 5px;
+            padding: 10px 8px;
         }
 
         .link-btn {
             padding: 4px 8px;
             font-size: 11px;
+        }
+
+        .model-name {
+            font-size: 0.95rem;
+        }
+
+        .model-description {
+            max-width: 150px;
         }
     }
 </style>
@@ -259,25 +580,88 @@
 {% block content %}
 <div class="models-container">
    
-    
+    <!-- 分类统计卡片 -->
+    <div class="category-stats">
+        <div class="category-stats-title">
+            <i class="fas fa-sitemap" style="color: #667eea;"></i>
+            诊断模型分类体系
+        </div>
+        <div id="category-chart">
+            <div class="hierarchy-diagram">
+                <!-- 中心节点 -->
+                <div class="hierarchy-content">
+                    <div class="center-node" id="center-node">Model</div>
+                    
+                    <!-- 四个分支 -->
+                    <div class="branch-container">
+                        <!-- Probability分支 -->
+                        <div class="branch" id="branch-probability">
+                            <div class="branch-title probability">Probability</div>
+                            <div class="branch-models">
+                                {% for model in probability_models %}
+                                    <div class="model-item probability">{{ model.name }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        
+                        <!-- NN分支 -->
+                        <div class="branch" id="branch-nn">
+                            <div class="branch-title nn">NN</div>
+                            <div class="branch-models">
+                                {% for model in nn_models %}
+                                    <div class="model-item nn">{{ model.name }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        
+                        <!-- GNN分支 -->
+                        <div class="branch" id="branch-gnn">
+                            <div class="branch-title gnn">GNN</div>
+                            <div class="branch-models">
+                                {% for model in gnn_models %}
+                                    <div class="model-item gnn">{{ model.name }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        
+                        <!-- LLM分支 -->
+                        <div class="branch" id="branch-llm">
+                            <div class="branch-title llm">LLM</div>
+                            <div class="branch-models">
+                                {% for model in llm_models %}
+                                    <div class="model-item llm">{{ model.name }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- 查询框 -->
     <div class="search-section">
         <form method="get" class="search-form">
-            <div class="input-group">
+            <div class="search-input-wrapper">
                 <input type="text" class="form-control search-input" name="search" placeholder="搜索模型名称..." value="{{ search_query }}">
-                <button class="btn btn-primary" type="submit">
-                    <i class="fas fa-search me-1"></i>搜索
-                </button>
-                {% if search_query %}
-                <a href="{% url 'researcher_diagnosis_models' %}" class="btn btn-secondary">
-                    <i class="fas fa-times me-1"></i>清除
-                </a>
-                {% endif %}
+                <select class="form-control category-select" name="category">
+                    <option value="">全部分类</option>
+                    {% for value, label in category_choices %}
+                    <option value="{{ value }}" {% if category_filter == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
             </div>
+            <button class="btn btn-primary" type="submit">
+                <i class="fas fa-search me-2"></i>搜索
+            </button>
+            {% if search_query or category_filter %}
+            <a href="{% url 'researcher_diagnosis_models' %}" class="btn btn-secondary">
+                <i class="fas fa-times me-2"></i>清除
+            </a>
+            {% endif %}
         </form>
-        {% if search_query %}
-        <div class="search-result-info mt-2">
+        {% if search_query or category_filter %}
+        <div class="search-result-info">
             <small class="text-muted">搜索结果：找到 <strong>{{ total_count }}</strong> 个模型</small>
         </div>
         {% endif %}
@@ -289,6 +673,7 @@
             <thead>
                 <tr>
                     <th>模型名称</th>
+                    <th>分类</th>
                     <th>描述</th>
                     <th>状态</th>
                     <th>论文</th>
@@ -298,6 +683,13 @@
                 {% for model in page_obj %}
                 <tr>
                     <td class="model-name">{{ model.name }}</td>
+                    <td>
+                        <span class="category-badge category-{{ model.category }}">
+                            {% for value, label in category_choices %}
+                                {% if value == model.category %}{{ label }}{% endif %}
+                            {% endfor %}
+                        </span>
+                    </td>
                     <td class="model-description" title="{{ model.description }}">{{ model.description }}</td>
                     <td>
                         {% if model.is_active %}
@@ -322,7 +714,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="4" class="text-center py-4 text-muted">
+                    <td colspan="5" class="text-center py-4 text-muted">
                         <i class="fas fa-inbox fa-2x mb-3"></i>
                         <p>暂无诊断模型</p>
                     </td>
@@ -338,10 +730,10 @@
         <ul class="pagination justify-content-center">
             {% if page_obj.has_previous %}
             <li class="page-item">
-                <a class="page-link" href="?page=1">&laquo;&laquo;</a>
+                <a class="page-link" href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}{% if category_filter %}&category={{ category_filter }}{% endif %}">&laquo;&laquo;</a>
             </li>
             <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">&laquo;</a>
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if category_filter %}&category={{ category_filter }}{% endif %}">&laquo;</a>
             </li>
             {% else %}
             <li class="page-item disabled">
@@ -359,17 +751,17 @@
                 </li>
                 {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                    <a class="page-link" href="?page={{ num }}{% if search_query %}&search={{ search_query }}{% endif %}{% if category_filter %}&category={{ category_filter }}{% endif %}">{{ num }}</a>
                 </li>
                 {% endif %}
             {% endfor %}
 
             {% if page_obj.has_next %}
             <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.next_page_number }}">&raquo;</a>
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if category_filter %}&category={{ category_filter }}{% endif %}">&raquo;</a>
             </li>
             <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">&raquo;&raquo;</a>
+                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}{% if category_filter %}&category={{ category_filter }}{% endif %}">&raquo;&raquo;</a>
             </li>
             {% else %}
             <li class="page-item disabled">
@@ -387,13 +779,6 @@
     </div>
     {% endif %}
 
-    <!-- 信息说明 -->
-    <div class="info-section">
-        <h5><i class="fas fa-info-circle me-2"></i>模型说明</h5>
-        <p><strong>模型名称：</strong>诊断算法模型的名称</p>
-        <p><strong>描述：</strong>模型的详细描述和应用场景</p>
-        <p><strong>状态：</strong>模型是否启用</p>
-        <p><strong>论文：</strong>相关研究论文的链接</p>
-    </div>
 </div>
+
 {% endblock %}
