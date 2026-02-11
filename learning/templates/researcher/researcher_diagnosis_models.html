@@ -8,25 +8,6 @@
         padding: 20px;
     }
 
-    .models-header {
-        margin-bottom: 30px;
-    }
-
-    .models-header h1 {
-        font-size: 2rem;
-        font-weight: bold;
-        margin-bottom: 10px;
-        color: #333;
-    }
-
-    .models-description {
-        color: #666;
-        font-size: 1rem;
-        line-height: 1.6;
-        margin-bottom: 20px;
-    }
-
-    /* 分类统计卡片 */
     .category-stats {
         background: white;
         border-radius: 8px;
@@ -45,38 +26,25 @@
         gap: 8px;
     }
 
-   #category-chart {
-    width: 100%;
-    min-height: 900px;
-    background: #f8f9fa;
-    border-radius: 8px;
-    overflow: visible;
-    position: relative;
+    #category-chart {
+        width: 100%;
+        min-height: 900px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        overflow: visible;
+        position: relative;
     }
 
     .hierarchy-diagram {
         position: relative;
         width: 100%;
-        height: 100%;
         min-height: 900px;
         font-family: Arial, sans-serif;
-        overflow: visible !important;
-    }
-
-    .hierarchy-svg {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        pointer-events: none;
-        overflow: visible !important;
     }
 
     .hierarchy-content {
         position: relative;
         width: 100%;
-        height: 100%;
         min-height: 900px;
         display: flex;
         flex-direction: column;
@@ -98,7 +66,6 @@
         position: relative;
     }
 
-    /* Model节点下的连接线 */
     .center-node::after {
         content: '';
         position: absolute;
@@ -108,18 +75,6 @@
         height: 40px;
         background: #667eea;
         transform: translateX(-50%);
-    }
-
-    .hierarchy-content {
-        position: relative;
-        width: 100%;
-        height: 100%;
-        min-height: 900px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        padding: 40px 20px;
-        z-index: 2;
     }
 
     .branch-container {
@@ -132,39 +87,14 @@
         margin-top: 80px;
     }
 
-    @media (max-width: 1400px) {
-        .branch-container {
-            gap: 35px;
-        }
-    }
-
-    @media (max-width: 1200px) {
-        .branch-container {
-            gap: 30px;
-        }
-    }
-
-    @media (max-width: 992px) {
-        .branch-container {
-            gap: 25px;
-        }
-    }
-
-    @media (max-width: 768px) {
-        .branch-container {
-            gap: 20px;
-        }
-    }
-
-    /* 四个分支之间的横线 - 只在四个分支之间 */
     .branch-container::before {
         content: '';
         position: absolute;
         top: -40px;
         left: 50%;
         transform: translateX(-50%);
-        width: 870px;
-        max-width: 80%;
+        width: 900px;
+        max-width: 90%;
         height: 2px;
         background: linear-gradient(to right, #1976d2 0%, #1976d2 25%, #7b1fa2 25%, #7b1fa2 50%, #388e3c 50%, #388e3c 75%, #f57c00 75%, #f57c00 100%);
         opacity: 0.6;
@@ -185,11 +115,17 @@
         .branch {
             max-width: 220px;
         }
+        .branch-container {
+            gap: 35px;
+        }
     }
 
     @media (max-width: 1200px) {
         .branch {
             max-width: 200px;
+        }
+        .branch-container {
+            gap: 30px;
         }
     }
 
@@ -197,15 +133,20 @@
         .branch {
             max-width: 180px;
         }
+        .branch-container {
+            gap: 25px;
+        }
     }
 
     @media (max-width: 768px) {
         .branch {
             max-width: 150px;
         }
+        .branch-container {
+            gap: 20px;
+        }
     }
 
-    /* 从横线到分类标题的竖线 */
     .branch::before {
         content: '';
         position: absolute;
@@ -300,23 +241,96 @@
         border-left: 3px solid #f57c00;
     }
 
-    .info-section {
-        background-color: #f8f9fa;
-        padding: 15px;
+    .search-section {
+        background: white;
+        padding: 20px;
         border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         margin-bottom: 20px;
-        border-left: 4px solid #007bff;
     }
 
-    .info-section h5 {
-        font-weight: bold;
-        margin-bottom: 10px;
+    .search-form {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .search-input-wrapper {
+        flex: 1;
+        min-width: 250px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .search-input {
+        flex: 2;
+        padding: 10px 15px;
+        border: 2px solid #e0e0e0;
+        border-radius: 6px;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+    }
+
+    .search-input:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .category-select {
+        flex: 1;
+        padding: 10px 15px;
+        border: 2px solid #e0e0e0;
+        border-radius: 6px;
+        font-size: 1rem;
+        background-color: white;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        min-width: 100px;
+    }
+
+    .category-select:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .search-form .btn {
+        padding: 10px 24px;
+        font-weight: 500;
+        white-space: nowrap;
+        border-radius: 6px;
+        transition: all 0.3s ease;
+    }
+
+    .search-form .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        color: white;
+        cursor: pointer;
+    }
+
+    .search-form .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .search-form .btn-secondary {
+        background-color: #f0f0f0;
         color: #333;
+        border: none;
+        cursor: pointer;
     }
 
-    .info-section p {
-        margin: 5px 0;
+    .search-form .btn-secondary:hover {
+        background-color: #e0e0e0;
+    }
+
+    .search-result-info {
         color: #666;
+        margin-top: 12px;
         font-size: 0.95rem;
     }
 
@@ -341,10 +355,6 @@
         font-weight: 600;
         border: none;
         text-align: left;
-    }
-
-    .models-table th:first-child {
-        text-align: center;
     }
 
     .models-table td {
@@ -462,98 +472,6 @@
         cursor: not-allowed;
     }
 
-    /* 查询框样式 */
-    .search-section {
-        background: white;
-        padding: 20px;
-        border-radius: 8px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        margin-bottom: 20px;
-    }
-
-    .search-form {
-        display: flex;
-        gap: 12px;
-        align-items: center;
-        flex-wrap: wrap;
-    }
-
-    .search-input-wrapper {
-        flex: 1;
-        min-width: 250px;
-        display: flex;
-        gap: 10px;
-        align-items: center;
-    }
-
-    .search-input {
-        flex: 2;
-        padding: 10px 15px;
-        border: 2px solid #e0e0e0;
-        border-radius: 6px;
-        font-size: 1rem;
-        transition: all 0.3s ease;
-    }
-
-    .search-input:focus {
-        outline: none;
-        border-color: #667eea;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-    }
-
-    .category-select {
-        flex: 1;
-        padding: 10px 15px;
-        border: 2px solid #e0e0e0;
-        border-radius: 6px;
-        font-size: 1rem;
-        background-color: white;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        min-width: 100px;
-    }
-
-    .category-select:focus {
-        outline: none;
-        border-color: #667eea;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-    }
-
-    .search-form .btn {
-        padding: 10px 24px;
-        font-weight: 500;
-        white-space: nowrap;
-        border-radius: 6px;
-        transition: all 0.3s ease;
-    }
-
-    .search-form .btn-primary {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border: none;
-    }
-
-    .search-form .btn-primary:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-    }
-
-    .search-form .btn-secondary {
-        background-color: #f0f0f0;
-        color: #333;
-        border: none;
-    }
-
-    .search-form .btn-secondary:hover {
-        background-color: #e0e0e0;
-    }
-
-    .search-result-info {
-        color: #666;
-        margin-top: 12px;
-        font-size: 0.95rem;
-    }
-
-    /* 分页样式 */
     .pagination {
         margin-top: 20px;
     }
@@ -562,6 +480,7 @@
         color: #007bff;
         border-color: #dee2e6;
         transition: all 0.2s ease;
+        cursor: pointer;
     }
 
     .page-link:hover {
@@ -580,49 +499,24 @@
         cursor: not-allowed;
     }
 
-    @media (max-width: 768px) {
-        .search-form {
-            flex-direction: column;
-        }
+    .info-section {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        border-left: 4px solid #007bff;
+    }
 
-        .search-input-wrapper {
-            flex-direction: column;
-            min-width: 100%;
-        }
+    .info-section h5 {
+        font-weight: bold;
+        margin-bottom: 10px;
+        color: #333;
+    }
 
-        .search-input {
-            min-width: 100%;
-        }
-
-        .category-select {
-            min-width: 100%;
-        }
-
-        .search-form .btn {
-            width: 100%;
-        }
-
-        .models-table {
-            font-size: 0.85rem;
-        }
-
-        .models-table th,
-        .models-table td {
-            padding: 10px 8px;
-        }
-
-        .link-btn {
-            padding: 4px 8px;
-            font-size: 11px;
-        }
-
-        .model-name {
-            font-size: 0.95rem;
-        }
-
-        .model-description {
-            max-width: 150px;
-        }
+    .info-section p {
+        margin: 5px 0;
+        color: #666;
+        font-size: 0.95rem;
     }
 </style>
 {% endblock %}
@@ -638,13 +532,10 @@
         </div>
         <div id="category-chart">
             <div class="hierarchy-diagram">
-                <!-- 中心节点 -->
                 <div class="hierarchy-content">
                     <div class="center-node" id="center-node">Model</div>
                     
-                    <!-- 四个分支 -->
                     <div class="branch-container">
-                        <!-- Probability分支 -->
                         <div class="branch" id="branch-probability">
                             <div class="branch-title probability">Probability</div>
                             <div class="branch-models">
@@ -654,7 +545,6 @@
                             </div>
                         </div>
                         
-                        <!-- NN分支 -->
                         <div class="branch" id="branch-nn">
                             <div class="branch-title nn">NN</div>
                             <div class="branch-models">
@@ -664,7 +554,6 @@
                             </div>
                         </div>
                         
-                        <!-- GNN分支 -->
                         <div class="branch" id="branch-gnn">
                             <div class="branch-title gnn">GNN</div>
                             <div class="branch-models">
@@ -674,7 +563,6 @@
                             </div>
                         </div>
                         
-                        <!-- LLM分支 -->
                         <div class="branch" id="branch-llm">
                             <div class="branch-title llm">LLM</div>
                             <div class="branch-models">
@@ -691,7 +579,7 @@
 
     <!-- 查询框 -->
     <div class="search-section">
-        <form method="get" class="search-form">
+        <form method="get" class="search-form" id="search-form">
             <div class="search-input-wrapper">
                 <input type="text" class="form-control search-input" name="search" placeholder="搜索模型名称..." value="{{ search_query }}">
                 <select class="form-control category-select" name="category">
@@ -701,14 +589,12 @@
                     {% endfor %}
                 </select>
             </div>
-            <button class="btn btn-primary" type="submit">
+            <button class="btn btn-primary" type="button" id="search-btn">
                 <i class="fas fa-search me-2"></i>搜索
             </button>
-            {% if search_query or category_filter %}
-            <a href="{% url 'researcher_diagnosis_models' %}" class="btn btn-secondary">
+            <a href="javascript:void(0)" class="btn btn-secondary" id="clear-btn" style="{% if not search_query and not category_filter %}display: none;{% endif %}">
                 <i class="fas fa-times me-2"></i>清除
             </a>
-            {% endif %}
         </form>
         {% if search_query or category_filter %}
         <div class="search-result-info">
@@ -775,60 +661,200 @@
     </div>
 
     <!-- 分页控件 -->
-    {% if page_obj.has_other_pages %}
-    <nav aria-label="分页导航" class="mt-4">
-        <ul class="pagination justify-content-center">
-            {% if page_obj.has_previous %}
-            <li class="page-item">
-                <a class="page-link" href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}{% if category_filter %}&category={{ category_filter }}{% endif %}">&laquo;&laquo;</a>
-            </li>
-            <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if category_filter %}&category={{ category_filter }}{% endif %}">&laquo;</a>
-            </li>
-            {% else %}
-            <li class="page-item disabled">
-                <span class="page-link">&laquo;&laquo;</span>
-            </li>
-            <li class="page-item disabled">
-                <span class="page-link">&laquo;</span>
-            </li>
-            {% endif %}
-
-            {% for num in page_obj.paginator.page_range %}
-                {% if page_obj.number == num %}
-                <li class="page-item active">
-                    <span class="page-link">{{ num }}</span>
-                </li>
-                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+    <div class="pagination-container">
+        {% if page_obj.has_other_pages %}
+        <nav aria-label="分页导航" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ num }}{% if search_query %}&search={{ search_query }}{% endif %}{% if category_filter %}&category={{ category_filter }}{% endif %}">{{ num }}</a>
+                    <a class="page-link pagination-link" href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}{% if category_filter %}&category={{ category_filter }}{% endif %}">&laquo;&laquo;</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link pagination-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if category_filter %}&category={{ category_filter }}{% endif %}">&laquo;</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">&laquo;&laquo;</span>
+                </li>
+                <li class="page-item disabled">
+                    <span class="page-link">&laquo;</span>
                 </li>
                 {% endif %}
-            {% endfor %}
 
-            {% if page_obj.has_next %}
-            <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if category_filter %}&category={{ category_filter }}{% endif %}">&raquo;</a>
-            </li>
-            <li class="page-item">
-                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}{% if category_filter %}&category={{ category_filter }}{% endif %}">&raquo;&raquo;</a>
-            </li>
-            {% else %}
-            <li class="page-item disabled">
-                <span class="page-link">&raquo;</span>
-            </li>
-            <li class="page-item disabled">
-                <span class="page-link">&raquo;&raquo;</span>
-            </li>
-            {% endif %}
-        </ul>
-    </nav>
+                {% for num in page_obj.paginator.page_range %}
+                    {% if page_obj.number == num %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ num }}</span>
+                    </li>
+                    {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                    <li class="page-item">
+                        <a class="page-link pagination-link" href="?page={{ num }}{% if search_query %}&search={{ search_query }}{% endif %}{% if category_filter %}&category={{ category_filter }}{% endif %}">{{ num }}</a>
+                    </li>
+                    {% endif %}
+                {% endfor %}
 
-    <div class="text-center text-muted mt-3 mb-4">
-        <small>第 {{ page_obj.number }} 页，共 {{ page_obj.paginator.num_pages }} 页 | 共 {{ total_count }} 个模型</small>
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link pagination-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if category_filter %}&category={{ category_filter }}{% endif %}">&raquo;</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link pagination-link" href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}{% if category_filter %}&category={{ category_filter }}{% endif %}">&raquo;&raquo;</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">&raquo;</span>
+                </li>
+                <li class="page-item disabled">
+                    <span class="page-link">&raquo;&raquo;</span>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+
+        <div class="text-center text-muted mt-3 mb-4">
+            <small>第 {{ page_obj.number }} 页，共 {{ page_obj.paginator.num_pages }} 页</small>
+        </div>
+        {% endif %}
     </div>
-    {% endif %}
 
+    <!-- 信息说明 -->
+    <div class="info-section">
+        <h5><i class="fas fa-info-circle me-2"></i>模型说明</h5>
+        <p><strong>模型名称：</strong>诊断算法模型的名称</p>
+        <p><strong>分类：</strong>模型的分类（Probability、NN、GNN、LLM）</p>
+        <p><strong>描述：</strong>模型的详细描述和应用场景</p>
+        <p><strong>状态：</strong>模型是否启用</p>
+        <p><strong>论文：</strong>相关研究论文的链接</p>
+    </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchBtn = document.getElementById('search-btn');
+    const clearBtn = document.getElementById('clear-btn');
+    
+    if (searchBtn) {
+        searchBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            performSearch();
+        });
+    }
+    
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            clearSearch();
+        });
+    }
+    
+    const searchInput = document.querySelector('.search-input');
+    if (searchInput) {
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                performSearch();
+            }
+        });
+    }
+    
+    attachPaginationListeners();
+});
+
+function performSearch() {
+    const search = document.querySelector('.search-input').value;
+    const category = document.querySelector('.category-select').value;
+    
+    const params = new URLSearchParams();
+    if (search) params.append('search', search);
+    if (category) params.append('category', category);
+    params.append('ajax', '1');
+    
+    const url = `?${params.toString()}`;
+    
+    fetch(url, {
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        updateTableAndInfo(data);
+    })
+    .catch(error => console.error('Error:', error));
+}
+
+function clearSearch() {
+    document.querySelector('.search-input').value = '';
+    document.querySelector('.category-select').value = '';
+    
+    fetch('?ajax=1', {
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        updateTableAndInfo(data);
+    })
+    .catch(error => console.error('Error:', error));
+}
+
+function updateTableAndInfo(data) {
+    const tbody = document.querySelector('.models-table tbody');
+    if (data.html) {
+        tbody.innerHTML = data.html;
+    }
+    
+    const resultInfo = document.querySelector('.search-result-info');
+    if (data.total_count !== undefined) {
+        if (resultInfo) {
+            resultInfo.innerHTML = `<small class="text-muted">搜索结果：找到 <strong>${data.total_count}</strong> 个模型</small>`;
+        } else {
+            const searchSection = document.querySelector('.search-section');
+            const newInfo = document.createElement('div');
+            newInfo.className = 'search-result-info';
+            newInfo.innerHTML = `<small class="text-muted">搜索结果：找到 <strong>${data.total_count}</strong> 个模型</small>`;
+            searchSection.appendChild(newInfo);
+        }
+    }
+    
+    const clearBtn = document.getElementById('clear-btn');
+    const search = document.querySelector('.search-input').value;
+    const category = document.querySelector('.category-select').value;
+    if (search || category) {
+        clearBtn.style.display = 'inline-block';
+    } else {
+        clearBtn.style.display = 'none';
+    }
+    
+    const paginationContainer = document.querySelector('.pagination-container');
+    if (data.pagination_html && paginationContainer) {
+        paginationContainer.innerHTML = data.pagination_html;
+        attachPaginationListeners();
+    }
+}
+
+function attachPaginationListeners() {
+    const paginationLinks = document.querySelectorAll('.pagination-link');
+    
+    paginationLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const url = this.href;
+            
+            fetch(url + (url.includes('?') ? '&' : '?') + 'ajax=1', {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                updateTableAndInfo(data);
+            })
+            .catch(error => console.error('Error:', error));
+        });
+    });
+}
+</script>
 
 {% endblock %}

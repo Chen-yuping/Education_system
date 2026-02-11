@@ -114,6 +114,110 @@ def researcher_diagnosis_models(request):
     page_number = request.GET.get('page', 1)
     page_obj = paginator.get_page(page_number)
 
+    # 检查是否是AJAX请求
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        # 构建表格HTML
+        table_html = ''
+        for model in page_obj:
+            category_label = dict(category_choices).get(model.category, '')
+            table_html += f'''
+            <tr>
+                <td class="model-name">{model.name}</td>
+                <td>
+                    <span class="category-badge category-{model.category}">
+                        {category_label}
+                    </span>
+                </td>
+                <td class="model-description" title="{model.description}">{model.description}</td>
+                <td>
+                    <span class="status-badge status-{'active' if model.is_active else 'inactive'}">
+                        {'启用' if model.is_active else '禁用'}
+                    </span>
+                </td>
+                <td>
+                    <div class="links-cell">
+                        {'<a href="' + model.paper_link + '" class="link-btn paper" target="_blank"><i class="fas fa-file-pdf me-1"></i>论文</a>' if model.paper_link else '<span class="link-btn disabled"><i class="fas fa-file-pdf me-1"></i>暂无</span>'}
+                    </div>
+                </td>
+            </tr>
+            '''
+        
+        if not page_obj:
+            table_html = '''
+            <tr>
+                <td colspan="5" class="text-center py-4 text-muted">
+                    <i class="fas fa-inbox fa-2x mb-3"></i>
+                    <p>暂无诊断模型</p>
+                </td>
+            </tr>
+            '''
+        
+        # 构建分页HTML
+        pagination_html = ''
+        if page_obj.has_other_pages:
+            pagination_html = '<nav aria-label="分页导航" class="mt-4"><ul class="pagination justify-content-center">'
+            
+            if page_obj.has_previous:
+                pagination_html += f'''
+                <li class="page-item">
+                    <a class="page-link pagination-link" href="?page=1{'&search=' + search_query if search_query else ''}{'&category=' + category_filter if category_filter else ''}">&laquo;&laquo;</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link pagination-link" href="?page={page_obj.previous_page_number}{'&search=' + search_query if search_query else ''}{'&category=' + category_filter if category_filter else ''}">&laquo;</a>
+                </li>
+                '''
+            else:
+                pagination_html += '''
+                <li class="page-item disabled">
+                    <span class="page-link">&laquo;&laquo;</span>
+                </li>
+                <li class="page-item disabled">
+                    <span class="page-link">&laquo;</span>
+                </li>
+                '''
+            
+            for num in page_obj.paginator.page_range:
+                if page_obj.number == num:
+                    pagination_html += f'<li class="page-item active"><span class="page-link">{num}</span></li>'
+                elif num > page_obj.number - 3 and num < page_obj.number + 3:
+                    pagination_html += f'''
+                    <li class="page-item">
+                        <a class="page-link pagination-link" href="?page={num}{'&search=' + search_query if search_query else ''}{'&category=' + category_filter if category_filter else ''}">{num}</a>
+                    </li>
+                    '''
+            
+            if page_obj.has_next:
+                pagination_html += f'''
+                <li class="page-item">
+                    <a class="page-link pagination-link" href="?page={page_obj.next_page_number}{'&search=' + search_query if search_query else ''}{'&category=' + category_filter if category_filter else ''}">&raquo;</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link pagination-link" href="?page={page_obj.paginator.num_pages}{'&search=' + search_query if search_query else ''}{'&category=' + category_filter if category_filter else ''}">&raquo;&raquo;</a>
+                </li>
+                '''
+            else:
+                pagination_html += '''
+                <li class="page-item disabled">
+                    <span class="page-link">&raquo;</span>
+                </li>
+                <li class="page-item disabled">
+                    <span class="page-link">&raquo;&raquo;</span>
+                </li>
+                '''
+            
+            pagination_html += '</ul></nav>'
+            pagination_html += f'''
+            <div class="text-center text-muted mt-3 mb-4">
+                <small>第 {page_obj.number} 页，共 {page_obj.paginator.num_pages} 页</small>
+            </div>
+            '''
+        
+        return JsonResponse({
+            'html': table_html,
+            'pagination_html': pagination_html,
+            'total_count': all_models.count(),
+        })
+
     context = {
         'page_obj': page_obj,
         'total_count': all_models.count(),
