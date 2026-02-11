@@ -126,10 +126,34 @@
         width: 100%;
         display: flex;
         justify-content: center;
-        gap: 80px;
-        flex-wrap: wrap;
+        gap: 40px;
+        flex-wrap: nowrap;
         position: relative;
         margin-top: 80px;
+    }
+
+    @media (max-width: 1400px) {
+        .branch-container {
+            gap: 35px;
+        }
+    }
+
+    @media (max-width: 1200px) {
+        .branch-container {
+            gap: 30px;
+        }
+    }
+
+    @media (max-width: 992px) {
+        .branch-container {
+            gap: 25px;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .branch-container {
+            gap: 20px;
+        }
     }
 
     /* 四个分支之间的横线 - 只在四个分支之间 */
@@ -151,8 +175,34 @@
         flex-direction: column;
         gap: 12px;
         align-items: center;
-        flex: 0 1 220px;
+        flex: 1;
         position: relative;
+        min-width: 0;
+        max-width: 250px;
+    }
+
+    @media (max-width: 1400px) {
+        .branch {
+            max-width: 220px;
+        }
+    }
+
+    @media (max-width: 1200px) {
+        .branch {
+            max-width: 200px;
+        }
+    }
+
+    @media (max-width: 992px) {
+        .branch {
+            max-width: 180px;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .branch {
+            max-width: 150px;
+        }
     }
 
     /* 从横线到分类标题的竖线 */
