@@ -232,8 +232,7 @@ def researcher_diagnosis_models(request):
     return render(request, 'researcher/researcher_diagnosis_models.html', context)
 
 
-@login_required
-@user_passes_test(is_researcher)
+
 def researcher_performance_comparison(request):
     """性能对比 - 对比不同诊断模型在不同数据集上的性能"""
     # 从数据库查询所有诊断模型和数据集
