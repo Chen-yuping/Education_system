@@ -1,0 +1,860 @@
+{% extends 'researcher/researcher-base.html' %}
+
+{% block title %}诊断模型 - 科研管理{% endblock %}
+
+{% block extra_css %}
+<style>
+    .models-container {
+        padding: 20px;
+    }
+
+    .category-stats {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+
+    .category-stats-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    #category-chart {
+        width: 100%;
+        min-height: 600px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        overflow: visible;
+        position: relative;
+    }
+
+    .hierarchy-diagram {
+        position: relative;
+        width: 100%;
+        min-height: 600px;
+        font-family: Arial, sans-serif;
+    }
+
+    .hierarchy-content {
+        position: relative;
+        width: 100%;
+        min-height: 600px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 40px 20px;
+        z-index: 2;
+    }
+
+    .center-node {
+        padding: 15px 30px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 8px;
+        font-weight: bold;
+        font-size: 16px;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        z-index: 10;
+        margin-bottom: 0;
+        position: relative;
+    }
+
+    .center-node::after {
+        content: '';
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        width: 2px;
+        height: 40px;
+        background: #667eea;
+        transform: translateX(-50%);
+    }
+
+    .branch-container {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        gap: 40px;
+        flex-wrap: nowrap;
+        position: relative;
+        margin-top: 80px;
+    }
+
+    .branch-container::before {
+        content: '';
+        position: absolute;
+        top: -40px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 900px;
+        max-width: 90%;
+        height: 2px;
+        background: linear-gradient(to right, #1976d2 0%, #1976d2 25%, #7b1fa2 25%, #7b1fa2 50%, #388e3c 50%, #388e3c 75%, #f57c00 75%, #f57c00 100%);
+        opacity: 0.6;
+    }
+
+    .branch {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        align-items: center;
+        flex: 1;
+        position: relative;
+        min-width: 0;
+        max-width: 250px;
+    }
+
+    @media (max-width: 1400px) {
+        .branch {
+            max-width: 220px;
+        }
+        .branch-container {
+            gap: 35px;
+        }
+    }
+
+    @media (max-width: 1200px) {
+        .branch {
+            max-width: 200px;
+        }
+        .branch-container {
+            gap: 30px;
+        }
+    }
+
+    @media (max-width: 992px) {
+        .branch {
+            max-width: 180px;
+        }
+        .branch-container {
+            gap: 25px;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .branch {
+            max-width: 150px;
+        }
+        .branch-container {
+            gap: 20px;
+        }
+    }
+
+    .branch::before {
+        content: '';
+        position: absolute;
+        top: -40px;
+        left: 50%;
+        width: 2px;
+        height: 40px;
+        transform: translateX(-50%);
+    }
+
+    .branch#branch-probability::before {
+        background: linear-gradient(to bottom, #1976d2, transparent);
+    }
+
+    .branch#branch-nn::before {
+        background: linear-gradient(to bottom, #7b1fa2, transparent);
+    }
+
+    .branch#branch-gnn::before {
+        background: linear-gradient(to bottom, #388e3c, transparent);
+    }
+
+    .branch#branch-llm::before {
+        background: linear-gradient(to bottom, #f57c00, transparent);
+    }
+
+    .branch-title {
+        padding: 10px 20px;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 14px;
+        text-align: center;
+        min-width: 100px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        position: relative;
+    }
+
+    .branch-title.probability {
+        background: #e3f2fd;
+        color: #1976d2;
+        border: 2px solid #1976d2;
+    }
+
+    .branch-title.nn {
+        background: #f3e5f5;
+        color: #7b1fa2;
+        border: 2px solid #7b1fa2;
+    }
+
+    .branch-title.gnn {
+        background: #e8f5e9;
+        color: #388e3c;
+        border: 2px solid #388e3c;
+    }
+
+    .branch-title.llm {
+        background: #fff3e0;
+        color: #f57c00;
+        border: 2px solid #f57c00;
+    }
+
+    .branch-models {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .model-item {
+        padding: 6px 12px;
+        background: white;
+        border-radius: 4px;
+        font-size: 12px;
+        border: 1px solid #ddd;
+        white-space: nowrap;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    }
+
+    .model-item.probability {
+        border-left: 3px solid #1976d2;
+    }
+
+    .model-item.nn {
+        border-left: 3px solid #7b1fa2;
+    }
+
+    .model-item.gnn {
+        border-left: 3px solid #388e3c;
+    }
+
+    .model-item.llm {
+        border-left: 3px solid #f57c00;
+    }
+
+    .search-section {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+    }
+
+    .search-form {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .search-input-wrapper {
+        flex: 1;
+        min-width: 250px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .search-input {
+        flex: 2;
+        padding: 10px 15px;
+        border: 2px solid #e0e0e0;
+        border-radius: 6px;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+    }
+
+    .search-input:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .category-select {
+        flex: 1;
+        padding: 10px 15px;
+        border: 2px solid #e0e0e0;
+        border-radius: 6px;
+        font-size: 1rem;
+        background-color: white;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        min-width: 100px;
+    }
+
+    .category-select:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .search-form .btn {
+        padding: 10px 24px;
+        font-weight: 500;
+        white-space: nowrap;
+        border-radius: 6px;
+        transition: all 0.3s ease;
+    }
+
+    .search-form .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        color: white;
+        cursor: pointer;
+    }
+
+    .search-form .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .search-form .btn-secondary {
+        background-color: #f0f0f0;
+        color: #333;
+        border: none;
+        cursor: pointer;
+    }
+
+    .search-form .btn-secondary:hover {
+        background-color: #e0e0e0;
+    }
+
+    .search-result-info {
+        color: #666;
+        margin-top: 12px;
+        font-size: 0.95rem;
+    }
+
+    .models-table {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+
+    .models-table table {
+        margin-bottom: 0;
+    }
+
+    .models-table thead {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    .models-table th {
+        padding: 15px;
+        font-weight: 600;
+        border: none;
+        text-align: left;
+    }
+
+    .models-table td {
+        padding: 15px;
+        border-bottom: 1px solid #f0f0f0;
+        text-align: left;
+        vertical-align: middle;
+    }
+
+    .models-table tbody tr:hover {
+        background-color: #fafafa;
+    }
+
+    .models-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .model-name {
+        font-weight: 600;
+        color: #333;
+        text-align: left;
+    }
+
+    .model-description {
+        color: #666;
+        font-size: 0.9rem;
+        text-align: left;
+        max-width: 300px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .status-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    .status-active {
+        background-color: #d4edda;
+        color: #28a745;
+    }
+
+    .status-inactive {
+        background-color: #f8d7da;
+        color: #dc3545;
+    }
+
+    .category-badge {
+        display: inline-block;
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        margin-right: 5px;
+    }
+
+    .category-probability {
+        background-color: #e3f2fd;
+        color: #1976d2;
+    }
+
+    .category-nn {
+        background-color: #f3e5f5;
+        color: #7b1fa2;
+    }
+
+    .category-gnn {
+        background-color: #e8f5e9;
+        color: #388e3c;
+    }
+
+    .category-llm {
+        background-color: #fff3e0;
+        color: #f57c00;
+    }
+
+    .links-cell {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .link-btn {
+        display: inline-block;
+        padding: 6px 12px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 500;
+        text-decoration: none;
+        transition: all 0.2s ease;
+        cursor: pointer;
+        border: 1px solid #ddd;
+    }
+
+    .link-btn.paper {
+        background-color: #fff3cd;
+        color: #856404;
+        border-color: #856404;
+    }
+
+    .link-btn.paper:hover {
+        background-color: #856404;
+        color: white;
+    }
+
+    .link-btn.disabled {
+        background-color: #e9ecef;
+        color: #6c757d;
+        border-color: #dee2e6;
+        cursor: not-allowed;
+    }
+
+    .pagination {
+        margin-top: 20px;
+    }
+
+    .page-link {
+        color: #007bff;
+        border-color: #dee2e6;
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+
+    .page-link:hover {
+        color: white;
+        background-color: #007bff;
+        border-color: #007bff;
+    }
+
+    .page-item.active .page-link {
+        background-color: #007bff;
+        border-color: #007bff;
+    }
+
+    .page-item.disabled .page-link {
+        color: #6c757d;
+        cursor: not-allowed;
+    }
+
+    .info-section {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        border-left: 4px solid #007bff;
+    }
+
+    .info-section h5 {
+        font-weight: bold;
+        margin-bottom: 10px;
+        color: #333;
+    }
+
+    .info-section p {
+        margin: 5px 0;
+        color: #666;
+        font-size: 0.95rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="models-container">
+   
+    <!-- 分类统计卡片 -->
+    <div class="category-stats">
+        <div class="category-stats-title">
+            <i class="fas fa-sitemap" style="color: #667eea;"></i>
+            诊断模型分类体系
+        </div>
+        <div id="category-chart">
+            <div class="hierarchy-diagram">
+                <div class="hierarchy-content">
+                    <div class="center-node" id="center-node">Model</div>
+                    
+                    <div class="branch-container">
+                        <div class="branch" id="branch-probability">
+                            <div class="branch-title probability">Probability</div>
+                            <div class="branch-models">
+                                {% for model in probability_models %}
+                                    <div class="model-item probability">{{ model.name }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        
+                        <div class="branch" id="branch-nn">
+                            <div class="branch-title nn">NN</div>
+                            <div class="branch-models">
+                                {% for model in nn_models %}
+                                    <div class="model-item nn">{{ model.name }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        
+                        <div class="branch" id="branch-gnn">
+                            <div class="branch-title gnn">GNN</div>
+                            <div class="branch-models">
+                                {% for model in gnn_models %}
+                                    <div class="model-item gnn">{{ model.name }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        
+                        <div class="branch" id="branch-llm">
+                            <div class="branch-title llm">LLM</div>
+                            <div class="branch-models">
+                                {% for model in llm_models %}
+                                    <div class="model-item llm">{{ model.name }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 查询框 -->
+    <div class="search-section">
+        <form method="get" class="search-form" id="search-form">
+            <div class="search-input-wrapper">
+                <input type="text" class="form-control search-input" name="search" placeholder="搜索模型名称..." value="{{ search_query }}">
+                <select class="form-control category-select" name="category">
+                    <option value="">全部分类</option>
+                    {% for value, label in category_choices %}
+                    <option value="{{ value }}" {% if category_filter == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button class="btn btn-primary" type="button" id="search-btn">
+                <i class="fas fa-search me-2"></i>搜索
+            </button>
+            <a href="javascript:void(0)" class="btn btn-secondary" id="clear-btn" style="{% if not search_query and not category_filter %}display: none;{% endif %}">
+                <i class="fas fa-times me-2"></i>清除
+            </a>
+        </form>
+        {% if search_query or category_filter %}
+        <div class="search-result-info">
+            <small class="text-muted">搜索结果：找到 <strong>{{ total_count }}</strong> 个模型</small>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 诊断模型表格 -->
+    <div class="models-table">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>模型名称</th>
+                    <th>分类</th>
+                    <th>描述</th>
+                    <th>状态</th>
+                    <th>论文</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for model in page_obj %}
+                <tr>
+                    <td class="model-name">{{ model.name }}</td>
+                    <td>
+                        <span class="category-badge category-{{ model.category }}">
+                            {% for value, label in category_choices %}
+                                {% if value == model.category %}{{ label }}{% endif %}
+                            {% endfor %}
+                        </span>
+                    </td>
+                    <td class="model-description" title="{{ model.description }}">{{ model.description }}</td>
+                    <td>
+                        {% if model.is_active %}
+                            <span class="status-badge status-active">启用</span>
+                        {% else %}
+                            <span class="status-badge status-inactive">禁用</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="links-cell">
+                            {% if model.paper_link %}
+                                <a href="{{ model.paper_link }}" class="link-btn paper" target="_blank">
+                                    <i class="fas fa-file-pdf me-1"></i>论文
+                                </a>
+                            {% else %}
+                                <span class="link-btn disabled">
+                                    <i class="fas fa-file-pdf me-1"></i>暂无
+                                </span>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="text-center py-4 text-muted">
+                        <i class="fas fa-inbox fa-2x mb-3"></i>
+                        <p>暂无诊断模型</p>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 分页控件 -->
+    <div class="pagination-container">
+        {% if page_obj.has_other_pages %}
+        <nav aria-label="分页导航" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link pagination-link" href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}{% if category_filter %}&category={{ category_filter }}{% endif %}">&laquo;&laquo;</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link pagination-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if category_filter %}&category={{ category_filter }}{% endif %}">&laquo;</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">&laquo;&laquo;</span>
+                </li>
+                <li class="page-item disabled">
+                    <span class="page-link">&laquo;</span>
+                </li>
+                {% endif %}
+
+                {% for num in page_obj.paginator.page_range %}
+                    {% if page_obj.number == num %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ num }}</span>
+                    </li>
+                    {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                    <li class="page-item">
+                        <a class="page-link pagination-link" href="?page={{ num }}{% if search_query %}&search={{ search_query }}{% endif %}{% if category_filter %}&category={{ category_filter }}{% endif %}">{{ num }}</a>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link pagination-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if category_filter %}&category={{ category_filter }}{% endif %}">&raquo;</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link pagination-link" href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}{% if category_filter %}&category={{ category_filter }}{% endif %}">&raquo;&raquo;</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">&raquo;</span>
+                </li>
+                <li class="page-item disabled">
+                    <span class="page-link">&raquo;&raquo;</span>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+
+        <div class="text-center text-muted mt-3 mb-4">
+            <small>第 {{ page_obj.number }} 页，共 {{ page_obj.paginator.num_pages }} 页</small>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 信息说明 -->
+    <div class="info-section">
+        <h5><i class="fas fa-info-circle me-2"></i>模型说明</h5>
+        <p><strong>模型名称：</strong>诊断算法模型的名称</p>
+        <p><strong>分类：</strong>模型的分类（Probability、NN、GNN、LLM）</p>
+        <p><strong>描述：</strong>模型的详细描述和应用场景</p>
+        <p><strong>状态：</strong>模型是否启用</p>
+        <p><strong>论文：</strong>相关研究论文的链接</p>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchBtn = document.getElementById('search-btn');
+    const clearBtn = document.getElementById('clear-btn');
+    
+    if (searchBtn) {
+        searchBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            performSearch();
+        });
+    }
+    
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            clearSearch();
+        });
+    }
+    
+    const searchInput = document.querySelector('.search-input');
+    if (searchInput) {
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                performSearch();
+            }
+        });
+    }
+    
+    attachPaginationListeners();
+});
+
+function performSearch() {
+    const search = document.querySelector('.search-input').value;
+    const category = document.querySelector('.category-select').value;
+    
+    const params = new URLSearchParams();
+    if (search) params.append('search', search);
+    if (category) params.append('category', category);
+    params.append('ajax', '1');
+    
+    const url = `?${params.toString()}`;
+    
+    fetch(url, {
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        updateTableAndInfo(data);
+    })
+    .catch(error => console.error('Error:', error));
+}
+
+function clearSearch() {
+    document.querySelector('.search-input').value = '';
+    document.querySelector('.category-select').value = '';
+    
+    fetch('?ajax=1', {
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        updateTableAndInfo(data);
+    })
+    .catch(error => console.error('Error:', error));
+}
+
+function updateTableAndInfo(data) {
+    const tbody = document.querySelector('.models-table tbody');
+    if (data.html) {
+        tbody.innerHTML = data.html;
+    }
+    
+    const resultInfo = document.querySelector('.search-result-info');
+    if (data.total_count !== undefined) {
+        if (resultInfo) {
+            resultInfo.innerHTML = `<small class="text-muted">搜索结果：找到 <strong>${data.total_count}</strong> 个模型</small>`;
+        } else {
+            const searchSection = document.querySelector('.search-section');
+            const newInfo = document.createElement('div');
+            newInfo.className = 'search-result-info';
+            newInfo.innerHTML = `<small class="text-muted">搜索结果：找到 <strong>${data.total_count}</strong> 个模型</small>`;
+            searchSection.appendChild(newInfo);
+        }
+    }
+    
+    const clearBtn = document.getElementById('clear-btn');
+    const search = document.querySelector('.search-input').value;
+    const category = document.querySelector('.category-select').value;
+    if (search || category) {
+        clearBtn.style.display = 'inline-block';
+    } else {
+        clearBtn.style.display = 'none';
+    }
+    
+    const paginationContainer = document.querySelector('.pagination-container');
+    if (data.pagination_html && paginationContainer) {
+        paginationContainer.innerHTML = data.pagination_html;
+        attachPaginationListeners();
+    }
+}
+
+function attachPaginationListeners() {
+    const paginationLinks = document.querySelectorAll('.pagination-link');
+    
+    paginationLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const url = this.href;
+            
+            fetch(url + (url.includes('?') ? '&' : '?') + 'ajax=1', {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                updateTableAndInfo(data);
+            })
+            .catch(error => console.error('Error:', error));
+        });
+    });
+}
+</script>
+
+{% endblock %}
