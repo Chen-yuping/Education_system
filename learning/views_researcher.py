@@ -44,8 +44,7 @@ def researcher_dashboard(request):
     return render(request, 'researcher/researcher_dashboard.html', context)
 
 
-@login_required
-@user_passes_test(is_researcher)
+
 def researcher_datasets(request):
     """数据集 - 展示常用的公开数据集"""
     # 从数据库查询所有数据集
