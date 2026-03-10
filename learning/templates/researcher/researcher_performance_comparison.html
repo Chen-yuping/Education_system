@@ -369,8 +369,9 @@
 {% endblock %}
 
 {% block content %}
+
 <div class="comparison-container">
-    
+
     <!-- 诊断配置区域 -->
     <div class="diagnosis-config">
         <div class="config-title">
@@ -456,7 +457,7 @@
                 <div class="toggle-section">
                     <span class="toggle-label">记录数据</span>
                     <label class="toggle-switch">
-                        <input type="checkbox" id="recordToggle">
+                        <input type="checkbox" id="recordToggle" checked>
                         <span class="toggle-slider"></span>
                     </label>
                 </div>
@@ -516,7 +517,7 @@ function toggleModelSelector(event) {
     const dropdown = document.getElementById('modelDropdown');
     const arrow = document.getElementById('modelArrow');
     const btn = document.getElementById('modelSelectorBtn');
-    
+
     dropdown.classList.toggle('show');
     arrow.classList.toggle('open');
     btn.classList.toggle('active');
@@ -525,7 +526,7 @@ function toggleModelSelector(event) {
 function updateModelTags() {
     const selectedModels = Array.from(document.querySelectorAll('input[name="models"]:checked'));
     const tagsContainer = document.getElementById('modelTags');
-    
+
     if (selectedModels.length === 0) {
         tagsContainer.innerHTML = '<span style="color: #999;">-- 选择诊断模型 --</span>';
     } else {
@@ -563,17 +564,95 @@ function startAnalysis() {
     // 获取选中的模型
     const selectedModels = Array.from(document.querySelectorAll('input[name="models"]:checked')).map(el => el.value);
     const dataset = document.getElementById('datasetSelect').value;
+    const recordData = document.getElementById('recordToggle').checked;
 
     if (selectedModels.length === 0 || !dataset) {
         alert('请选择至少一个诊断模型和一个数据集');
         return;
     }
 
+    console.log('准备发送的数据:', {
+        dataset_id: dataset,
+        model_ids: selectedModels,
+        record_data: recordData
+    });
+
     // 显示结果区域
     document.getElementById('analysisResult').classList.add('active');
 
-    // 这里可以添加实际的分析逻辑
-    console.log('开始分析:', { models: selectedModels, dataset });
+    // 检查resultsContainer是否存在
+    const resultsContainer = document.getElementById('resultsContainer');
+    if (resultsContainer) {
+        resultsContainer.innerHTML = '<div class="empty-state"><i class="fas fa-spinner fa-spin"></i><p>正在分析中...</p></div>';
+    }
+    // 发送数据到后端
+    fetch('/learning/researcher/run-comparison/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            dataset_id: parseInt(dataset),
+            model_ids: selectedModels.map(id => parseInt(id)),
+            record_data: recordData
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log('后端返回:', data);
+        if (data.success) {
+            // 显示结果
+            displayResults(data);
+        } else {
+            alert('分析失败：' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('错误:', error);
+        alert('请求失败，请稍后重试');
+    });
 }
+
+// 添加获取CSRF token的函数
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// 添加显示结果的函数
+function displayResults(data) {
+    const resultsContainer = document.getElementById('resultsContainer');
+
+    if (data.results && data.results.length > 0) {
+        let html = '';
+        data.results.forEach(result => {
+            html += `
+                <div class="result-card">
+                    <h3>${result.model_name}</h3>
+                    <p>准确率: ${result.acc}</p>
+                    <p>AUC: ${result.auc}</p>
+                    <p>RMSE: ${result.rmse}</p>
+                </div>
+            `;
+        });
+        resultsContainer.innerHTML = html;
+    } else {
+        resultsContainer.innerHTML = '<div class="empty-state"><i class="fas fa-chart-line"></i><p>暂无分析结果</p></div>';
+    }
+}
+
 </script>
+
+
 {% endblock %}

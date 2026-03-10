@@ -13,6 +13,8 @@ from .models import Exercise, Subject, KnowledgePoint, Choice, QMatrix, AnswerLo
 from accounts.models import *
 from .forms import ExerciseForm
 import csv
+from django.views.decorators.http import require_POST
+from django.utils import timezone
 
 #研究者身份判断
 def is_researcher(user):
@@ -44,9 +46,9 @@ def researcher_dashboard(request):
     return render(request, 'researcher/researcher_dashboard.html', context)
 
 
-
+"""数据集 - 展示常用的公开数据集"""
 def researcher_datasets(request):
-    """数据集 - 展示常用的公开数据集"""
+
     # 从数据库查询所有数据集
     all_datasets = Dataset.objects.all()
     
@@ -67,9 +69,9 @@ def researcher_datasets(request):
     }
     return render(request, 'researcher/researcher_datasets.html', context)
 
-
+"""诊断模型 - 展示各种诊断算法模型"""
 def researcher_diagnosis_models(request):
-    """诊断模型 - 展示各种诊断算法模型"""
+
     # 从数据库查询所有诊断模型
     all_models = DiagnosisModel.objects.filter(is_active=True)
     
@@ -229,11 +231,10 @@ def researcher_diagnosis_models(request):
     }
     return render(request, 'researcher/researcher_diagnosis_models.html', context)
 
-
+"""性能对比 - 对比不同诊断模型在不同数据集上的性能"""
 @login_required
 @user_passes_test(is_researcher)
 def researcher_performance_comparison(request):
-    """性能对比 - 对比不同诊断模型在不同数据集上的性能"""
     # 从数据库查询所有诊断模型和数据集
     models = DiagnosisModel.objects.filter(is_active=True)
     datasets = Dataset.objects.all()
@@ -243,3 +244,75 @@ def researcher_performance_comparison(request):
         'datasets': datasets,
     }
     return render(request, 'researcher/researcher_performance_comparison.html', context)
+
+
+@login_required
+@user_passes_test(is_researcher)
+@require_POST
+def researcher_run_comparison(request):
+    """
+    处理性能对比的AJAX请求
+    """
+    try:
+        # 解析JSON数据
+        data = json.loads(request.body)
+        print("收到数据:", data)  # 调试用
+
+        dataset_id = data.get('dataset_id')
+        model_ids = data.get('model_ids', [])
+        record_data = data.get('record_data', False)
+
+        # 验证数据
+        if not dataset_id:
+            return JsonResponse({'success': False, 'error': '请选择数据集'})
+
+        if not model_ids:
+            return JsonResponse({'success': False, 'error': '请选择至少一个模型'})
+
+        # 获取数据集信息
+        try:
+            dataset = Dataset.objects.get(id=dataset_id)
+        except Dataset.DoesNotExist:
+            return JsonResponse({'success': False, 'error': '数据集不存在'})
+
+        # 获取模型信息
+        models = DiagnosisModel.objects.filter(id__in=model_ids, is_active=True)
+
+        # 查询每个模型的训练结果
+        results = []
+        for model in models:
+            # 查找该模型在选定数据集上的最新训练结果
+            training_result = ModelTrainingResult.objects.filter(
+                diagnosis_model=model,
+                dataset=dataset
+            ).order_by('-created_at').first()
+
+            if training_result:
+                results.append({
+                    'model_id': model.id,
+                    'model_name': model.name,
+                    'acc': training_result.acc,
+                    'auc': training_result.auc,
+                    'rmse': training_result.rmse,
+                    'best_round': training_result.best_round
+                })
+            else:
+                results.append({
+                    'model_id': model.id,
+                    'model_name': model.name,
+                    'acc': None,
+                    'auc': None,
+                    'rmse': None,
+                    'message': '暂无训练记录'
+                })
+
+        return JsonResponse({
+            'success': True,
+            'dataset_name': dataset.name,
+            'results': results
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': '数据格式错误'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
