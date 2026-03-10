@@ -2,6 +2,7 @@ from django.db import models
 from accounts.models import User
 import os
 import uuid
+from django.conf import settings
 from django.core.validators import FileExtensionValidator
 
 #对应数据库learning_subject
@@ -355,3 +356,68 @@ class Dataset(models.Model):
             return False
         else:
             return self.knowledge_relation
+
+
+class Experiment(models.Model):
+    """实验批次表 - 用于分组同一批训练的多个模型结果"""
+    # 只需要一个简单的标识即可
+    batch_id = models.CharField(max_length=50, unique=True, verbose_name="实验批次ID")
+
+    # 关联本次实验使用的数据集
+    dataset = models.ForeignKey('Dataset',on_delete=models.CASCADE,verbose_name="使用数据集",related_name="experiments")
+
+    # 创建信息
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.SET_NULL,null=True,verbose_name="创建人")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
+
+    class Meta:
+        verbose_name = "实验批次"
+        verbose_name_plural = "实验批次"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"实验批次 {self.batch_id} - {self.dataset.name}"
+
+
+class ModelTrainingResult(models.Model):
+    """模型训练结果表（存储50轮训练的最优结果）"""
+    # 关联实验批次（一个实验批次对应多个模型结果）
+    experiment = models.ForeignKey(Experiment,on_delete=models.CASCADE,verbose_name="所属实验批次",related_name="model_results")
+
+    # 关联使用的模型
+    diagnosis_model = models.ForeignKey(DiagnosisModel,on_delete=models.CASCADE,verbose_name="诊断模型",related_name="training_results")
+    # 数据集其实可以通过experiment获取，但保留方便直接查询
+    dataset = models.ForeignKey(Dataset,on_delete=models.CASCADE,verbose_name="使用数据集",related_name="training_results")
+
+    # 训练核心指标
+    best_round = models.IntegerField(verbose_name="最优训练轮数")  # 第几轮效果最好
+    acc = models.FloatField(verbose_name="ACC准确率")
+    auc = models.FloatField(verbose_name="AUC值")
+    rmse = models.FloatField(verbose_name="RMSE均方根误差")
+
+    # 训练耗时（单位：秒）
+    best_round_time = models.FloatField(verbose_name="最优轮次训练耗时(秒)")
+    total_time = models.FloatField(verbose_name="50轮总训练耗时(秒)")
+
+    # 归属信息
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.SET_NULL,null=True,verbose_name="训练人")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="训练完成时间")
+
+    class Meta:
+        verbose_name = "模型训练结果"
+        verbose_name_plural = "模型训练结果"
+        ordering = ['-created_at']
+        # 确保同一个实验批次中，同一个模型只有一个结果
+        unique_together = ['experiment', 'diagnosis_model']
+
+    def __str__(self):
+        return f"{self.diagnosis_model.name} (ACC:{self.acc:.3f}, AUC:{self.auc:.3f})"
+
+    def get_metrics_dict(self):
+        """获取指标字典，用于前端展示"""
+        return {
+            'acc': f"{self.acc * 100:.2f}%",
+            'auc': f"{self.auc * 100:.2f}%",
+            'rmse': f"{self.rmse:.4f}",
+            'best_round': self.best_round
+        }
