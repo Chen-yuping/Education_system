@@ -143,12 +143,12 @@ class NCDM:
                 if auc > best_auc:
                     best_epoch = epoch_i
                     best_auc = auc
-                    acc1 = accuracy
+                    acc = accuracy
                     best_f1 = f1
-                    rmse1 = rmse
+                    rmse = rmse
                     # self.save("params/ncdm.params")
             print('BEST epoch<%d>, auc: %s, acc: %s, rmse: %.6f, f1: %.6f' % (best_epoch, best_auc, acc1, rmse1, best_f1))
-        return best_epoch, best_auc, acc1
+        return best_epoch, best_auc, acc,rmse
 
     def eval(self, test_data, device="cpu"):
         self.ncdm_net = self.ncdm_net.to(device)

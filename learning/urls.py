@@ -114,4 +114,5 @@ urlpatterns = [
 
     path('researcher/performance-comparison/', views_researcher.researcher_performance_comparison,name='researcher_performance_comparison'),
     path('researcher/run-comparison/', views_researcher.researcher_run_comparison, name='researcher_run_comparison'),
+    path('researcher/check-status/', views_researcher.check_training_status, name='check_training_status'),
 ]

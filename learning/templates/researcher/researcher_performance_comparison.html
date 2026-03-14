@@ -471,43 +471,20 @@
             <i class="fas fa-chart-bar me-2"></i>分析结果
         </div>
 
-        <table class="comparison-table">
+        <table class="comparison-table" id="resultTable">
             <thead>
                 <tr>
-                    <th style="text-align: left;">指标</th>
-                    <th>数值</th>
-                    <th>说明</th>
+                    <th style="text-align: left;">模型</th>
+                    <th>ACC</th>
+                    <th>AUC</th>
+                    <th>RMSE</th>
+                    <th>最佳轮次</th>
                 </tr>
             </thead>
-            <tbody>
-                <tr>
-                    <td>准确率 (Accuracy)</td>
-                    <td style="text-align: center; font-weight: 600; color: #007bff;">--</td>
-                    <td>模型预测正确的比例</td>
-                </tr>
-                <tr>
-                    <td>精确率 (Precision)</td>
-                    <td style="text-align: center; font-weight: 600; color: #007bff;">--</td>
-                    <td>预测为正的样本中实际为正的比例</td>
-                </tr>
-                <tr>
-                    <td>召回率 (Recall)</td>
-                    <td style="text-align: center; font-weight: 600; color: #007bff;">--</td>
-                    <td>实际为正的样本中被正确预测的比例</td>
-                </tr>
-                <tr>
-                    <td>F1 分数</td>
-                    <td style="text-align: center; font-weight: 600; color: #007bff;">--</td>
-                    <td>精确率和召回率的调和平均数</td>
-                </tr>
+            <tbody id="resultBody">
+                <!-- 这里会动态插入数据 -->
             </tbody>
         </table>
-
-        <div style="margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 4px; border-left: 4px solid #007bff;">
-            <p style="margin: 0; color: #666; font-size: 0.9rem;">
-                <strong>提示：</strong>分析结果为示例数据。实际性能指标需要基于真实的诊断数据和模型评估。
-            </p>
-        </div>
     </div>
 
 <script>
@@ -571,20 +548,30 @@ function startAnalysis() {
         return;
     }
 
-    console.log('准备发送的数据:', {
-        dataset_id: dataset,
-        model_ids: selectedModels,
-        record_data: recordData
-    });
-
-    // 显示结果区域
+    // 显示结果区域和加载状态
     document.getElementById('analysisResult').classList.add('active');
 
-    // 检查resultsContainer是否存在
+    // 获取数据集名称用于显示
+    const datasetSelect = document.getElementById('datasetSelect');
+    const datasetName = datasetSelect.options[datasetSelect.selectedIndex]?.text || '';
+
+    // 获取模型名称列表
+    const selectedModelInputs = Array.from(document.querySelectorAll('input[name="models"]:checked'));
+    const modelNames = selectedModelInputs.map(input => {
+        const label = document.querySelector(`label[for="${input.id}"]`);
+        return label ? label.textContent.trim() : '';
+    });
+
+    // 显示加载中状态
     const resultsContainer = document.getElementById('resultsContainer');
     if (resultsContainer) {
-        resultsContainer.innerHTML = '<div class="empty-state"><i class="fas fa-spinner fa-spin"></i><p>正在分析中...</p></div>';
+        let loadingHtml = '<div class="empty-state">';
+        loadingHtml += '<i class="fas fa-spinner fa-spin"></i>';
+        loadingHtml += '<p>正在启动训练任务...</p>';
+        loadingHtml += '</div>';
+        resultsContainer.innerHTML = loadingHtml;
     }
+
     // 发送数据到后端
     fetch('/learning/researcher/run-comparison/', {
         method: 'POST',
@@ -600,21 +587,116 @@ function startAnalysis() {
     })
     .then(response => response.json())
     .then(data => {
-        console.log('后端返回:', data);
-        if (data.success) {
-            // 显示结果
-            displayResults(data);
-        } else {
-            alert('分析失败：' + data.error);
+    console.log('后端返回:', data);
+    if (data.success) {
+        // 显示任务已启动的信息
+        if (resultsContainer) {
+            let html = '<div class="empty-state">';
+            html += '<i class="fas fa-tasks"></i>';
+            html += '<p>训练任务已启动，正在后台运行...</p>';
+            html += '<div style="margin-top: 20px; text-align: left;">';
+            html += '<p><strong>实验批次:</strong> ' + data.experiment_id + '</p>';
+            html += '<p><strong>训练任务:</strong></p>';
+            html += '<ul style="list-style: none; padding: 0;" id="taskList">';
+            data.tasks.forEach(task => {
+                html += '<li style="margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 4px;" data-task="' + task + '">';
+                html += '<i class="fas fa-spinner fa-spin" style="color: #007bff; margin-right: 10px;"></i>';
+                html += task;
+                html += '</li>';
+            });
+            html += '</ul>';
+            html += '</div>';
+            html += '</div>';
+            resultsContainer.innerHTML = html;
         }
-    })
+
+        // 开始轮询检查任务状态
+        checkTasksStatus(data.tasks);
+    } else {
+        alert('分析失败：' + data.error);
+    }
+})
     .catch(error => {
         console.error('错误:', error);
         alert('请求失败，请稍后重试');
     });
 }
 
-// 添加获取CSRF token的函数
+// 轮询检查任务状态
+function checkTasksStatus(tasks) {
+    console.log('checkTasksStatus 被调用，tasks:', tasks);
+    const totalTasks = tasks.length;
+    const taskResults = {};
+    let completedCount = 0;
+
+    const interval = setInterval(() => {
+        tasks.forEach(task => {
+            fetch('/learning/researcher/check-status/?task=' + encodeURIComponent(task))
+                .then(response => response.json())
+                .then(data => {
+                    console.log(`任务 ${task} 返回数据:`, data);
+
+                    // 如果任务完成且还没记录过
+                    if (data.status === 'completed' && !taskResults[task]) {
+                        taskResults[task] = data.result;
+                        completedCount++;
+
+                        // 更新对应任务的状态显示
+                        const taskItem = document.querySelector(`li[data-task="${task}"]`);
+                        if (taskItem) {
+                            taskItem.innerHTML = '<i class="fas fa-check-circle" style="color: #28a745; margin-right: 10px;"></i>' +
+                                task + ' - 训练完成';
+                        }
+                    }
+
+                    // 所有任务完成，显示表格
+                    if (completedCount === totalTasks && Object.keys(taskResults).length === totalTasks) {
+                        clearInterval(interval);
+                        displayFinalResults(taskResults);
+                    }
+                })
+                .catch(error => console.error('检查状态失败:', error));
+        });
+    }, 3000);
+}
+
+// 显示最终结果
+function displayFinalResults(taskResults) {
+    console.log('调用displayFinalResults，数据:', taskResults);
+
+    const resultBody = document.getElementById('resultBody');
+    if (!resultBody) return;
+
+    let html = '';
+
+    for (let task in taskResults) {
+        const result = taskResults[task];
+        // 从任务名提取模型名
+        let modelName = task;
+        if (task.includes('_')) {
+            modelName = task.split('_')[1];
+        }
+
+        if (result.error) {
+            html += '<tr>';
+            html += '<td>' + modelName + '</td>';
+            html += '<td colspan="4" style="color: #dc3545; text-align: center;">训练失败: ' + result.error + '</td>';
+            html += '</tr>';
+        } else {
+            html += '<tr>';
+            html += '<td>' + modelName + '</td>';
+            html += '<td style="text-align: center; font-weight: 600; color: #007bff;">' + (result.acc * 100).toFixed(2) + '%</td>';
+            html += '<td style="text-align: center; font-weight: 600; color: #28a745;">' + (result.auc * 100).toFixed(2) + '%</td>';
+            html += '<td style="text-align: center; font-weight: 600; color: #dc3545;">' + (result.rmse ? result.rmse.toFixed(4) : '-') + '</td>';
+            html += '<td style="text-align: center;">第 ' + result.best_epoch + ' 轮</td>';
+            html += '</tr>';
+        }
+    }
+
+    resultBody.innerHTML = html;
+}
+
+// 保留原有的getCookie和displayResults函数不变
 function getCookie(name) {
     let cookieValue = null;
     if (document.cookie && document.cookie !== '') {
@@ -630,10 +712,8 @@ function getCookie(name) {
     return cookieValue;
 }
 
-// 添加显示结果的函数
 function displayResults(data) {
     const resultsContainer = document.getElementById('resultsContainer');
-
     if (data.results && data.results.length > 0) {
         let html = '';
         data.results.forEach(result => {
@@ -654,5 +734,6 @@ function displayResults(data) {
 
 </script>
 
+</div>
 
 {% endblock %}

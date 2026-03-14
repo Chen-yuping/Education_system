@@ -1,5 +1,7 @@
 from django.contrib.auth.decorators import login_required, user_passes_test
 from .models import *
+import sys
+import threading  # 添加这个
 from .forms import ExerciseForm, KnowledgePointForm, QMatrixForm
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
@@ -11,8 +13,9 @@ import json
 from datetime import datetime, timedelta
 from .models import Exercise, Subject, KnowledgePoint, Choice, QMatrix, AnswerLog, StudentDiagnosis
 from accounts.models import *
+import importlib.util
 from .forms import ExerciseForm
-import csv
+import torch
 from django.views.decorators.http import require_POST
 from django.utils import timezone
 
@@ -231,7 +234,7 @@ def researcher_diagnosis_models(request):
     }
     return render(request, 'researcher/researcher_diagnosis_models.html', context)
 
-"""性能对比 - 对比不同诊断模型在不同数据集上的性能"""
+"""性能对比页面 - 对比不同诊断模型在不同数据集上的性能"""
 @login_required
 @user_passes_test(is_researcher)
 def researcher_performance_comparison(request):
@@ -246,17 +249,172 @@ def researcher_performance_comparison(request):
     return render(request, 'researcher/researcher_performance_comparison.html', context)
 
 
+# 训练状态存储（实际生产环境应该用数据库或缓存）
+training_tasks = {}
+
+"""后台执行训练任务"""
+def run_training_task(dataset_name, model_name, experiment_id, user_id):
+
+    import os
+    try:
+        print(f"========== 开始训练任务: {dataset_name}_{model_name} ==========")
+
+        # 设置环境变量，告诉params.py使用哪个数据集
+        os.environ['CD_DATASET'] = dataset_name
+        print(f"设置环境变量 CD_DATASET={dataset_name}")
+
+        # 构建数据集路径
+        base_path = os.path.join(settings.BASE_DIR, 'learning', 'diagnosis', 'CMD_survey')
+        data_path = os.path.join(base_path, 'data', dataset_name)
+        print(f"数据路径: {data_path}")
+
+        # 读取config.txt获取学生数、习题数、知识点数
+        config_path = os.path.join(data_path, 'config.txt')
+        print(f"读取配置文件: {config_path}")
+        with open(config_path, 'r') as f:
+            f.readline()  # 跳过注释行
+            un, en, kn = f.readline().strip().split(',')
+            un, en, kn = int(un), int(en), int(kn)
+        print(f"数据集信息: 学生数={un}, 习题数={en}, 知识点数={kn}")
+
+        # 切换到 CMD_survey 目录
+        sys.path.insert(0, base_path)
+        os.chdir(base_path)
+        print(f"当前工作目录: {os.getcwd()}")
+
+        # 导入params（现在它会读取环境变量）
+        import params
+        print("已导入params模块")
+
+        # 验证params中的路径是否正确
+        print(f"params.dataset = {params.dataset}")
+
+        # 导入对应的模型模块
+        model_module_map = {
+            'IRT': 'IRT',
+            'NCDM': 'NCDM',
+            'DINA': 'DINA',
+        }
+
+        module_name = model_module_map.get(model_name)
+        if not module_name:
+            raise Exception(f'未知模型: {model_name}')
+
+        print(f"导入模型模块: model.{module_name}")
+        model_module = importlib.import_module(f'model.{module_name}')
+
+        # 创建模型实例
+        print(f"创建{model_name}模型实例...")
+        if model_name == 'IRT':
+            cdm = model_module.IRT(un, en, value_range=4.0, a_range=2.0)
+        elif model_name == 'NCDM':
+            cdm = model_module.NCDM(kn, en, un)
+        elif model_name == 'DINA':
+            cdm = model_module.DINA(un, en, kn)
+        else:
+            raise Exception(f'未实现的模型: {model_name}')
+        print("模型实例创建完成")
+
+        # 加载数据
+        print("加载数据...")
+        import dataloader
+        importlib.reload(dataloader)
+        src, tgt = dataloader.CD_DL()
+        print("数据加载完成")
+
+        # 将ID从1-based转换为0-based
+        print("转换ID从1-based到0-based...")
+
+        def convert_to_zero_based(dataloader):
+            new_batches = []
+            for batch in dataloader:
+                user_ids, exer_ids, knowledge_emb, ys = batch
+                # ID减1（1-based -> 0-based）
+                user_ids = user_ids - 1
+                exer_ids = exer_ids - 1
+                new_batches.append((user_ids, exer_ids, knowledge_emb, ys))
+            return new_batches
+
+        # 转换训练集和验证集
+        src = convert_to_zero_based(src)
+        tgt = convert_to_zero_based(tgt)
+        print("ID转换完成")
+
+        # 训练
+        import torch
+        device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+        print(f"开始训练，使用设备: {device}")
+        result = cdm.train(train_data=src, test_data=tgt, epoch=10, device=device, lr=params.lr)
+        print(f"训练完成，原始结果: {result}")
+
+        # result 格式可能是 (best_epoch, best_auc, best_acc) 或包含 rmse
+        if len(result) == 3:
+            best_epoch, best_auc, best_acc = result
+            rmse = None
+        else:
+            best_epoch, best_auc, best_acc, rmse = result
+
+        print(f"解析结果: best_epoch={best_epoch}, acc={best_acc}, auc={best_auc}, rmse={rmse}")
+
+        # 保存到数据库
+        print("保存结果到数据库...")
+        from .models import Experiment, ModelTrainingResult, Dataset, DiagnosisModel
+        from django.contrib.auth import get_user_model
+
+        User = get_user_model()
+
+        dataset_obj = Dataset.objects.get(name=dataset_name)
+        model_obj = DiagnosisModel.objects.get(name=model_name)
+        experiment = Experiment.objects.get(batch_id=experiment_id)
+
+        ModelTrainingResult.objects.create(
+            experiment=experiment,
+            diagnosis_model=model_obj,
+            dataset=dataset_obj,
+            best_round=best_epoch,
+            acc=best_acc,
+            auc=best_auc,
+            rmse=rmse if rmse else 0.0,
+            best_round_time=0.0,
+            total_time=0.0,
+            created_by=User.objects.get(id=user_id)
+        )
+        print("数据库保存完成")
+
+        # 更新任务状态
+        task_key = f"{dataset_name}_{model_name}"
+        training_tasks[task_key] = {
+            'status': 'completed',
+            'result': {
+                'best_epoch': best_epoch,
+                'acc': best_acc,
+                'auc': best_auc,
+                'rmse': rmse
+            }
+        }
+        print(f"========== 任务 {dataset_name}_{model_name} 完成 ==========")
+
+    except Exception as e:
+        print(f"!!!!!!!!!! 训练任务出错: {str(e)} !!!!!!!!!!")
+        import traceback
+        traceback.print_exc()
+
+        task_key = f"{dataset_name}_{model_name}"
+        training_tasks[task_key] = {
+            'status': 'failed',
+            'error': str(e)
+        }
+
+"""处理性能对比的AJAX请求 - 异步启动训练任务"""
 @login_required
 @user_passes_test(is_researcher)
 @require_POST
 def researcher_run_comparison(request):
-    """
-    处理性能对比的AJAX请求
-    """
+
     try:
         # 解析JSON数据
         data = json.loads(request.body)
-        print("收到数据:", data)  # 调试用
+        print("收到数据:", data)
 
         dataset_id = data.get('dataset_id')
         model_ids = data.get('model_ids', [])
@@ -278,41 +436,49 @@ def researcher_run_comparison(request):
         # 获取模型信息
         models = DiagnosisModel.objects.filter(id__in=model_ids, is_active=True)
 
-        # 查询每个模型的训练结果
-        results = []
-        for model in models:
-            # 查找该模型在选定数据集上的最新训练结果
-            training_result = ModelTrainingResult.objects.filter(
-                diagnosis_model=model,
-                dataset=dataset
-            ).order_by('-created_at').first()
+        # 如果需要记录数据，创建实验批次
+        import uuid
+        from django.utils import timezone
 
-            if training_result:
-                results.append({
-                    'model_id': model.id,
-                    'model_name': model.name,
-                    'acc': training_result.acc,
-                    'auc': training_result.auc,
-                    'rmse': training_result.rmse,
-                    'best_round': training_result.best_round
-                })
-            else:
-                results.append({
-                    'model_id': model.id,
-                    'model_name': model.name,
-                    'acc': None,
-                    'auc': None,
-                    'rmse': None,
-                    'message': '暂无训练记录'
-                })
+        experiment = None
+        if record_data:
+            batch_id = f"{timezone.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
+            experiment = Experiment.objects.create(
+                batch_id=batch_id,
+                dataset=dataset,
+                created_by=request.user
+            )
+
+        # 为每个模型启动训练任务
+        for model in models:
+            # 启动后台线程训练
+            task_key = f"{dataset.name}_{model.name}"
+            training_tasks[task_key] = {'status': 'training'}
+
+            thread = threading.Thread(
+                target=run_training_task,
+                args=(dataset.name, model.name, experiment.batch_id if experiment else None, request.user.id)
+            )
+            thread.start()
 
         return JsonResponse({
             'success': True,
-            'dataset_name': dataset.name,
-            'results': results
+            'message': '训练任务已启动',
+            'experiment_id': experiment.batch_id if experiment else None,
+            'tasks': [f"{dataset.name}_{model.name}" for model in models]
         })
 
     except json.JSONDecodeError:
         return JsonResponse({'success': False, 'error': '数据格式错误'})
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
+
+"""检查训练任务状态"""
+@login_required
+@user_passes_test(is_researcher)
+def check_training_status(request):
+
+    task_key = request.GET.get('task')
+    if task_key in training_tasks:
+        return JsonResponse(training_tasks[task_key])
+    return JsonResponse({'status': 'not_found'})
