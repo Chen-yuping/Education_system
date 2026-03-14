@@ -690,16 +690,15 @@ function renderDiagnosisGraph(data) {
             .id(d => d.id)
             .distance(d => {
                 // 根据节点数量动态调整距离
-                const baseDistance = Math.max(200, 300 - data.nodes.length * 2);
-                return baseDistance;
+                 return 20;  // 原来是200-300，现在固定为120
             })
-            .strength(0.1))          // 减小强度：让链接更松散
+            .strength(0.5))          // 减小强度：让链接更松散
 
         // 排斥力：让无关节点推开
         .force('charge', d3.forceManyBody()
             .strength(d => {
                 // 根据节点数量动态调整排斥力
-                return -Math.max(150, 200 - data.nodes.length);
+                return -Math.max(100);
             })
             .distanceMax(600))       // 增加排斥力作用范围
 
