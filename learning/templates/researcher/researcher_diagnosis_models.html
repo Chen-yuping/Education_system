@@ -382,10 +382,10 @@
         color: #666;
         font-size: 0.9rem;
         text-align: left;
-        max-width: 300px;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        word-wrap: break-word;      /* 允许长单词换行 */
+        white-space: normal;        /* 允许文本换行 */
+        max-width: 400px;           /* 可选：设置最大宽度防止过宽，但不强制截断 */
+        min-width: 200px;           /* 可选：最小宽度 */
     }
 
     .status-badge {

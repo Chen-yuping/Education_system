@@ -279,27 +279,9 @@ class Dataset(models.Model):
     description = models.TextField(blank=True, verbose_name="数据集描述")
     
     # 数据集特征
-    student_info = models.CharField(
-        max_length=50,
-        default='',
-        blank=True,
-        verbose_name="学生端信息",
-        help_text="是否包含学生特征信息。可选值：True/False/文本描述"
-    )
-    exercise_info = models.CharField(
-        max_length=50,
-        default='',
-        blank=True,
-        verbose_name="习题端信息",
-        help_text="是否包含习题的文本信息。可选值：True/False/文本描述"
-    )
-    knowledge_relation = models.CharField(
-        max_length=50,
-        default='',
-        blank=True,
-        verbose_name="知识点关系",
-        help_text="是否包含知识点之间的关系。可选值：True/False/文本描述"
-    )
+    student_info = models.CharField(max_length=50,default='',blank=True,verbose_name="学生端信息",help_text="是否包含学生特征信息。可选值：True/False/文本描述")
+    exercise_info = models.CharField(max_length=50,default='',blank=True,verbose_name="习题端信息",help_text="是否包含习题的文本信息。可选值：True/False/文本描述")
+    knowledge_relation = models.CharField(max_length=50,default='',blank=True,verbose_name="知识点关系",help_text="是否包含知识点之间的关系。可选值：True/False/文本描述")
     
     # 链接信息
     doc_link = models.URLField(blank=True, verbose_name="文档链接")
@@ -356,6 +338,17 @@ class Dataset(models.Model):
             return False
         else:
             return self.knowledge_relation
+
+    def get_description_display(self):
+        """获取知识点关系的显示值"""
+        if self.description.lower() == 'true':
+            return True
+        elif self.description.lower() == 'false':
+            return False
+        else:
+            return self.description
+
+
 
 
 class Experiment(models.Model):

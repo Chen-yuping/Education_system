@@ -322,6 +322,7 @@
                     <th>学生端信息</th>
                     <th>习题端信息</th>
                     <th>知识点关系</th>
+                    <th>附加信息</th>
                     <th>链接</th>
                 </tr>
             </thead>
@@ -353,6 +354,17 @@
                     </td>
                     <td>
                         {% with info=dataset.get_knowledge_relation_display %}
+                            {% if info == True %}
+                                <span class="badge-check yes">✔️</span>
+                            {% elif info == False %}
+                                <span class="badge-check no">✖️</span>
+                            {% else %}
+                                <span class="badge-check text">{{ info }}</span>
+                            {% endif %}
+                        {% endwith %}
+                    </td>
+                    <td>
+                        {% with info=dataset.get_description_display %}
                             {% if info == True %}
                                 <span class="badge-check yes">✔️</span>
                             {% elif info == False %}
