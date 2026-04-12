@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+{% load static %}
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全部课程 - aikgedu</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #1e88e5;
+            --secondary-color: #f5f5f5;
+            --accent-color: #ff6f00;
+        }
+
+        body {
+            font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+            background-color: #f8f9fa;
+        }
+
+        .navbar-brand {
+            font-weight: bold;
+            font-size: 1.5rem;
+            color: var(--primary-color) !important;
+        }
+
+        .page-header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, #0d47a1 100%);
+            color: white;
+            padding: 40px 0;
+            margin-bottom: 40px;
+        }
+
+        .page-header h1 {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .page-header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .course-card {
+            border-radius: 8px;
+            overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border: none;
+            margin-bottom: 20px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .course-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+
+        .course-card img {
+            height: 160px;
+            object-fit: cover;
+            background: linear-gradient(135deg, var(--primary-color) 0%, #0d47a1 100%);
+        }
+
+        .course-card .card-body {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .course-card .card-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .course-card .card-text {
+            color: #666;
+            font-size: 0.9rem;
+            flex-grow: 1;
+            margin-bottom: 15px;
+        }
+
+        .course-stats {
+            display: flex;
+            gap: 15px;
+            font-size: 0.85rem;
+            color: #999;
+            margin-bottom: 15px;
+            padding-top: 10px;
+            border-top: 1px solid #eee;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .stat-item i {
+            color: var(--primary-color);
+        }
+
+        .search-section {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .search-box {
+            border-radius: 8px;
+            border: 2px solid #e9ecef;
+            transition: all 0.3s ease;
+        }
+
+        .search-box:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.2rem rgba(30, 136, 229, 0.25);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+
+        .empty-state p {
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+        }
+
+        .pagination {
+            margin-top: 40px;
+            margin-bottom: 40px;
+        }
+
+        .pagination .page-link {
+            color: var(--primary-color);
+            border-color: #dee2e6;
+        }
+
+        .pagination .page-link:hover {
+            color: white;
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .pagination .page-item.active .page-link {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .results-info {
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 0.95rem;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .btn-primary:hover {
+            background-color: #1565c0;
+            border-color: #1565c0;
+        }
+
+        .btn-outline-primary {
+            color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .btn-outline-primary:hover {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .nav-link {
+            font-weight: 500;
+        }
+
+        .nav-link.active {
+            color: var(--primary-color) !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm sticky-top">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'home' %}">
+                <i class="fas fa-graduation-cap"></i>
+                aikgedu
+            </a>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarContent">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'home' %}">首页</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{% url 'public_courses' %}">全部课程</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'public_dataset' %}">数据集</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'public_model' %}">诊断模型</a>
+                    </li>
+                </ul>
+
+                <div class="navbar-nav ms-auto">
+                    {% if user.is_authenticated %}
+                        <div class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-user"></i> {{ user.username }}
+                            </a>
+                            <ul class="dropdown-menu">
+                                {% if user.user_type == 'student' %}
+                                    <li><a class="dropdown-item" href="{% url 'student_dashboard' %}">学习中心</a></li>
+                                {% elif user.user_type == 'teacher' %}
+                                    <li><a class="dropdown-item" href="{% url 'teacher_dashboard' %}">教学中心</a></li>
+                                {% else %}
+                                    <li><a class="dropdown-item" href="{% url 'researcher_dashboard' %}">研究员中心</a></li>
+                                {% endif %}
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="{% url 'logout' %}">退出登录</a></li>
+                            </ul>
+                        </div>
+                    {% else %}
+                        <a class="nav-link" href="{% url 'login' %}">登录</a>
+                        <a class="btn btn-primary ms-2" href="{% url 'register' %}">注册</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 页面头部 -->
+    <div class="page-header">
+        <div class="container">
+            <h1>全部课程</h1>
+            <p>浏览平台上的所有课程，选择感兴趣的课程开始学习</p>
+        </div>
+    </div>
+
+    <!-- 主要内容 -->
+    <main class="container py-5">
+        <!-- 搜索区域 -->
+        <div class="search-section">
+            <form method="get" class="row g-3">
+                <div class="col-md-9">
+                    <div class="input-group">
+                        <span class="input-group-text bg-white">
+                            <i class="fas fa-search text-muted"></i>
+                        </span>
+                        <input type="text" name="search" class="form-control search-box border-start-0" 
+                               placeholder="输入课程名称搜索..." value="{{ search_query }}">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search me-2"></i>搜索
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- 结果信息 -->
+        {% if search_query %}
+        <div class="results-info">
+            <i class="fas fa-info-circle me-2"></i>
+            搜索结果：找到 <strong>{{ total_count }}</strong> 个课程
+        </div>
+        {% else %}
+        <div class="results-info">
+            <i class="fas fa-book me-2"></i>
+            共有 <strong>{{ total_count }}</strong> 个课程
+        </div>
+        {% endif %}
+
+        <!-- 课程列表 -->
+        {% if page_obj %}
+            <div class="row">
+                {% for course in page_obj %}
+                <div class="col-md-6 col-lg-4">
+                    <div class="card course-card">
+                        <img src="{% static 'images/subject/' %}{{ course.id }}.jpg" 
+                             class="card-img-top" 
+                             alt="{{ course.name }}"
+                             onerror="this.style.background='linear-gradient(135deg, #1e88e5 0%, #0d47a1 100%)'">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ course.name }}</h5>
+                            <p class="card-text">{{ course.description|default:"暂无课程描述"|truncatewords:20 }}</p>
+                            <div class="course-stats">
+                                <span class="stat-item">
+                                    <i class="fas fa-book"></i>
+                                    <span>{{ course.exercise_set.count }} 道习题</span>
+                                </span>
+                                <span class="stat-item">
+                                    <i class="fas fa-brain"></i>
+                                    <span>{{ course.knowledgepoint_set.count }} 个知识点</span>
+                                </span>
+                            </div>
+                            {% if user.is_authenticated and user.user_type == 'student' %}
+                                <a href="{% url 'student_course_management' %}" class="btn btn-sm btn-primary w-100">
+                                    <i class="fas fa-plus me-1"></i>选择课程
+                                </a>
+                            {% else %}
+                                <a href="{% url 'register' %}" class="btn btn-sm btn-primary w-100">
+                                    <i class="fas fa-sign-in-alt me-1"></i>登录选课
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- 分页 -->
+            {% if page_obj.has_other_pages %}
+            <nav aria-label="分页导航">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}">
+                                <i class="fas fa-chevron-left me-1"></i>首页
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}">
+                                上一页
+                            </a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link"><i class="fas fa-chevron-left me-1"></i>首页</span>
+                        </li>
+                        <li class="page-item disabled">
+                            <span class="page-link">上一页</span>
+                        </li>
+                    {% endif %}
+
+                    {% for num in page_obj.paginator.page_range %}
+                        {% if page_obj.number == num %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ num }}</span>
+                            </li>
+                        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ num }}{% if search_query %}&search={{ search_query }}{% endif %}">
+                                    {{ num }}
+                                </a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}">
+                                下一页
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}">
+                                末页<i class="fas fa-chevron-right ms-1"></i>
+                            </a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">下一页</span>
+                        </li>
+                        <li class="page-item disabled">
+                            <span class="page-link">末页<i class="fas fa-chevron-right ms-1"></i></span>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            <div class="text-center text-muted mb-4">
+                <small>第 {{ page_obj.number }} 页，共 {{ page_obj.paginator.num_pages }} 页</small>
+            </div>
+            {% endif %}
+        {% else %}
+            <!-- 空状态 -->
+            <div class="empty-state">
+                <i class="fas fa-inbox"></i>
+                <p>暂无课程</p>
+                {% if search_query %}
+                    <small class="text-muted">搜索 "{{ search_query }}" 没有找到相关课程</small>
+                {% endif %}
+            </div>
+        {% endif %}
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="bg-dark text-white py-5 mt-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-4 mb-4">
+                    <h5 class="mb-3">aikgedu</h5>
+                    <p>致力于提供优质的在线学习体验，通过智能诊断和个性化推荐，帮助每位学习者实现自我提升。</p>
+                </div>
+
+                <div class="col-md-2 mb-4">
+                    <h6 class="mb-3">快速链接</h6>
+                    <ul class="list-unstyled">
+                        <li><a href="{% url 'home' %}" class="text-light text-decoration-none">首页</a></li>
+                        <li><a href="{% url 'public_courses' %}" class="text-light text-decoration-none">课程</a></li>
+                        <li><a href="{% url 'public_dataset' %}" class="text-light text-decoration-none">数据集</a></li>
+                        <li><a href="{% url 'public_model' %}" class="text-light text-decoration-none">诊断模型</a></li>
+                    </ul>
+                </div>
+
+                <div class="col-md-3 mb-4">
+                    <h6 class="mb-3">联系我们</h6>
+                    <ul class="list-unstyled">
+                        <li><i class="fas fa-envelope me-2"></i> 2025110487@mail.hfut.edu.cn</li>
+                        <li><i class="fas fa-map-marker-alt me-2"></i> 合肥工业大学</li>
+                    </ul>
+                </div>
+
+                <div class="col-md-3 mb-4">
+                    <h6 class="mb-3">关注我们</h6>
+                    <div class="d-flex gap-4">
+                        <a href="#" class="text-light text-decoration-none">
+                            <i class="fab fa-weixin fa-2x"></i>
+                        </a>
+                        <a href="#" class="text-light text-decoration-none">
+                            <i class="fab fa-weibo fa-2x"></i>
+                        </a>
+                        <a href="#" class="text-light text-decoration-none">
+                            <i class="fab fa-qq fa-2x"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <hr class="my-4">
+
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <p class="mb-0">&copy; 2025 aikgedu. 保留所有权利.</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

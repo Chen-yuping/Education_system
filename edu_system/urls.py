@@ -7,6 +7,9 @@ from . import views
 urlpatterns = [
     path('', views.home, name='home'),  # 主页
 
+    # 新增：公共课程浏览页面（无需登录）
+    path('courses/', views.public_courses_view, name='public_courses'),
+
     # 新增：公共数据集/诊断模型页面（无需登录）
     path('dataset/', views.public_dataset_view, name='public_dataset'),
     path('model/', views.public_model_view, name='public_model'),

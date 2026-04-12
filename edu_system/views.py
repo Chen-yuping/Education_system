@@ -50,6 +50,31 @@ def public_dataset_view(request):
     }
     return render(request, 'researcher_datasets.html', context)
 
+# 新增：公共课程浏览页面（无需登录）
+def public_courses_view(request):
+    """公开课程浏览页面 - 显示所有课程，不显示"我的课程""""
+    all_courses = Subject.objects.all()
+
+    # 获取搜索关键词
+    search_query = request.GET.get('search', '').strip()
+    if search_query:
+        all_courses = all_courses.filter(
+            Q(name__icontains=search_query) | 
+            Q(description__icontains=search_query)
+        )
+
+    # 分页处理 - 每页12条
+    paginator = Paginator(all_courses, 12)
+    page_number = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        'page_obj': page_obj,
+        'total_count': all_courses.count(),
+        'search_query': search_query,
+    }
+    return render(request, 'public_courses.html', context)
+
 # 新增：公共诊断模型页面（无需登录）
 def public_model_view(request):
     """诊断模型 - 展示各种诊断算法模型"""
