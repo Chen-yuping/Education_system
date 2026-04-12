@@ -501,8 +501,18 @@ def exercise_result(request, log_id):
         if current_index >= 0 and current_index < len(exercise_ids) - 1:
             next_exercise_id = exercise_ids[current_index + 1]
             next_exercise = Exercise.objects.get(id=next_exercise_id)
+    
+    # 6. 如果不在推荐练习集中，检查是否在章节做题中 - 获取同一章节的下一道题
+    if not next_exercise and not single_mode:
+        current_title = current_exercise.title
+        # 获取同一章节（title相同）且ID大于当前题目的下一道题
+        next_exercise = Exercise.objects.filter(
+            subject=current_subject,
+            title=current_title,
+            id__gt=current_exercise.id
+        ).order_by('id').first()
 
-    # 6. 准备上下文数据
+    # 7. 准备上下文数据
     # 检查是否已收藏
     from .models import ExerciseFavorite
     is_favorited = ExerciseFavorite.objects.filter(
