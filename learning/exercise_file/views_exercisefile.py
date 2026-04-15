@@ -3,8 +3,9 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.utils import timezone
 
-# 引入核心处理逻辑 (请确保 learning/utils_ai.py 已经建好)
-from learning.utils_ai import handle_data_file, handle_document_file
+# 🎯 引入咱们无敌的智能管家函数
+from learning.utils_ai import smart_handle_upload
+
 # 引入模型
 from learning.models import Subject, ExerciseFile
 # 引入表单
@@ -70,14 +71,13 @@ def upload_exercise(request):
                 exercise_file.status = 'processing'
                 exercise_file.save()  # 这一步执行后，文件保存到磁盘
 
-                # --- B. 调用核心逻辑进行解析 (utils_ai) ---
-                count = 0
-                # 如果是 Excel/CSV -> 走精准数据导入
-                if ext in ['xlsx', 'xls', 'csv']:
-                    count = handle_data_file(exercise_file)
-                # 如果是 PDF/Word/TXT -> 走 AI/Mock 导入
-                else:
-                    count = handle_document_file(exercise_file)
+                # --- B. 🎯 核心逻辑升级：调用智能管家分发任务 ---
+
+                # 获取网页下拉框传来的模式（如果没有选，默认走 'direct' 传统模式保底）
+                upload_mode = request.POST.get('upload_mode', 'direct')
+
+                # 一行代码代替原来的 if/else 判断！智能管家会帮我们处理一切！
+                count = smart_handle_upload(exercise_file, mode=upload_mode)
 
                 # --- C. 更新处理结果 ---
                 exercise_file.status = 'completed' if count > 0 else 'error'
@@ -86,9 +86,12 @@ def upload_exercise(request):
                 exercise_file.save()
 
                 if count > 0:
-                    messages.success(request, f'处理成功！共生成 {count} 道习题。')
+                    if upload_mode == 'ai':
+                        messages.success(request, f'✨ AI 发力成功！根据资料为您智能生成了 {count} 道习题。')
+                    else:
+                        messages.success(request, f'✅ 提取成功！共导入 {count} 道习题。')
                 else:
-                    messages.warning(request, '文件上传成功，但未解析出有效习题，请检查格式。')
+                    messages.warning(request, '文件上传成功，但未解析出有效习题，请检查格式或资料内容。')
 
             except Exception as e:
                 # 异常处理：更新状态为失败

@@ -21,7 +21,7 @@ try:
     import dashscope
     from dashscope import Generation
 
-    # TODO: 请务必在这里填入您在阿里云申请的 API-KEY
+    # TODO: 请务必在这里填入您在阿里云申请的 API-KEY (千万不要发到网上)
     dashscope.api_key = "sk-0ddb7aa22f694638ab3c9e4386e7f1b3"
 except ImportError:
     print("【提示】缺少 dashscope，请运行: pip install dashscope")
@@ -32,7 +32,7 @@ from learning.models import Exercise, Choice, KnowledgePoint, QMatrix
 
 
 # ==========================================
-# 1. 核心解析函数 (原版)
+# 1. 核心解析函数 (原版 - 用于处理排版好的Word)
 # ==========================================
 def parse_text_to_exercises(text):
     print(f"--- 开始解析文本，长度: {len(text)} ---")
@@ -106,10 +106,10 @@ def parse_text_to_exercises(text):
 
 
 # ==========================================
-# 2. 文档处理入口 (Word / PDF / TXT) - 维持原样
+# 2. 文档处理入口 (直接导入Word/TXT模式)
 # ==========================================
 def handle_document_file(file_record):
-    print(">>> 进入 handle_document_file 函数 (修复对齐版)")
+    print(">>> 进入传统正则解析: handle_document_file")
     subject = file_record.subject
     teacher = file_record.teacher
     filename = file_record.original_filename.lower()
@@ -218,6 +218,7 @@ def handle_document_file(file_record):
 # 3. Excel/CSV 处理入口 - 维持原样
 # ==========================================
 def handle_data_file(file_record):
+    print(">>> 进入表格解析: handle_data_file")
     count = 0
     file_path = file_record.file.path
     subject = file_record.subject
@@ -336,21 +337,19 @@ def auto_generate_exercises_from_text(text):
 
 
 # ==========================================
-# 5. 资料处理入口 (提取文字 -> AI出题 -> 存入题库) (新增)
+# 5. 资料处理入口 (提取文字 -> AI出题 -> 存入题库)
 # ==========================================
 def handle_material_generation(file_record):
     """
     读取上传的资料，调用 AI 出题，并将题目和知识点无缝存入现有的数据库
-    需要传入的文件记录对象应包含: file, original_filename, subject, teacher
     """
-    print(">>> 进入 handle_material_generation 函数")
+    print(">>> 进入大模型出题: handle_material_generation 函数")
     subject = file_record.subject
-    # 兼容处理：如果你传入的模型没有 teacher 字段，可以默认给个 1 或者从 request 取
     teacher = getattr(file_record, 'teacher', getattr(file_record, 'uploader', None))
     filename = file_record.original_filename.lower()
     full_text = ""
 
-    # 1. 提取资料文本 (复用稳健的读取逻辑)
+    # 1. 提取资料文本
     try:
         try:
             with file_record.file.open('rb') as f:
@@ -397,25 +396,22 @@ def handle_material_generation(file_record):
         with transaction.atomic():
             for item in generated_exercises:
                 try:
-                    # 3. 兼容前端：将生成的 options 字典直接转为 repr 字符串
                     opt_dict = item.get('options', {})
                     full_option_text = repr(opt_dict) if opt_dict else ""
 
-                    # 4. 创建习题 (存入现有的 Exercise 表)
                     exercise = Exercise.objects.create(
                         subject=subject,
                         title=item.get('title', '')[:200],
                         content=item.get('title', ''),
                         question_type='single',
-                        creator_id=teacher.id if teacher else 1,  # 容错处理
+                        creator_id=teacher.id if teacher else 1,
                         option_text=full_option_text,
                         answer=item.get('answer', 'A'),
                         solution=item.get('solution', ''),
-                        problemsets="AI智能生成",  # 标记这是AI生成的题
+                        problemsets="AI智能生成",
                         created_at=timezone.now()
                     )
 
-                    # 5. 创建选项 (存入现有的 Choice 表)
                     for idx, (label, content) in enumerate(opt_dict.items()):
                         Choice.objects.create(
                             exercise=exercise,
@@ -424,17 +420,14 @@ def handle_material_generation(file_record):
                             order=idx + 1
                         )
 
-                    # 6. 处理知识点及 Q矩阵
                     kps = item.get('knowledge_points', [])
                     for kp_name in kps:
                         if not kp_name.strip(): continue
-                        # 检查是否有这个知识点，没有就新建
                         kp, _ = KnowledgePoint.objects.get_or_create(
                             subject=subject,
                             name=kp_name.strip(),
                             defaults={'parent': None}
                         )
-                        # 将这道 AI 生成的题与该知识点关联起来
                         QMatrix.objects.get_or_create(exercise=exercise, knowledge_point=kp, defaults={'weight': 1.0})
 
                     count += 1
@@ -448,3 +441,22 @@ def handle_material_generation(file_record):
         print(f"处理资料出题出错: {e}")
         traceback.print_exc()
         return 0
+
+
+# ==========================================
+# 6. 🎯 终极管家接口 (根据情况自动分配)
+# ==========================================
+def smart_handle_upload(file_record, mode='ai'):
+    """
+    自动判断是直接提取还是让AI出题。
+    如果想要强制用AI出题，mode保持 'ai' 即可。
+    """
+    filename = file_record.original_filename.lower()
+
+    if mode == 'ai':
+        return handle_material_generation(file_record)
+    else:
+        if filename.endswith(('.xls', '.xlsx', '.csv')):
+            return handle_data_file(file_record)
+        else:
+            return handle_document_file(file_record)

@@ -5,11 +5,9 @@
 
 {% block content %}
 
-<!-- 安全文件上传表单 -->
 <div class="row justify-content-center">
 <div class="col-md-8 col-lg-6">
     <div class="card shadow-sm border-0 rounded-lg p-4 mb-5">
-        <!-- 提示信息 -->
         <div class="alert alert-info mb-4">
             <i class="bi bi-info-circle"></i> 支持格式：Word(.docx)、Excel(.xlsx)、PDF(.pdf) | 单个文件最大：10MB | 请勿上传恶意文件
         </div>
@@ -17,10 +15,19 @@
         <form method="post" enctype="multipart/form-data" id="uploadForm">
             {% csrf_token %}
 
-            <!-- 隐藏的科目ID字段 -->
             <input type="hidden" name="subject_id" value="{{ request.GET.subject_id }}">
 
-            <!-- 文件上传区域（拖拽+点击上传） -->
+            <div class="mb-4">
+                <label for="uploadMode" class="form-label fw-semibold">题库处理模式 <span class="text-danger">*</span></label>
+                <select name="upload_mode" id="uploadMode" class="form-select border-secondary text-dark">
+                    <option value="direct">➡️ 传统模式：直接导入已有题库（支持带选项的 Word/Excel）</option>
+                    <option value="ai">✨ AI 模式：根据纯知识点课件自动出题（调用通义千问大模型）</option>
+                </select>
+                <div class="form-text text-muted small mt-1">
+                    提示：如果您上传的是排版好的成套习题，请选“传统模式”。如果您上传的是纯复习资料，请选“AI模式”。
+                </div>
+            </div>
+
             <div class="mb-4">
                 <label for="{{ form.file.id_for_label }}" class="form-label fw-semibold">{{ form.file.label }}</label>
                 <div class="border-2 border-dashed border-secondary rounded-lg p-5 text-center" id="dropArea">
@@ -28,7 +35,6 @@
                     <i class="bi bi-cloud-upload text-primary fs-3 mb-2"></i>
                     <p class="mb-2">点击区域选择文件，或直接拖拽文件到此处</p>
                     <p class="text-muted small">支持多文件上传，单个文件不超过10MB</p>
-                    <!-- 已选文件列表 -->
                     <div id="fileList" class="mt-3 d-flex flex-wrap gap-2"></div>
                 </div>
                 {% if form.file.errors %}
@@ -36,7 +42,6 @@
                 {% endif %}
             </div>
 
-            <!-- 提交按钮 -->
             <div class="d-flex gap-3">
                 <button type="submit" class="btn btn-primary btn-lg flex-grow-1" id="submitBtn">
                     <i class="bi bi-upload"></i> 确认上传
@@ -48,7 +53,6 @@
         </form>
     </div>
 
-    <!-- 上传历史记录 -->
     <div class="card shadow-sm border-0 rounded-lg p-4">
         <h5 class="card-title mb-3"><i class="bi bi-clock-history"></i> 最近上传记录</h5>
         {% if upload_history %}
@@ -95,25 +99,25 @@
                                     {% endif %}
                                 </td>
                                <td>
-    <div class="btn-group btn-group-sm">
-        {% if file.status == 'completed' %}
-            <a href="{{ file.file.url }}" target="_blank" class="btn btn-outline-success" title="预览文件">
-                <i class="bi bi-eye"></i>
-            </a>
-        {% endif %}
+                                <div class="btn-group btn-group-sm">
+                                    {% if file.status == 'completed' %}
+                                        <a href="{{ file.file.url }}" target="_blank" class="btn btn-outline-success" title="预览文件">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    {% endif %}
 
-        <a href="{{ file.file.url }}" class="btn btn-outline-primary" title="下载原文件" download>
-            <i class="bi bi-download"></i>
-        </a>
+                                    <a href="{{ file.file.url }}" class="btn btn-outline-primary" title="下载原文件" download>
+                                        <i class="bi bi-download"></i>
+                                    </a>
 
-        <a href="javascript:void(0);"
-   onclick="confirmDelete('/learning/teacher/delete/file/{{ file.id }}/')"
-   class="btn btn-outline-danger"
-   title="删除记录">
-    <i class="bi bi-trash"></i>
-</a>
-    </div>
-</td>
+                                    <a href="javascript:void(0);"
+                               onclick="confirmDelete('/learning/teacher/delete/file/{{ file.id }}/')"
+                               class="btn btn-outline-danger"
+                               title="删除记录">
+                                <i class="bi bi-trash"></i>
+                                    </a>
+                                </div>
+                            </td>
                             </tr>
                         {% endfor %}
                     </tbody>
@@ -129,14 +133,9 @@
 </div>
 </div>
 
-
-
-
-
 {% endblock %}
 
 {% block extra_js %}
-<!-- 引入Bootstrap图标 -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
 
 <style>
@@ -153,13 +152,12 @@
         border-color: #0d6efd !important;
         background-color: rgba(13, 110, 253, 0.05);
     }
-
 </style>
 <script>
 // 1. 初始化文件输入框样式
 document.addEventListener('DOMContentLoaded', function() {
     const fileInput = document.getElementById('{{ form.file.id_for_label }}');
-    fileInput.classList.add('d-none'); // 隐藏原始文件输入框
+    if(fileInput) fileInput.classList.add('d-none'); // 隐藏原始文件输入框
 
     // 美化表单控件
     const subjectSelect = document.getElementById('{{ form.subject.id_for_label }}');
@@ -174,35 +172,38 @@ const fileInput = document.getElementById('{{ form.file.id_for_label }}');
 const fileList = document.getElementById('fileList');
 
 // 点击dropArea触发文件选择
-dropArea.addEventListener('click', () => {
-    fileInput.click();
-});
+if(dropArea && fileInput) {
+    dropArea.addEventListener('click', () => {
+        fileInput.click();
+    });
 
-// 拖拽事件
-['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-    dropArea.addEventListener(eventName, preventDefaults, false);
-});
+    // 拖拽事件
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropArea.addEventListener(eventName, preventDefaults, false);
+    });
+
+    // 拖拽样式变化
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropArea.addEventListener(eventName, () => {
+            dropArea.classList.add('border-primary', 'bg-primary-subtle');
+        });
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropArea.addEventListener(eventName, () => {
+            dropArea.classList.remove('border-primary', 'bg-primary-subtle');
+        });
+    });
+
+    // 处理文件放置
+    dropArea.addEventListener('drop', handleDrop, false);
+}
 
 function preventDefaults(e) {
     e.preventDefault();
     e.stopPropagation();
 }
 
-// 拖拽样式变化
-['dragenter', 'dragover'].forEach(eventName => {
-    dropArea.addEventListener(eventName, () => {
-        dropArea.classList.add('border-primary', 'bg-primary-subtle');
-    });
-});
-
-['dragleave', 'drop'].forEach(eventName => {
-    dropArea.addEventListener(eventName, () => {
-        dropArea.classList.remove('border-primary', 'bg-primary-subtle');
-    });
-});
-
-// 处理文件放置
-dropArea.addEventListener('drop', handleDrop, false);
 function handleDrop(e) {
     const dt = e.dataTransfer;
     const files = dt.files;
@@ -213,11 +214,13 @@ function handleDrop(e) {
 }
 
 // 文件选择变化
-fileInput.addEventListener('change', () => {
-    if (fileInput.files.length > 0) {
-        renderFileList(fileInput.files);
-    }
-});
+if(fileInput) {
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files.length > 0) {
+            renderFileList(fileInput.files);
+        }
+    });
+}
 
 // 更新文件输入框
 function updateFileInput(files) {
@@ -266,24 +269,25 @@ function removeFile(index) {
 
 // 3. 文件验证（前端基础验证，后端必须再验证）
 function validateFile(file, showAlert = false) {
-    // 允许的文件类型
+    // 允许的文件类型 (新增了 txt 文本格式支持)
     const allowedTypes = [
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // docx
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // xlsx
-        'application/pdf' // pdf
+        'application/pdf', // pdf
+        'text/plain' // txt (AI出题经常用纯文本)
     ];
-    const allowedExtensions = ['.docx', '.xlsx', '.pdf'];
+    const allowedExtensions = ['.docx', '.xlsx', '.pdf', '.txt'];
     const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
 
     // 验证文件类型
     if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(fileExtension)) {
         if (showAlert) {
-            alert(`文件 ${file.name} 类型不允许！仅支持docx、xlsx、pdf格式`);
+            alert(`文件 ${file.name} 类型不允许！仅支持 docx、xlsx、pdf、txt 格式`);
         }
         return false;
     }
 
-    // 验证文件大小（10MB = 10 * 1024 * 1024 = 10485760 bytes）
+    // 验证文件大小（10MB）
     const maxSize = 10 * 1024 * 1024;
     if (file.size > maxSize) {
         if (showAlert) {
@@ -308,32 +312,42 @@ function getFileExtensionClass(fileName) {
     if (ext === 'docx') return 'word';
     if (ext === 'xlsx') return 'excel';
     if (ext === 'pdf') return 'pdf';
+    if (ext === 'txt') return 'text';
     return 'default';
 }
 
 // 4. 表单提交前验证
-document.getElementById('uploadForm').addEventListener('submit', (e) => {
-    if (fileInput.files.length === 0) {
-        alert('请选择要上传的文件！');
-        e.preventDefault();
-        return;
-    }
+const uploadForm = document.getElementById('uploadForm');
+if(uploadForm) {
+    uploadForm.addEventListener('submit', (e) => {
+        if (fileInput.files.length === 0) {
+            alert('请选择要上传的文件！');
+            e.preventDefault();
+            return;
+        }
 
-    // 验证所有文件
-    const files = Array.from(fileInput.files);
-    const invalidFiles = files.filter(file => !validateFile(file));
+        // 验证所有文件
+        const files = Array.from(fileInput.files);
+        const invalidFiles = files.filter(file => !validateFile(file));
 
-    if (invalidFiles.length > 0) {
-        alert('存在无效文件，请检查后重新上传！');
-        e.preventDefault();
-        return;
-    }
+        if (invalidFiles.length > 0) {
+            alert('存在无效文件，请检查后重新上传！');
+            e.preventDefault();
+            return;
+        }
 
-    // 禁用提交按钮防止重复提交
-    const submitBtn = document.getElementById('submitBtn');
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="bi bi-spinner bi-spin"></i> 上传中...';
-});
+        // 禁用提交按钮防止重复提交
+        const submitBtn = document.getElementById('submitBtn');
+        submitBtn.disabled = true;
+        // 如果用户选择了AI模式，提示语变成"AI生成中..."
+        const mode = document.getElementById('uploadMode').value;
+        if(mode === 'ai') {
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> AI正在智能出题，请稍候...';
+        } else {
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 上传解析中...';
+        }
+    });
+}
 
 // 5. 删除确认
 function confirmDelete(url) {
@@ -356,10 +370,14 @@ function confirmDelete(url) {
 }
 
 // 6. 重置按钮事件
-document.getElementById('resetBtn').addEventListener('click', () => {
-    fileList.innerHTML = '';
-    // 清空文件输入框
-    fileInput.value = '';
-});
+const resetBtn = document.getElementById('resetBtn');
+if(resetBtn) {
+    resetBtn.addEventListener('click', () => {
+        fileList.innerHTML = '';
+        if(fileInput) fileInput.value = '';
+        // 恢复下拉框默认选中第一项
+        document.getElementById('uploadMode').value = 'direct';
+    });
+}
 </script>
 {% endblock %}
