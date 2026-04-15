@@ -210,6 +210,7 @@ def get_wrong_exercises(student, subject, exclude_ids=None, limit=5):
 def start_recommended_exercises(request, subject_id):
     """
     开始做推荐的10个题目 - 获取第一个题目并开始
+    使用session中已保存的推荐题目列表，确保与显示的题目一致
     """
     subject = get_object_or_404(Subject, id=subject_id)
     
@@ -217,20 +218,26 @@ def start_recommended_exercises(request, subject_id):
     if not StudentSubject.objects.filter(student=request.user, subject=subject).exists():
         return render(request, 'student/access_denied.html')
     
-    # 获取推荐题目
-    recommended_exercises = get_10_recommended_exercises(request.user, subject)
+    # 从session中获取推荐题目ID列表
+    session_key = f'recommended_exercises_{subject_id}'
+    exercise_ids = request.session.get(session_key)
     
-    if not recommended_exercises:
+    # 如果session中没有，则生成新的推荐题目
+    if not exercise_ids:
+        recommended_exercises = get_10_recommended_exercises(request.user, subject)
+        if not recommended_exercises:
+            messages.warning(request, '暂无推荐习题')
+            return redirect('personalized_recommendations', subject_id=subject_id)
+        exercise_ids = [ex.id for ex in recommended_exercises]
+        request.session[session_key] = exercise_ids
+    
+    # 获取第一个题目
+    if exercise_ids:
+        first_exercise_id = exercise_ids[0]
+        return redirect('take_exercise', exercise_id=first_exercise_id)
+    else:
         messages.warning(request, '暂无推荐习题')
         return redirect('personalized_recommendations', subject_id=subject_id)
-    
-    # 将推荐题目ID存储到session中
-    exercise_ids = [ex.id for ex in recommended_exercises]
-    request.session[f'recommended_exercises_{subject_id}'] = exercise_ids
-    
-    # 重定向到第一个题目
-    first_exercise = recommended_exercises[0]
-    return redirect('take_exercise', exercise_id=first_exercise.id)
 
 
 @login_required
