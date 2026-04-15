@@ -44,9 +44,6 @@ def user_login(request):
 def user_logout(request):
     """用户登出视图"""
     logout(request)
-    # 清除所有消息，防止登出后重新注册时显示欢迎消息
-    storage = messages.get_messages(request)
-    storage.used = True
     return redirect('home')
 
 

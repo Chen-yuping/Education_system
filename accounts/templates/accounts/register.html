@@ -10,15 +10,17 @@
     </div>
 
     <div class="auth-body">
-        <!-- 显示 Django 消息 -->
+        <!-- 显示 Django 消息 - 只显示注册相关的消息，过滤掉登录消息 -->
         {% if messages %}
         <div class="messages mb-3">
             {% for message in messages %}
+            {% if '欢迎回来' not in message and '登录成功' not in message %}
             <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show" role="alert">
                 <i class="fas fa-{% if message.tags == 'error' %}exclamation-circle{% else %}info-circle{% endif %} me-2"></i>
                 {{ message }}
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
+            {% endif %}
             {% endfor %}
         </div>
         {% endif %}
