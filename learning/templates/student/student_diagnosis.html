@@ -611,7 +611,42 @@ function resetStats() {
 // 绘图
 function renderDiagnosisGraph(data) {
     console.log('=== 绘制知识点关系图（带箭头）===');
+    // ===== 新增：根据节点数量动态调整参数 =====
+    const nodeCount = data.nodes.length;
 
+    let nodeRadius;      // 节点半径
+    let fontSize;        // 字体大小
+    let linkDistance;    // 连线距离
+    let chargeStrength;  // 排斥力强度
+    let collideRadius;   // 碰撞半径
+
+    if (nodeCount > 150) {
+        nodeRadius = 15;      // 节点变小
+        fontSize = '8px';     // 字体变小
+        linkDistance = 45;    // 连线变短（紧凑）
+        chargeStrength = -200; // 排斥力适中
+        collideRadius = 40;   // 碰撞半径变小
+    } else if (nodeCount > 40) {
+        nodeRadius = 18;
+        fontSize = '9px';
+        linkDistance = 65;
+        chargeStrength = -500;
+        collideRadius = 25;
+    } else if (nodeCount > 20) {
+        nodeRadius = 22;
+        fontSize = '10px';
+        linkDistance = 80;
+        chargeStrength = -600;
+        collideRadius = 30;
+    } else {
+        nodeRadius = 28;
+        fontSize = '12px';
+        linkDistance = 100;
+        chargeStrength = -800;
+        collideRadius = 38;
+    }
+
+    console.log(`节点数量: ${nodeCount}, 节点半径: ${nodeRadius}, 连线距离: ${linkDistance}`);
     const container = document.getElementById('graphContainer');
     const width = container.clientWidth;
     const height = container.clientHeight;
@@ -688,27 +723,21 @@ function renderDiagnosisGraph(data) {
         // 链接力：控制有关系的节点之间的距离
         .force('link', d3.forceLink(links)
             .id(d => d.id)
-            .distance(d => {
-                // 根据节点数量动态调整距离
-                 return 20;  // 原来是200-300，现在固定为120
-            })
-            .strength(0.5))          // 减小强度：让链接更松散
+            .distance(linkDistance)  // 使用动态变量
+            .strength(0.5))
 
         // 排斥力：让无关节点推开
         .force('charge', d3.forceManyBody()
-            .strength(d => {
-                // 根据节点数量动态调整排斥力
-                return -Math.max(100);
-            })
-            .distanceMax(600))       // 增加排斥力作用范围
+            .strength(chargeStrength)  // 使用动态变量
+            .distanceMax(600))
 
         // 中心引力：让节点不会飘离太远
         .force('center', d3.forceCenter(width / 2, height / 2)
-            .strength(0.03))         // 减小中心引力
+            .strength(0.15))         // 减小中心引力
 
         // 碰撞力：防止节点重叠
         .force('collision', d3.forceCollide()
-            .radius(50)              // 增加碰撞半径：节点之间保持更大距离
+            .radius(collideRadius)              // 增加碰撞半径：节点之间保持更大距离
             .strength(1.0)
             .iterations(3))          // 增加迭代次数以获得更好的分布
 
@@ -738,7 +767,7 @@ function renderDiagnosisGraph(data) {
         .data(nodes)
         .enter()
         .append('circle')
-        .attr('r', 25)
+        .attr('r', nodeRadius)
         .attr('fill', d => d.color)
         .attr('stroke', '#fff')
         .attr('stroke-width', 2)
@@ -758,7 +787,7 @@ function renderDiagnosisGraph(data) {
         .attr('text-anchor', 'middle')
         .attr('dy', '0.35em')
         .attr('fill', 'white')
-        .style('font-size', '11px')
+        .style('font-size', fontSize)
         .style('font-weight', 'bold')
         .style('pointer-events', 'none');
 
@@ -787,7 +816,7 @@ function renderDiagnosisGraph(data) {
         label
             .attr('x', d => d.x)
             .attr('y', d => d.y);
-        
+
         // 更新聚类背景
         if (data.clusters && data.clusters.length > 0) {
             updateClusterBackgrounds();
@@ -797,12 +826,12 @@ function renderDiagnosisGraph(data) {
     // 更新聚类背景
     function updateClusterBackgrounds() {
         if (!data.clusters || data.clusters.length === 0) return;
-        
+
         // 为每个聚类计算凸包
         data.clusters.forEach((cluster, idx) => {
             const clusterNodes = nodes.filter(n => n.cluster === idx);
             if (clusterNodes.length < 2) return;
-            
+
             // 计算聚类的边界
             const xs = clusterNodes.map(n => n.x);
             const ys = clusterNodes.map(n => n.y);
@@ -810,11 +839,11 @@ function renderDiagnosisGraph(data) {
             const maxX = Math.max(...xs) + 40;
             const minY = Math.min(...ys) - 40;
             const maxY = Math.max(...ys) + 40;
-            
+
             // 绘制聚类背景矩形
             const clusterId = `cluster-${idx}`;
             let clusterBg = g.select(`#${clusterId}`);
-            
+
             if (clusterBg.empty()) {
                 clusterBg = g.insert('rect', ':first-child')
                     .attr('id', clusterId)
@@ -822,7 +851,7 @@ function renderDiagnosisGraph(data) {
                     .attr('rx', 10)
                     .attr('ry', 10);
             }
-            
+
             clusterBg
                 .attr('x', minX)
                 .attr('y', minY)
@@ -911,10 +940,10 @@ function renderDiagnosisGraph(data) {
             const rect = currentContainer.getBoundingClientRect();
             const nodeX = d.x || 0;
             const nodeY = d.y || 0;
-            
+
             tooltip.style.left = (rect.left + nodeX + 35) + 'px';
             tooltip.style.top = (rect.top + nodeY - 80) + 'px';
-            
+
             // 使用class来控制显示
             tooltip.classList.remove('hidden');
             tooltip.classList.add('visible');
@@ -1039,8 +1068,27 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // 渲染柱状图
 function renderBarChart(data) {
+    // 获取节点数量
+    const nodeCount = data.nodes ? data.nodes.length : 0;
+
+    // 根据节点数量动态设置X轴字体大小
+    let axisFontSize;
+    if (nodeCount > 150) {
+        axisFontSize = '6px';
+    } else if (nodeCount > 100) {
+        axisFontSize = '7px';
+    } else if (nodeCount > 70) {
+        axisFontSize = '8px';
+    } else if (nodeCount > 40) {
+        axisFontSize = '9px';
+    } else if (nodeCount > 20) {
+        axisFontSize = '10px';
+    } else {
+        axisFontSize = '12px';
+    }
+
     if (!data.nodes || data.nodes.length === 0) {
-        document.getElementById('barChart').innerHTML = '<div style="text-align:center; padding:50px;"><p class="text-muted">暂无数据</p></div>';
+        document.getElementById('barChart').innerHTML = '<div style="position:relative; text-align:center; padding:50px;"><p class="text-muted">暂无数据</p></div>';
         return;
     }
 
@@ -1063,8 +1111,11 @@ function renderBarChart(data) {
     const svg = d3.select('#barChart')
         .append('svg')
         .attr('width', width)
-        .attr('height', height);
+        .attr('height', height)
+        .style('background-color', '#f8f9fa')
+        .style('cursor', 'grab');
 
+    // 创建一个可缩放的组（包含所有图表内容）
     const g = svg.append('g')
         .attr('transform', `translate(${margin.left},${margin.top})`);
 
@@ -1093,9 +1144,6 @@ function renderBarChart(data) {
         .style('cursor', 'pointer')
         .style('transition', 'all 0.2s ease')
         .on('mouseover', function(event, d) {
-            console.log('柱状图悬停事件触发，数据:', d);
-            
-            // 高亮当前柱子
             d3.select(this)
                 .transition()
                 .duration(200)
@@ -1103,10 +1151,7 @@ function renderBarChart(data) {
                 .attr('stroke', '#333')
                 .attr('stroke-width', 2);
 
-            // 显示提示
             const tooltip = document.getElementById('tooltip-bar');
-            console.log('tooltip元素:', tooltip);
-            
             if (tooltip) {
                 const masteryPercent = Math.round((d.mastery_level || 0) * 100);
                 const accuracy = d.accuracy || 0;
@@ -1126,29 +1171,17 @@ function renderBarChart(data) {
                     <p style="margin: 4px 0;"><strong>正确率:</strong> ${accuracy.toFixed(1)}%</p>
                     ${d.last_practiced ? `<p style="margin: 4px 0; font-size: 11px; color: #bbb;"><strong>最后练习:</strong> ${d.last_practiced}</p>` : ''}
                 `;
-                
+
                 tooltip.innerHTML = tooltipHTML;
-                console.log('tooltip内容已更新');
-                
-                // 使用fixed定位，相对于视口
                 const tooltipX = event.clientX + 15;
                 const tooltipY = event.clientY - 120;
-                
                 tooltip.style.left = tooltipX + 'px';
                 tooltip.style.top = tooltipY + 'px';
-                
-                // 使用class来控制显示
                 tooltip.classList.remove('hidden');
                 tooltip.classList.add('visible');
-                
-                console.log('tooltip位置:', tooltipX, tooltipY);
-                console.log('tooltip已显示');
             }
         })
         .on('mouseout', function() {
-            console.log('柱状图鼠标离开');
-            
-            // 恢复柱子样式
             d3.select(this)
                 .transition()
                 .duration(200)
@@ -1160,42 +1193,139 @@ function renderBarChart(data) {
             if (tooltip) {
                 tooltip.classList.remove('visible');
                 tooltip.classList.add('hidden');
-                console.log('tooltip已隐藏');
             }
         });
 
-    // 添加X轴
+    // 添加X轴（在g内部）
     g.append('g')
+        .attr('class', 'x-axis')
         .attr('transform', `translate(0,${chartHeight})`)
         .call(d3.axisBottom(xScale))
         .selectAll('text')
         .attr('transform', 'rotate(-45)')
         .style('text-anchor', 'end')
-        .style('font-size', '12px');
+        .style('font-size', axisFontSize);
 
-    // 添加Y轴
+    // 添加Y轴（在g内部）
     g.append('g')
+        .attr('class', 'y-axis')
         .call(d3.axisLeft(yScale).tickFormat(d => `${Math.round(d * 100)}%`))
-        .style('font-size', '12px');
+        .style('font-size', axisFontSize);
 
-    // 添加Y轴标签
-    svg.append('text')
+    // 添加Y轴标签（在g内部）
+    g.append('text')
         .attr('transform', 'rotate(-90)')
-        .attr('y', 0 - margin.left)
+        .attr('y', -margin.left + 20)
         .attr('x', 0 - (chartHeight / 2))
         .attr('dy', '1em')
         .style('text-anchor', 'middle')
         .style('font-size', '14px')
         .style('font-weight', 'bold')
+        .style('fill', '#333')
         .text('掌握程度');
 
-    // 添加X轴标签
-    svg.append('text')
-        .attr('transform', `translate(${margin.left + chartWidth / 2}, ${height - 10})`)
+    // 添加X轴标签（在g内部）
+    g.append('text')
+        .attr('transform', `translate(${chartWidth / 2}, ${chartHeight + margin.bottom - 30})`)
         .style('text-anchor', 'middle')
         .style('font-size', '14px')
         .style('font-weight', 'bold')
+        .style('fill', '#333')
         .text('知识点');
+
+    // 缩放功能
+    const zoom = d3.zoom()
+        .scaleExtent([0.3, 5])
+        .on('zoom', function(event) {
+            // 缩放时同时缩放g元素
+            g.attr('transform', `translate(${event.transform.x + margin.left}, ${event.transform.y + margin.top}) scale(${event.transform.k})`);
+        });
+
+    svg.call(zoom);
+
+    // 添加缩放控制按钮
+    addBarChartZoomControls(svg, zoom);
+}
+
+// 添加柱状图缩放控制按钮（修复版）
+function addBarChartZoomControls(svg, zoom) {
+    // 移除已有的控件
+    const existingControls = document.querySelector('.bar-zoom-controls');
+    if (existingControls) existingControls.remove();
+
+    // 获取 chartContainer 或 barChart 的父容器
+    const container = document.getElementById('chartContainer');
+    if (!container) {
+        console.error('找不到 chartContainer');
+        return;
+    }
+
+    // 确保容器有相对定位
+    container.style.position = 'relative';
+
+    const controls = document.createElement('div');
+    controls.className = 'bar-zoom-controls';
+    controls.style.cssText = `
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1000;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        display: flex;
+        flex-direction: column;
+        cursor: pointer;
+    `;
+    controls.innerHTML = `
+        <button id="barZoomIn" style="width: 40px; height: 40px; border: none; background: #fff; cursor: pointer; border-radius: 8px 8px 0 0; border-bottom: 1px solid #ddd; font-size: 18px; display: flex; align-items: center; justify-content: center;">
+            <i class="fas fa-plus" style="pointer-events: none;"></i>
+        </button>
+        <button id="barZoomOut" style="width: 40px; height: 40px; border: none; background: #fff; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center;">
+            <i class="fas fa-minus" style="pointer-events: none;"></i>
+        </button>
+        <button id="barReset" style="width: 40px; height: 40px; border: none; background: #fff; cursor: pointer; border-radius: 0 0 8px 8px; border-top: 1px solid #ddd; font-size: 16px; display: flex; align-items: center; justify-content: center;">
+            <i class="fas fa-home" style="pointer-events: none;"></i>
+        </button>
+    `;
+
+    container.appendChild(controls);
+
+    // 获取按钮并添加点击事件（使用多种方式确保触发）
+    const zoomInBtn = document.getElementById('barZoomIn');
+    const zoomOutBtn = document.getElementById('barZoomOut');
+    const resetBtn = document.getElementById('barReset');
+
+    if (zoomInBtn) {
+        zoomInBtn.onclick = function(e) {
+            e.stopPropagation();
+            console.log('放大按钮被点击');
+            svg.transition().duration(300).call(zoom.scaleBy, 1.3);
+        };
+        // 添加悬停效果
+        zoomInBtn.onmouseenter = function() { this.style.backgroundColor = '#f0f0f0'; };
+        zoomInBtn.onmouseleave = function() { this.style.backgroundColor = '#fff'; };
+    }
+
+    if (zoomOutBtn) {
+        zoomOutBtn.onclick = function(e) {
+            e.stopPropagation();
+            console.log('缩小按钮被点击');
+            svg.transition().duration(300).call(zoom.scaleBy, 0.7);
+        };
+        zoomOutBtn.onmouseenter = function() { this.style.backgroundColor = '#f0f0f0'; };
+        zoomOutBtn.onmouseleave = function() { this.style.backgroundColor = '#fff'; };
+    }
+
+    if (resetBtn) {
+        resetBtn.onclick = function(e) {
+            e.stopPropagation();
+            console.log('重置按钮被点击');
+            svg.transition().duration(300).call(zoom.transform, d3.zoomIdentity);
+        };
+        resetBtn.onmouseenter = function() { this.style.backgroundColor = '#f0f0f0'; };
+        resetBtn.onmouseleave = function() { this.style.backgroundColor = '#fff'; };
+    }
 }
 
 </script>
