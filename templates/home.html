@@ -51,6 +51,37 @@
             border: none;
             margin-bottom: 20px;
         }
+        .course-img-wrapper {
+            width: 100%;
+            height: 180px;
+            overflow: hidden;
+            background-color: #f0f2f5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .course-card-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.4s ease;
+        }
+
+        .course-card:hover .course-card-img {
+            transform: scale(1.03);
+        }
+
+        .course-img-placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+            color: #1e3a8a;
+            font-size: 3rem;
+        }
 
         .course-card:hover {
             transform: translateY(-5px);
@@ -367,7 +398,15 @@
                     {% for subject in popular_subjects %}
                     <div class="col-md-4 mb-4">
                         <div class="card course-card">
-                            <img src="{% static 'images/subject/' %}{{ subject.id }}.jpg" class="card-img-top" alt="{{ subject.name }}">
+                             <div class="course-img-wrapper">
+                                {% if subject.image and subject.image.url %}
+                                    <img src="{{ subject.image.url }}" class="course-card-img" alt="{{ subject.name }}">
+                                {% else %}
+                                    <div class="course-img-placeholder">
+                                        <i class="fas fa-book-open"></i>
+                                    </div>
+                                {% endif %}
+                            </div>
                             <div class="card-body">
                                 <h5 class="card-title">{{ subject.name }}</h5>
                                 <p class="card-text">{{ subject.description|default:"暂无课程描述"|truncatewords:15 }}</p>
