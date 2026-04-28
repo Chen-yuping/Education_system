@@ -1,0 +1,206 @@
+{% load static %}
+
+<div class="sidebar-nav">
+
+    <!-- 最近构建课程列表 -->
+    <div class="recent-builds-section">
+        <div class="section-header">
+            <h6 class="mb-0">
+                <i class="fas fa-history"></i> 最近构建课程
+            </h6>
+            {% if recent_builds %}
+            <small class="text-muted">共 {{ recent_builds|length }} 条</small>
+            {% endif %}
+        </div>
+
+        <div class="build-list mt-2">
+            {% if recent_builds %}
+                {% for build in recent_builds %}
+                <div class="build-item 
+                    {% if build.id == current_build_id %}active{% endif %}
+                    status-{{ build.status }}">
+                    <a href="{% url 'quick_build_course_detail' build.id %}" class="build-link">
+                        <div class="build-info">
+                            <div class="build-title">
+                                <i class="fas fa-book"></i>
+                                <span>{{ build.subject_name|truncatechars:20 }}</span>
+                            </div>
+                            <div class="build-meta">
+                                <span class="build-date">
+                                    <i class="far fa-calendar-alt"></i> {{ build.uploaded_at|date:"Y-m-d" }}
+                                </span>
+                                <span class="build-status-badge status-{{ build.status }}">
+                                    {{ build.get_status_display }}
+                                </span>
+                            </div>
+                            {% if build.generated_subject %}
+                            <div class="build-action">
+                                <span class="text-success small">
+                                    <i class="fas fa-check-circle"></i> 已生成课程
+                                </span>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </a>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state text-center py-4">
+                    <i class="fas fa-inbox fa-2x text-muted mb-2"></i>
+                    <p class="text-muted small mb-0">暂无构建记录</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+    /* 最近构建区域 */
+    .recent-builds-section {
+        margin-top: 20px;
+        border-top: 1px solid #dee2e6;
+        padding-top: 15px;
+    }
+
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 12px;
+        margin-bottom: 10px;
+    }
+
+    .section-header h6 {
+        font-weight: 600;
+        color: #495057;
+    }
+
+    /* 构建列表项 */
+    .build-list {
+        max-height: calc(100vh - 300px);
+        overflow-y: auto;
+    }
+
+    .build-item {
+        margin-bottom: 8px;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+        background-color: #fff;
+    }
+
+    .build-item:hover {
+        background-color: #f8f9fa;
+    }
+
+    .build-item.active {
+        background-color: #e7f1ff;
+        border-left: 3px solid #0d6efd;
+    }
+
+    .build-link {
+        display: block;
+        text-decoration: none;
+        padding: 10px 12px;
+    }
+
+    .build-info {
+        width: 100%;
+    }
+
+    .build-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #333;
+        margin-bottom: 6px;
+    }
+
+    .build-title i {
+        color: #0d6efd;
+        font-size: 12px;
+    }
+
+    .build-title span {
+        flex: 1;
+        word-break: break-word;
+    }
+
+    .build-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 11px;
+        color: #6c757d;
+        margin-bottom: 4px;
+    }
+
+    .build-date i {
+        margin-right: 3px;
+    }
+
+    .build-status-badge {
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 10px;
+        background-color: #e9ecef;
+        color: #495057;
+    }
+
+    /* 状态颜色 */
+    .build-status-badge.status-pending,
+    .build-status-badge.status-extracting_text,
+    .build-status-badge.status-analyzing_content,
+    .build-status-badge.status-generating_exercises,
+    .build-status-badge.status-extracting_knowledge,
+    .build-status-badge.status-building_graph {
+        background-color: #fff3cd;
+        color: #856404;
+    }
+
+    .build-status-badge.status-review_pending,
+    .build-status-badge.status-reviewing_exercises,
+    .build-status-badge.status-reviewing_knowledge,
+    .build-status-badge.status-reviewing_graph {
+        background-color: #cce5ff;
+        color: #004085;
+    }
+
+    .build-status-badge.status-completed {
+        background-color: #d4edda;
+        color: #155724;
+    }
+
+    .build-status-badge.status-error {
+        background-color: #f8d7da;
+        color: #721c24;
+    }
+
+    .build-action {
+        margin-top: 4px;
+    }
+
+    .empty-state {
+        padding: 20px;
+    }
+
+    /* 滚动条样式 */
+    .build-list::-webkit-scrollbar {
+        width: 4px;
+    }
+
+    .build-list::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
+    }
+
+    .build-list::-webkit-scrollbar-thumb {
+        background: #c1c1c1;
+        border-radius: 4px;
+    }
+
+    .build-list::-webkit-scrollbar-thumb:hover {
+        background: #a8a8a8;
+    }
+</style>

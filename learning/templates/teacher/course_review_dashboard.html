@@ -1,0 +1,288 @@
+{% extends 'teacher/course_management_base.html' %}
+{% load static %}
+
+{% block title %}课程审核 - 在线学习诊断系统{% endblock %}
+
+{% block content %}
+
+<div class="row">
+    <!-- 侧边导航栏 -->
+    <div class="col-md-3 mb-4">
+        <div class="card shadow-sm border-0 rounded-lg">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-list-check"></i> 审核导航</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    <a href="{% url 'course_review_dashboard' builder_id=builder.id %}" 
+                       class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'course_review_dashboard' %}active{% endif %}">
+                        <i class="bi bi-speedometer2 me-2"></i> 审核概览
+                    </a>
+                    <a href="{% url 'review_exercises' builder_id=builder.id %}" 
+                       class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'review_exercises' %}active{% endif %}">
+                        <i class="bi bi-question-circle me-2"></i> 审核习题
+                        {% if stats.total_exercises > 0 %}
+                        <span class="badge bg-primary float-end">{{ stats.reviewed_exercises }}/{{ stats.total_exercises }}</span>
+                        {% endif %}
+                    </a>
+                    <a href="{% url 'review_knowledge_points' builder_id=builder.id %}" 
+                       class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'review_knowledge_points' %}active{% endif %}">
+                        <i class="bi bi-lightbulb me-2"></i> 审核知识点
+                        {% if stats.total_knowledge_points > 0 %}
+                        <span class="badge bg-info float-end">{{ stats.reviewed_knowledge_points }}/{{ stats.total_knowledge_points }}</span>
+                        {% endif %}
+                    </a>
+                    <a href="{% url 'review_relationships' builder_id=builder.id %}" 
+                       class="list-group-item list-group-item-action {% if request.resolver_match.url_name == 'review_relationships' %}active{% endif %}">
+                        <i class="bi bi-diagram-3 me-2"></i> 审核知识图谱
+                        {% if stats.total_relationships > 0 %}
+                        <span class="badge bg-warning float-end">{{ stats.reviewed_relationships }}/{{ stats.total_relationships }}</span>
+                        {% endif %}
+                    </a>
+                    <div class="list-group-item">
+                        <div class="d-grid">
+                            <a href="{% url 'complete_review' builder_id=builder.id %}" 
+                               class="btn btn-success" id="completeReviewBtn">
+                                <i class="bi bi-check-circle"></i> 完成审核并提交
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 课程信息 -->
+        <div class="card shadow-sm border-0 rounded-lg mt-3">
+            <div class="card-header bg-light">
+                <h6 class="mb-0"><i class="bi bi-info-circle"></i> 课程信息</h6>
+            </div>
+            <div class="card-body">
+                <h6 class="mb-2">{{ builder.subject_name }}</h6>
+                {% if builder.subject_description %}
+                    <p class="small text-muted mb-2">{{ builder.subject_description|truncatechars:100 }}</p>
+                {% endif %}
+                <p class="small mb-1"><i class="bi bi-file-pdf text-danger"></i> {{ builder.original_filename }}</p>
+                <p class="small text-muted mb-0">上传时间: {{ builder.uploaded_at|date:"Y-m-d H:i" }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 主内容区 -->
+    <div class="col-md-9">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h4 class="mb-1"><i class="bi bi-clipboard-check text-primary"></i> 课程审核</h4>
+                <p class="text-muted mb-0">审核AI生成的课程内容，确保质量</p>
+            </div>
+            <div>
+                <span class="badge bg-{% if builder.status == 'review_pending' %}warning{% elif builder.status == 'completed' %}success{% else %}info{% endif %} fs-6">
+                    {{ builder.get_status_display }}
+                </span>
+            </div>
+        </div>
+        
+        <!-- 审核进度 -->
+        <div class="row mb-4">
+            <div class="col-md-4 mb-3">
+                <div class="card border-primary h-100">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="mb-0"><i class="bi bi-question-circle"></i> 习题审核</h6>
+                    </div>
+                    <div class="card-body text-center">
+                        <div class="display-4 fw-bold text-primary mb-2">{{ stats.reviewed_exercises }}/{{ stats.total_exercises }}</div>
+                        <p class="text-muted mb-3">已审核/总习题</p>
+                        <div class="progress mb-3" style="height: 8px;">
+                            <div class="progress-bar bg-primary" role="progressbar" 
+                                 style="width: {% widthratio stats.reviewed_exercises stats.total_exercises 100 %}%"
+                                 aria-valuenow="{{ stats.reviewed_exercises }}" 
+                                 aria-valuemin="0" 
+                                 aria-valuemax="{{ stats.total_exercises }}">
+                            </div>
+                        </div>
+                        <a href="{% url 'review_exercises' builder_id=builder.id %}" class="btn btn-outline-primary btn-sm">
+                            {% if stats.reviewed_exercises < stats.total_exercises %}
+                                <i class="bi bi-play-circle"></i> 继续审核
+                            {% else %}
+                                <i class="bi bi-check-circle"></i> 已完成
+                            {% endif %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4 mb-3">
+                <div class="card border-info h-100">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="mb-0"><i class="bi bi-lightbulb"></i> 知识点审核</h6>
+                    </div>
+                    <div class="card-body text-center">
+                        <div class="display-4 fw-bold text-info mb-2">{{ stats.reviewed_knowledge_points }}/{{ stats.total_knowledge_points }}</div>
+                        <p class="text-muted mb-3">已审核/总知识点</p>
+                        <div class="progress mb-3" style="height: 8px;">
+                            <div class="progress-bar bg-info" role="progressbar" 
+                                 style="width: {% widthratio stats.reviewed_knowledge_points stats.total_knowledge_points 100 %}%"
+                                 aria-valuenow="{{ stats.reviewed_knowledge_points }}" 
+                                 aria-valuemin="0" 
+                                 aria-valuemax="{{ stats.total_knowledge_points }}">
+                            </div>
+                        </div>
+                        <a href="{% url 'review_knowledge_points' builder_id=builder.id %}" class="btn btn-outline-info btn-sm">
+                            {% if stats.reviewed_knowledge_points < stats.total_knowledge_points %}
+                                <i class="bi bi-play-circle"></i> 继续审核
+                            {% else %}
+                                <i class="bi bi-check-circle"></i> 已完成
+                            {% endif %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4 mb-3">
+                <div class="card border-warning h-100">
+                    <div class="card-header bg-warning text-white">
+                        <h6 class="mb-0"><i class="bi bi-diagram-3"></i> 知识图谱审核</h6>
+                    </div>
+                    <div class="card-body text-center">
+                        <div class="display-4 fw-bold text-warning mb-2">{{ stats.reviewed_relationships }}/{{ stats.total_relationships }}</div>
+                        <p class="text-muted mb-3">已审核/总关系</p>
+                        <div class="progress mb-3" style="height: 8px;">
+                            <div class="progress-bar bg-warning" role="progressbar" 
+                                 style="width: {% widthratio stats.reviewed_relationships stats.total_relationships 100 %}%"
+                                 aria-valuenow="{{ stats.reviewed_relationships }}" 
+                                 aria-valuemin="0" 
+                                 aria-valuemax="{{ stats.total_relationships }}">
+                            </div>
+                        </div>
+                        <a href="{% url 'review_relationships' builder_id=builder.id %}" class="btn btn-outline-warning btn-sm">
+                            {% if stats.reviewed_relationships < stats.total_relationships %}
+                                <i class="bi bi-play-circle"></i> 继续审核
+                            {% else %}
+                                <i class="bi bi-check-circle"></i> 已完成
+                            {% endif %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 审核说明 -->
+        <div class="card shadow-sm border-0 rounded-lg p-4 mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0"><i class="bi bi-info-circle text-primary"></i> 审核说明</h5>
+            </div>
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <div class="card border-0 bg-light h-100">
+                        <div class="card-body">
+                            <h6><i class="bi bi-question-circle text-primary"></i> 习题审核</h6>
+                            <p class="small text-muted mb-0">检查AI生成的习题是否合理，题目表述是否清晰，答案是否正确。可以修改题目内容。</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="card border-0 bg-light h-100">
+                        <div class="card-body">
+                            <h6><i class="bi bi-lightbulb text-info"></i> 知识点审核</h6>
+                            <p class="small text-muted mb-0">检查AI提取的知识点是否准确，名称和描述是否恰当。可以修改知识点信息。</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="card border-0 bg-light h-100">
+                        <div class="card-body">
+                            <h6><i class="bi bi-diagram-3 text-warning"></i> 知识图谱审核</h6>
+                            <p class="small text-muted mb-0">检查知识点之间的关系是否合理，一次显示10个关系，可以标记正确或错误。</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="alert alert-info mt-3">
+                <i class="bi bi-lightbulb"></i> <strong>提示：</strong> 请按照顺序完成所有审核步骤。只有完成所有审核后，课程才会正式提交到系统。
+            </div>
+        </div>
+        
+        <!-- 审核统计 -->
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card shadow-sm border-0 rounded-lg h-100">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0"><i class="bi bi-check-circle text-success"></i> 通过审核</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <div class="display-6 fw-bold text-success">{{ stats.approved_exercises }}</div>
+                                <small class="text-muted">习题</small>
+                            </div>
+                            <div class="col-4">
+                                <div class="display-6 fw-bold text-success">{{ stats.approved_knowledge_points }}</div>
+                                <small class="text-muted">知识点</small>
+                            </div>
+                            <div class="col-4">
+                                <div class="display-6 fw-bold text-success">{{ stats.approved_relationships }}</div>
+                                <small class="text-muted">关系</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card shadow-sm border-0 rounded-lg h-100">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0"><i class="bi bi-clock text-warning"></i> 待审核</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <div class="display-6 fw-bold text-warning">{{ stats.total_exercises|add:"-stats.reviewed_exercises" }}</div>
+                                <small class="text-muted">习题</small>
+                            </div>
+                            <div class="col-4">
+                                <div class="display-6 fw-bold text-warning">{{ stats.total_knowledge_points|add:"-stats.reviewed_knowledge_points" }}</div>
+                                <small class="text-muted">知识点</small>
+                            </div>
+                            <div class="col-4">
+                                <div class="display-6 fw-bold text-warning">{{ stats.total_relationships|add:"-stats.reviewed_relationships" }}</div>
+                                <small class="text-muted">关系</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const completeBtn = document.getElementById('completeReviewBtn');
+    
+    if (completeBtn) {
+        completeBtn.addEventListener('click', function(e) {
+            const totalExercises = {{ stats.total_exercises }};
+            const reviewedExercises = {{ stats.reviewed_exercises }};
+            const totalKnowledge = {{ stats.total_knowledge_points }};
+            const reviewedKnowledge = {{ stats.reviewed_knowledge_points }};
+            const totalRelationships = {{ stats.total_relationships }};
+            const reviewedRelationships = {{ stats.reviewed_relationships }};
+            
+            if (reviewedExercises < totalExercises || reviewedKnowledge < totalKnowledge || reviewedRelationships < totalRelationships) {
+                e.preventDefault();
+                alert('请先完成所有审核内容后再提交！');
+                return false;
+            }
+            
+            if (!confirm('确定要完成审核并提交课程吗？提交后课程将正式添加到系统中。')) {
+                e.preventDefault();
+                return false;
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

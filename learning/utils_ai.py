@@ -460,3 +460,382 @@ def smart_handle_upload(file_record, mode='ai'):
             return handle_data_file(file_record)
         else:
             return handle_document_file(file_record)
+
+
+
+# ==========================================
+# 7. PDF课本完整分析功能
+# ==========================================
+def analyze_textbook_pdf(textbook_builder):
+    """
+    分析PDF课本，提取章节结构、知识点、习题，并构建知识图谱
+    """
+    print(f">>> 开始分析PDF课本: {textbook_builder.subject_name}")
+    
+    try:
+        # 1. 提取PDF文本
+        textbook_builder.status = 'extracting_text'
+        textbook_builder.save()
+        
+        file_path = textbook_builder.textbook_file.path
+        full_text = ""
+        
+        with pdfplumber.open(file_path) as pdf:
+            for page_num, page in enumerate(pdf.pages):
+                text = page.extract_text() or ''
+                full_text += text + "\n"
+        
+        textbook_builder.extracted_text = full_text[:10000]  # 保存前10000字符用于参考
+        textbook_builder.status = 'analyzing_content'
+        textbook_builder.save()
+        
+        # 2. 分析章节结构
+        chapters = extract_chapters_from_text(full_text)
+        textbook_builder.chapter_count = len(chapters)
+        textbook_builder.status = 'generating_exercises'
+        textbook_builder.save()
+        
+        # 3. 创建课程科目
+        subject, created = Subject.objects.get_or_create(
+            name=textbook_builder.subject_name,
+            defaults={
+                'description': textbook_builder.subject_description or f"基于《{textbook_builder.subject_name}》PDF课本快速构建的课程"
+            }
+        )
+        
+        # 4. 教师关联课程
+        TeacherSubject.objects.get_or_create(
+            teacher=textbook_builder.teacher,
+            subject=subject
+        )
+        
+        textbook_builder.generated_subject = subject
+        textbook_builder.status = 'extracting_knowledge'
+        textbook_builder.save()
+        
+        # 5. 提取知识点
+        knowledge_points = extract_knowledge_points_from_text(full_text, subject)
+        textbook_builder.knowledge_point_count = len(knowledge_points)
+        textbook_builder.status = 'building_graph'
+        textbook_builder.save()
+        
+        # 6. 构建知识点关系
+        relationships = build_knowledge_graph(knowledge_points, subject)
+        textbook_builder.relationship_count = len(relationships)
+        
+        # 7. 生成习题
+        exercises = generate_exercises_from_textbook(full_text, subject, textbook_builder.teacher)
+        textbook_builder.exercise_count = len(exercises)
+        
+        # 8. 完成初步处理，设置为待审核状态
+        textbook_builder.status = 'review_pending'
+        textbook_builder.processed_at = timezone.now()
+        textbook_builder.save()
+        
+        return {
+            'success': True,
+            'subject_id': subject.id,
+            'chapters': len(chapters),
+            'knowledge_points': len(knowledge_points),
+            'relationships': len(relationships),
+            'exercises': len(exercises)
+        }
+        
+    except Exception as e:
+        print(f"PDF课本分析失败: {e}")
+        traceback.print_exc()
+        textbook_builder.status = 'error'
+        textbook_builder.error_message = str(e)
+        textbook_builder.save()
+        return {'success': False, 'error': str(e)}
+
+
+def extract_chapters_from_text(text):
+    """从文本中提取章节结构"""
+    chapters = []
+    
+    # 匹配章节标题模式
+    chapter_patterns = [
+        r'第[一二三四五六七八九十\d]+章\s+[^\n]+',
+        r'Chapter\s+\d+\s*[:：]?\s*[^\n]+',
+        r'\d+\.\d*\s+[^\n]+',  # 1.1 标题
+        r'[一二三四五六七八九十]+、\s*[^\n]+',
+    ]
+    
+    lines = text.split('\n')
+    for i, line in enumerate(lines):
+        line = line.strip()
+        if len(line) > 100:  # 跳过过长的行（可能是段落）
+            continue
+            
+        for pattern in chapter_patterns:
+            if re.match(pattern, line):
+                chapters.append({
+                    'title': line,
+                    'content_start': i
+                })
+                break
+    
+    return chapters
+
+
+def extract_knowledge_points_from_text(text, subject):
+    """从文本中提取知识点"""
+    print(">>> 开始提取知识点...")
+    
+    # 使用AI提取知识点
+    prompt = f"""
+    你是一个专业的课程内容分析师。请从以下教材内容中提取核心知识点。
+    
+    要求：
+    1. 提取20-30个最重要的知识点
+    2. 每个知识点用简洁的短语表示
+    3. 知识点之间要有层次关系（父子关系）
+    4. 返回JSON格式
+    
+    教材内容（摘要）：
+    {text[:3000]}
+    
+    请返回以下格式的JSON：
+    {{
+        "knowledge_points": [
+            {{
+                "name": "知识点名称",
+                "parent": "父知识点名称（可为空）",
+                "description": "知识点简要描述"
+            }}
+        ]
+    }}
+    """
+    
+    try:
+        response = Generation.call(
+            model="qwen-turbo",
+            prompt=prompt,
+            result_format='message'
+        )
+        
+        if response.status_code == 200:
+            result_text = response.output.choices[0].message.content.strip()
+            clean_json = result_text.replace('```json', '').replace('```', '').strip()
+            data = json.loads(clean_json)
+            
+            knowledge_points = []
+            kp_map = {}  # 名称到对象的映射
+            
+            for kp_data in data.get('knowledge_points', []):
+                # 创建知识点
+                parent = None
+                if kp_data.get('parent'):
+                    # 先检查父知识点是否已创建
+                    if kp_data['parent'] in kp_map:
+                        parent = kp_map[kp_data['parent']]
+                    else:
+                        # 如果父知识点不存在，先创建它
+                        parent_kp, _ = KnowledgePoint.objects.get_or_create(
+                            subject=subject,
+                            name=kp_data['parent'],
+                            defaults={'parent': None}
+                        )
+                        kp_map[kp_data['parent']] = parent_kp
+                        parent = parent_kp
+                
+                kp, created = KnowledgePoint.objects.get_or_create(
+                    subject=subject,
+                    name=kp_data['name'],
+                    defaults={
+                        'parent': parent,
+                        'description': kp_data.get('description', '')
+                    }
+                )
+                
+                kp_map[kp_data['name']] = kp
+                knowledge_points.append(kp)
+            
+            return knowledge_points
+            
+    except Exception as e:
+        print(f"知识点提取失败: {e}")
+    
+    # 如果AI提取失败，使用简单的关键词提取
+    return extract_keywords_as_knowledge_points(text, subject)
+
+
+def extract_keywords_as_knowledge_points(text, subject):
+    """使用关键词提取作为备选方案"""
+    # 简单的关键词提取（实际项目中可以使用更复杂的NLP技术）
+    keywords = re.findall(r'[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*', text[:5000])
+    
+    knowledge_points = []
+    for i, keyword in enumerate(keywords[:20]):  # 取前20个作为知识点
+        if len(keyword) > 3 and len(keyword) < 50:
+            kp, _ = KnowledgePoint.objects.get_or_create(
+                subject=subject,
+                name=keyword,
+                defaults={'parent': None}
+            )
+            knowledge_points.append(kp)
+    
+    return knowledge_points
+
+
+def build_knowledge_graph(knowledge_points, subject):
+    """构建知识点关系图"""
+    print(">>> 开始构建知识点关系图...")
+    
+    relationships = []
+    
+    # 简单的基于文本相似度的关系构建
+    # 实际项目中可以使用更复杂的NLP技术
+    for i, kp1 in enumerate(knowledge_points):
+        for j, kp2 in enumerate(knowledge_points):
+            if i >= j:  # 避免重复和自环
+                continue
+                
+            # 简单的名称相似度检查
+            words1 = set(kp1.name.lower().split())
+            words2 = set(kp2.name.lower().split())
+            common_words = words1.intersection(words2)
+            
+            if common_words and len(common_words) / min(len(words1), len(words2)) > 0.3:
+                # 创建关系
+                relationship, created = KnowledgeGraph.objects.get_or_create(
+                    subject=subject,
+                    source=kp1,
+                    target=kp2
+                )
+                relationships.append(relationship)
+    
+    return relationships
+
+
+def generate_exercises_from_textbook(text, subject, teacher):
+    """从课本内容生成习题"""
+    print(">>> 开始从课本内容生成习题...")
+    
+    # 使用AI生成习题
+    prompt = f"""
+    你是一个专业的教师。请根据以下教材内容，生成10道高质量的习题。
+    
+    要求：
+    1. 包含单选题、多选题和判断题
+    2. 题目要覆盖教材的核心内容
+    3. 每道题都要有明确的答案和解析
+    4. 每道题关联1-2个知识点
+    5. 返回JSON格式
+    
+    教材内容（摘要）：
+    {text[:4000]}
+    
+    请返回以下格式的JSON：
+    {{
+        "exercises": [
+            {{
+                "title": "习题标题",
+                "content": "习题内容",
+                "question_type": "single/multiple/judgment",
+                "options": {{
+                    "A": "选项A内容",
+                    "B": "选项B内容",
+                    "C": "选项C内容",
+                    "D": "选项D内容"
+                }},
+                "answer": "A",  # 多选题用"AB"格式
+                "solution": "答案解析",
+                "knowledge_points": ["知识点1", "知识点2"]
+            }}
+        ]
+    }}
+    """
+    
+    try:
+        response = Generation.call(
+            model="qwen-turbo",
+            prompt=prompt,
+            result_format='message'
+        )
+        
+        if response.status_code == 200:
+            result_text = response.output.choices[0].message.content.strip()
+            clean_json = result_text.replace('```json', '').replace('```', '').strip()
+            data = json.loads(clean_json)
+            
+            exercises = []
+            
+            with transaction.atomic():
+                for ex_data in data.get('exercises', []):
+                    try:
+                        opt_dict = ex_data.get('options', {})
+                        full_option_text = repr(opt_dict) if opt_dict else ""
+                        
+                        # 确定题型
+                        q_type = ex_data.get('question_type', 'single')
+                        if q_type == 'judgment':
+                            q_type = 'judgment'
+                            opt_dict = {'A': '正确', 'B': '错误'} if not opt_dict else opt_dict
+                        
+                        exercise = Exercise.objects.create(
+                            subject=subject,
+                            title=ex_data.get('title', '')[:200],
+                            content=ex_data.get('content', ''),
+                            question_type=q_type,
+                            creator=teacher,
+                            option_text=full_option_text,
+                            answer=ex_data.get('answer', 'A'),
+                            solution=ex_data.get('solution', ''),
+                            problemsets="课本快速构建",
+                            created_at=timezone.now()
+                        )
+                        
+                        # 创建选项
+                        for idx, (label, content) in enumerate(opt_dict.items()):
+                            is_correct = False
+                            if q_type == 'judgment':
+                                is_correct = (label == 'A' and ex_data.get('answer') == '正确') or \
+                                           (label == 'B' and ex_data.get('answer') == '错误')
+                            else:
+                                is_correct = label in ex_data.get('answer', '')
+                                
+                            Choice.objects.create(
+                                exercise=exercise,
+                                content=f"{label}. {content}",
+                                is_correct=is_correct,
+                                order=idx + 1
+                            )
+                        
+                        # 关联知识点
+                        for kp_name in ex_data.get('knowledge_points', []):
+                            if kp_name.strip():
+                                kp, _ = KnowledgePoint.objects.get_or_create(
+                                    subject=subject,
+                                    name=kp_name.strip(),
+                                    defaults={'parent': None}
+                                )
+                                QMatrix.objects.get_or_create(
+                                    exercise=exercise,
+                                    knowledge_point=kp,
+                                    defaults={'weight': 1.0}
+                                )
+                        
+                        exercises.append(exercise)
+                        
+                    except Exception as e:
+                        print(f"保存习题失败: {e}")
+                        continue
+            
+            return exercises
+            
+    except Exception as e:
+        print(f"习题生成失败: {e}")
+    
+    return []
+
+
+# ==========================================
+# 8. 课本快速构建接口
+# ==========================================
+def quick_build_course_from_textbook(textbook_builder):
+    """
+    快速构建课程的入口函数
+    """
+    return analyze_textbook_pdf(textbook_builder)

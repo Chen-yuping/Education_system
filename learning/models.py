@@ -414,3 +414,222 @@ class ModelTrainingResult(models.Model):
             'rmse': f"{self.rmse:.4f}",
             'best_round': self.best_round
         }
+
+
+
+# 教学资料文件模型
+def resource_file_upload_path(instance, filename):
+    """生成教学资料文件上传路径"""
+    ext = filename.split('.')[-1]
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    return f'resource_files/{instance.teacher.id}/{filename}'
+
+class ResourceFile(models.Model):
+    RESOURCE_TYPES = [
+        ('课件', '课件/教案'),
+        ('讲义', '讲义/笔记'),
+        ('习题集', '习题集/题库'),
+        ('视频', '视频资料'),
+        ('音频', '音频资料'),
+        ('图片', '图片资料'),
+        ('其他', '其他资料'),
+    ]
+
+    FILE_STATUS = [
+        ('pending', '待处理'),
+        ('processing', '处理中'),
+        ('completed', '已完成'),
+        ('error', '处理失败'),
+    ]
+
+    FILE_TYPES = [
+        ('docx', 'Word文档'),
+        ('xlsx', 'Excel文件'),
+        ('pptx', 'PowerPoint文档'),
+        ('pdf', 'PDF文件'),
+        ('txt', '文本文件'),
+        ('jpg', 'JPEG图片'),
+        ('png', 'PNG图片'),
+        ('gif', 'GIF图片'),
+        ('mp4', 'MP4视频'),
+        ('mp3', 'MP3音频'),
+        ('wav', 'WAV音频'),
+        ('其他', '其他文件'),
+    ]
+
+    teacher = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="上传教师")
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, verbose_name="所属科目")
+    title = models.CharField(max_length=255, verbose_name="资料标题")
+    description = models.TextField(blank=True, verbose_name="资料描述")
+    resource_type = models.CharField(max_length=20, choices=RESOURCE_TYPES, default='课件', verbose_name="资料类型")
+    file = models.FileField(
+        upload_to=resource_file_upload_path,
+        validators=[FileExtensionValidator(allowed_extensions=[
+            'docx', 'xlsx', 'pptx', 'pdf', 'txt', 
+            'jpg', 'jpeg', 'png', 'gif', 
+            'mp4', 'mp3', 'wav'
+        ])],
+        verbose_name="资料文件"
+    )
+    original_filename = models.CharField(max_length=255, verbose_name="原始文件名")
+    file_type = models.CharField(max_length=10, choices=FILE_TYPES, verbose_name="文件类型")
+    status = models.CharField(max_length=20, choices=FILE_STATUS, default='pending', verbose_name="处理状态")
+    is_public = models.BooleanField(default=True, verbose_name="公开给学生")
+    uploaded_at = models.DateTimeField(auto_now_add=True, verbose_name="上传时间")
+    processed_at = models.DateTimeField(null=True, blank=True, verbose_name="处理完成时间")
+    error_message = models.TextField(blank=True, verbose_name="错误信息")
+
+    class Meta:
+        verbose_name = "教学资料"
+        verbose_name_plural = "教学资料"
+        ordering = ['-uploaded_at']
+
+    def __str__(self):
+        return f"{self.teacher.username} - {self.title}"
+
+    def delete(self, *args, **kwargs):
+        """删除模型实例时同时删除文件"""
+        if self.file:
+            if os.path.isfile(self.file.path):
+                os.remove(self.file.path)
+        super().delete(*args, **kwargs)
+
+
+
+# PDF课本快速构建课程模型
+def textbook_upload_path(instance, filename):
+    """生成PDF课本上传路径"""
+    ext = filename.split('.')[-1]
+    filename = f"{uuid.uuid4().hex}.{ext}"
+    return f'textbooks/{instance.teacher.id}/{filename}'
+
+class TextbookCourseBuilder(models.Model):
+    PROCESS_STATUS = [
+        ('pending', '待处理'),
+        ('extracting_text', '提取文本中'),
+        ('analyzing_content', '分析内容中'),
+        ('generating_exercises', '生成习题中'),
+        ('extracting_knowledge', '提取知识点中'),
+        ('building_graph', '构建图谱中'),
+        ('review_pending', '待审核'),
+        ('reviewing_exercises', '审核习题中'),
+        ('reviewing_knowledge', '审核知识点中'),
+        ('reviewing_graph', '审核图谱中'),
+        ('completed', '已完成'),
+        ('error', '处理失败'),
+    ]
+
+    teacher = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="教师")
+    subject_name = models.CharField(max_length=200, verbose_name="课程名称")
+    subject_description = models.TextField(blank=True, verbose_name="课程描述")
+    textbook_file = models.FileField(
+        upload_to=textbook_upload_path,
+        validators=[FileExtensionValidator(allowed_extensions=['pdf'])],
+        verbose_name="PDF课本"
+    )
+    original_filename = models.CharField(max_length=255, verbose_name="原始文件名")
+    status = models.CharField(max_length=30, choices=PROCESS_STATUS, default='pending', verbose_name="处理状态")
+    
+    # 处理结果
+    extracted_text = models.TextField(blank=True, verbose_name="提取的文本")
+    chapter_count = models.IntegerField(default=0, verbose_name="章节数量")
+    exercise_count = models.IntegerField(default=0, verbose_name="生成的习题数量")
+    knowledge_point_count = models.IntegerField(default=0, verbose_name="提取的知识点数量")
+    relationship_count = models.IntegerField(default=0, verbose_name="知识点关系数量")
+    
+    # 审核状态
+    exercises_reviewed = models.IntegerField(default=0, verbose_name="已审核习题数量")
+    knowledge_points_reviewed = models.IntegerField(default=0, verbose_name="已审核知识点数量")
+    relationships_reviewed = models.IntegerField(default=0, verbose_name="已审核关系数量")
+    exercises_approved = models.IntegerField(default=0, verbose_name="通过审核的习题数量")
+    knowledge_points_approved = models.IntegerField(default=0, verbose_name="通过审核的知识点数量")
+    relationships_approved = models.IntegerField(default=0, verbose_name="通过审核的关系数量")
+    
+    # 生成的科目（如果成功）
+    generated_subject = models.ForeignKey(Subject, on_delete=models.SET_NULL, null=True, blank=True, 
+                                         verbose_name="生成的课程")
+    
+    # 错误信息
+    error_message = models.TextField(blank=True, verbose_name="错误信息")
+    
+    # 时间戳
+    uploaded_at = models.DateTimeField(auto_now_add=True, verbose_name="上传时间")
+    processed_at = models.DateTimeField(null=True, blank=True, verbose_name="处理完成时间")
+    review_started_at = models.DateTimeField(null=True, blank=True, verbose_name="审核开始时间")
+    review_completed_at = models.DateTimeField(null=True, blank=True, verbose_name="审核完成时间")
+    
+    class Meta:
+        verbose_name = "课本快速构建"
+        verbose_name_plural = "课本快速构建"
+        ordering = ['-uploaded_at']
+
+    def __str__(self):
+        return f"{self.teacher.username} - {self.subject_name}"
+
+    def delete(self, *args, **kwargs):
+        """删除模型实例时同时删除文件"""
+        if self.textbook_file:
+            if os.path.isfile(self.textbook_file.path):
+                os.remove(self.textbook_file.path)
+        super().delete(*args, **kwargs)
+# 课本快速构建的审核相关模型
+class TextbookReviewExercise(models.Model):
+    """课本快速构建生成的习题审核"""
+    builder = models.ForeignKey(TextbookCourseBuilder, on_delete=models.CASCADE, verbose_name="构建器")
+    exercise = models.ForeignKey('Exercise', on_delete=models.CASCADE, verbose_name="习题")
+    original_content = models.TextField(verbose_name="原始内容")
+    reviewed_content = models.TextField(blank=True, verbose_name="审核后内容")
+    is_approved = models.BooleanField(default=False, verbose_name="是否通过审核")
+    is_modified = models.BooleanField(default=False, verbose_name="是否已修改")
+    review_notes = models.TextField(blank=True, verbose_name="审核备注")
+    reviewed_at = models.DateTimeField(null=True, blank=True, verbose_name="审核时间")
+    
+    class Meta:
+        verbose_name = "课本习题审核"
+        verbose_name_plural = "课本习题审核"
+        unique_together = ("builder", "exercise")
+    
+    def __str__(self):
+        return f"{self.builder.subject_name} - 习题审核"
+
+class TextbookReviewKnowledgePoint(models.Model):
+    """课本快速构建生成的知识点审核"""
+    builder = models.ForeignKey(TextbookCourseBuilder, on_delete=models.CASCADE, verbose_name="构建器")
+    knowledge_point = models.ForeignKey('KnowledgePoint', on_delete=models.CASCADE, verbose_name="知识点")
+    original_name = models.CharField(max_length=200, verbose_name="原始名称")
+    original_description = models.TextField(blank=True, verbose_name="原始描述")
+    reviewed_name = models.CharField(max_length=200, blank=True, verbose_name="审核后名称")
+    reviewed_description = models.TextField(blank=True, verbose_name="审核后描述")
+    is_approved = models.BooleanField(default=False, verbose_name="是否通过审核")
+    is_modified = models.BooleanField(default=False, verbose_name="是否已修改")
+    review_notes = models.TextField(blank=True, verbose_name="审核备注")
+    reviewed_at = models.DateTimeField(null=True, blank=True, verbose_name="审核时间")
+    
+    class Meta:
+        verbose_name = "课本知识点审核"
+        verbose_name_plural = "课本知识点审核"
+        unique_together = ("builder", "knowledge_point")
+    
+    def __str__(self):
+        return f"{self.builder.subject_name} - 知识点审核"
+
+class TextbookReviewRelationship(models.Model):
+    """课本快速构建生成的知识点关系审核"""
+    builder = models.ForeignKey(TextbookCourseBuilder, on_delete=models.CASCADE, verbose_name="构建器")
+    from_knowledge_point = models.ForeignKey('KnowledgePoint', on_delete=models.CASCADE, 
+                                            related_name='reviewed_from_relationships', verbose_name="源知识点")
+    to_knowledge_point = models.ForeignKey('KnowledgePoint', on_delete=models.CASCADE, 
+                                          related_name='reviewed_to_relationships', verbose_name="目标知识点")
+    relationship_type = models.CharField(max_length=50, verbose_name="关系类型")
+    is_approved = models.BooleanField(default=False, verbose_name="是否通过审核")
+    is_rejected = models.BooleanField(default=False, verbose_name="是否被拒绝")
+    review_notes = models.TextField(blank=True, verbose_name="审核备注")
+    reviewed_at = models.DateTimeField(null=True, blank=True, verbose_name="审核时间")
+    
+    class Meta:
+        verbose_name = "课本关系审核"
+        verbose_name_plural = "课本关系审核"
+        unique_together = ("builder", "from_knowledge_point", "to_knowledge_point", "relationship_type")
+    
+    def __str__(self):
+        return f"{self.builder.subject_name} - 关系审核"

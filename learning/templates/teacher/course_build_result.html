@@ -1,0 +1,260 @@
+{% extends 'teacher/course_management_base.html' %}
+{% load static %}
+
+{% block title %}课程构建结果 - 在线学习诊断系统{% endblock %}
+
+{% block content %}
+
+<div class="row justify-content-center">
+<div class="col-md-10 col-lg-8">
+    <div class="card shadow-sm border-0 rounded-lg p-4 mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h4 class="mb-1"><i class="bi bi-check-circle text-success"></i> 课程构建完成</h4>
+                <p class="text-muted mb-0">基于《{{ builder.subject_name }}》PDF课本的课程已创建完成</p>
+            </div>
+            <div>
+                <span class="badge bg-success fs-6">已完成</span>
+            </div>
+        </div>
+        
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card border-primary h-100">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="mb-0"><i class="bi bi-info-circle"></i> 构建信息</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-6 mb-2">
+                                <small class="text-muted">课程名称</small>
+                                <p class="mb-0 fw-semibold">{{ builder.subject_name }}</p>
+                            </div>
+                            <div class="col-6 mb-2">
+                                <small class="text-muted">PDF文件</small>
+                                <p class="mb-0 fw-semibold">{{ builder.original_filename }}</p>
+                            </div>
+                            <div class="col-6 mb-2">
+                                <small class="text-muted">上传时间</small>
+                                <p class="mb-0 fw-semibold">{{ builder.uploaded_at|date:"Y-m-d H:i" }}</p>
+                            </div>
+                            <div class="col-6 mb-2">
+                                <small class="text-muted">处理时间</small>
+                                <p class="mb-0 fw-semibold">{{ builder.processed_at|date:"Y-m-d H:i" }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card border-success h-100">
+                    <div class="card-header bg-success text-white">
+                        <h6 class="mb-0"><i class="bi bi-bar-chart"></i> 构建成果</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-4 mb-3">
+                                <div class="display-6 fw-bold text-primary">{{ builder.chapter_count }}</div>
+                                <small class="text-muted">章节</small>
+                            </div>
+                            <div class="col-4 mb-3">
+                                <div class="display-6 fw-bold text-info">{{ builder.knowledge_point_count }}</div>
+                                <small class="text-muted">知识点</small>
+                            </div>
+                            <div class="col-4 mb-3">
+                                <div class="display-6 fw-bold text-success">{{ builder.exercise_count }}</div>
+                                <small class="text-muted">习题</small>
+                            </div>
+                            <div class="col-6">
+                                <div class="display-6 fw-bold text-warning">{{ builder.relationship_count }}</div>
+                                <small class="text-muted">知识点关系</small>
+                            </div>
+                            <div class="col-6">
+                                <div class="display-6 fw-bold text-danger">1</div>
+                                <small class="text-muted">课程</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="d-flex gap-3 justify-content-center">
+            {% if subject %}
+                <a href="{% url 'teacher_course_management' %}" class="btn btn-primary btn-lg">
+                    <i class="bi bi-gear"></i> 管理课程
+                </a>
+                <a href="{% url 'exercise_management' %}?subject={{ subject.id }}" class="btn btn-success btn-lg">
+                    <i class="bi bi-book"></i> 查看题库
+                </a>
+                <a href="{% url 'knowledge_point_list' subject_id=subject.id %}" class="btn btn-info btn-lg">
+                    <i class="bi bi-lightbulb"></i> 查看知识点
+                </a>
+                <a href="{% url 'teacher_knowledge_graph' %}?subject_id={{ subject.id }}" class="btn btn-warning btn-lg">
+                    <i class="bi bi-diagram-3"></i> 查看知识图谱
+                </a>
+            {% endif %}
+            <a href="{% url 'quick_build_course' %}" class="btn btn-outline-secondary btn-lg">
+                <i class="bi bi-plus-circle"></i> 继续构建
+            </a>
+            <a href="{% url 'teacher_subject_management' %}" class="btn btn-outline-primary btn-lg">
+                <i class="bi bi-arrow-left"></i> 返回授课管理
+            </a>
+        </div>
+    </div>
+    
+    {% if subject %}
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm border-0 rounded-lg h-100">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="bi bi-lightbulb"></i> 生成的知识点</h5>
+                </div>
+                <div class="card-body">
+                    {% if knowledge_points %}
+                        <div class="list-group">
+                            {% for kp in knowledge_points %}
+                                <div class="list-group-item border-0">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h6 class="mb-1">{{ kp.name }}</h6>
+                                            {% if kp.description %}
+                                                <small class="text-muted">{{ kp.description|truncatechars:50 }}</small>
+                                            {% endif %}
+                                        </div>
+                                        {% if kp.parent %}
+                                            <span class="badge bg-info">子知识点</span>
+                                        {% else %}
+                                            <span class="badge bg-primary">主知识点</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                        {% if builder.knowledge_point_count > 20 %}
+                            <div class="text-center mt-3">
+                                <a href="{% url 'knowledge_point_list' subject_id=subject.id %}" class="btn btn-sm btn-outline-primary">
+                                    查看全部 {{ builder.knowledge_point_count }} 个知识点
+                                </a>
+                            </div>
+                        {% endif %}
+                    {% else %}
+                        <div class="text-center text-muted py-4">
+                            <i class="bi bi-lightbulb-off fs-1"></i>
+                            <p class="mt-2">暂无知识点</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6 mb-4">
+            <div class="card shadow-sm border-0 rounded-lg h-100">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0"><i class="bi bi-book"></i> 生成的习题</h5>
+                </div>
+                <div class="card-body">
+                    {% if exercises %}
+                        <div class="list-group">
+                            {% for exercise in exercises %}
+                                <div class="list-group-item border-0">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h6 class="mb-1">{{ exercise.title|truncatechars:30 }}</h6>
+                                            <small class="text-muted">
+                                                {% if exercise.question_type == 'single' %}
+                                                    <span class="badge bg-primary">单选题</span>
+                                                {% elif exercise.question_type == 'multiple' %}
+                                                    <span class="badge bg-info">多选题</span>
+                                                {% elif exercise.question_type == 'judgment' %}
+                                                    <span class="badge bg-warning">判断题</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">{{ exercise.question_type }}</span>
+                                                {% endif %}
+                                            </small>
+                                        </div>
+                                        <span class="badge bg-light text-dark">{{ exercise.answer }}</span>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                        {% if builder.exercise_count > 10 %}
+                            <div class="text-center mt-3">
+                                <a href="{% url 'exercise_management' %}?subject={{ subject.id }}" class="btn btn-sm btn-outline-success">
+                                    查看全部 {{ builder.exercise_count }} 道习题
+                                </a>
+                            </div>
+                        {% endif %}
+                    {% else %}
+                        <div class="text-center text-muted py-4">
+                            <i class="bi bi-book fs-1"></i>
+                            <p class="mt-2">暂无习题</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card shadow-sm border-0 rounded-lg p-4 mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0"><i class="bi bi-tools"></i> 后续操作建议</h5>
+        </div>
+        <div class="row">
+            <div class="col-md-4 mb-3">
+                <div class="card border-info h-100">
+                    <div class="card-body text-center">
+                        <i class="bi bi-pencil-square fs-1 text-info mb-3"></i>
+                        <h6>完善课程信息</h6>
+                        <p class="small text-muted">添加课程封面、详细描述、教学目标等</p>
+                        <a href="{% url 'teacher_subject_management' %}" class="btn btn-sm btn-outline-info">去完善</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card border-success h-100">
+                    <div class="card-body text-center">
+                        <i class="bi bi-check-circle fs-1 text-success mb-3"></i>
+                        <h6>审核生成内容</h6>
+                        <p class="small text-muted">检查AI生成的习题和知识点，进行必要的修改</p>
+                        <a href="{% url 'exercise_management' %}?subject={{ subject.id }}" class="btn btn-sm btn-outline-success">去审核</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card border-warning h-100">
+                    <div class="card-body text-center">
+                        <i class="bi bi-diagram-3 fs-1 text-warning mb-3"></i>
+                        <h6>优化知识图谱</h6>
+                        <p class="small text-muted">调整知识点之间的关系，构建更合理的知识结构</p>
+                        <a href="{% url 'teacher_knowledge_graph' %}?subject_id={{ subject.id }}" class="btn btn-sm btn-outline-warning">去优化</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    {% if builder.error_message %}
+    <div class="card shadow-sm border-danger rounded-lg p-4">
+        <div class="card-header bg-danger text-white">
+            <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> 处理警告</h5>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-warning">
+                <h6>处理过程中遇到以下问题：</h6>
+                <p class="mb-0">{{ builder.error_message }}</p>
+            </div>
+            <p class="text-muted">部分内容可能未能完全生成，建议手动完善课程内容。</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+{% endblock %}

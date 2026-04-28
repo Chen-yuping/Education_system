@@ -46,8 +46,19 @@ urlpatterns = [
 
 #老师功能
     path('teacher/dashboard/', views_teacher.teacher_dashboard, name='teacher_dashboard'),#教师面板
+    path('teacher/upload/resource/', views_exercisefile.upload_resource, name='upload_resource'),#上传教学资料
     path('teacher/upload/exercise/', views_exercisefile.upload_exercise, name='upload_exercise'),#上传习题页面
     path('teacher/delete/file/<int:file_id>/', views_exercisefile.delete_exercise_file, name='delete_exercise_file'),#上传习题删除页面
+    path('teacher/delete/resource/<int:file_id>/', views_exercisefile.delete_resource_file, name='delete_resource_file'),#上传教学资料删除页面
+    path('teacher/quick-build-course/', views_exercisefile.quick_build_course, name='quick_build_course'),#快速构建课程
+    path('teacher/course-build-result/<int:builder_id>/', views_exercisefile.course_build_result, name='course_build_result'),#课程构建结果
+    # 课程审核相关URL
+    path('teacher/course-review/<int:builder_id>/', views_exercisefile.course_review_dashboard, name='course_review_dashboard'),#课程审核仪表板
+    path('teacher/course-review/<int:builder_id>/exercises/', views_exercisefile.review_exercises, name='review_exercises'),#审核习题
+    path('teacher/course-review/<int:builder_id>/knowledge/', views_exercisefile.review_knowledge_points, name='review_knowledge_points'),#审核知识点
+    path('teacher/course-review/<int:builder_id>/relationships/', views_exercisefile.review_relationships, name='review_relationships'),#审核知识图谱关系
+    path('teacher/course-review/<int:builder_id>/submit/<str:review_type>/', views_exercisefile.submit_review, name='submit_review'),#提交审核结果
+    path('teacher/course-review/<int:builder_id>/complete/', views_exercisefile.complete_review, name='complete_review'),#完成审核
 
 
     # 知识点关系图页面,知识点数据接口

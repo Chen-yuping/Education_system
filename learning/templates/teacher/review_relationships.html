@@ -1,0 +1,409 @@
+{% extends 'teacher/course_management_base.html' %}
+{% load static %}
+
+{% block title %}审核知识图谱 - 在线学习诊断系统{% endblock %}
+
+{% block content %}
+
+<div class="row">
+    <!-- 侧边导航栏 -->
+    <div class="col-md-3 mb-4">
+        <div class="card shadow-sm border-0 rounded-lg">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-list-check"></i> 审核导航</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    <a href="{% url 'course_review_dashboard' builder_id=builder.id %}" 
+                       class="list-group-item list-group-item-action">
+                        <i class="bi bi-speedometer2 me-2"></i> 审核概览
+                    </a>
+                    <a href="{% url 'review_exercises' builder_id=builder.id %}" 
+                       class="list-group-item list-group-item-action">
+                        <i class="bi bi-question-circle me-2"></i> 审核习题
+                    </a>
+                    <a href="{% url 'review_knowledge_points' builder_id=builder.id %}" 
+                       class="list-group-item list-group-item-action">
+                        <i class="bi bi-lightbulb me-2"></i> 审核知识点
+                    </a>
+                    <a href="{% url 'review_relationships' builder_id=builder.id %}" 
+                       class="list-group-item list-group-item-action active">
+                        <i class="bi bi-diagram-3 me-2"></i> 审核知识图谱
+                    </a>
+                    <div class="list-group-item">
+                        <div class="d-grid">
+                            <a href="{% url 'complete_review' builder_id=builder.id %}" 
+                               class="btn btn-success">
+                                <i class="bi bi-check-circle"></i> 完成审核并提交
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 课程信息 -->
+        <div class="card shadow-sm border-0 rounded-lg mt-3">
+            <div class="card-header bg-light">
+                <h6 class="mb-0"><i class="bi bi-info-circle"></i> 课程信息</h6>
+            </div>
+            <div class="card-body">
+                <h6 class="mb-2">{{ builder.subject_name }}</h6>
+                <p class="small text-muted mb-0">当前审核: 知识图谱关系 ({{ relationships|length }}个)</p>
+            </div>
+        </div>
+        
+        <!-- 审核说明 -->
+        <div class="card shadow-sm border-0 rounded-lg mt-3">
+            <div class="card-header bg-warning text-white">
+                <h6 class="mb-0"><i class="bi bi-info-circle"></i> 审核说明</h6>
+            </div>
+            <div class="card-body">
+                <p class="small mb-2">1. 检查知识点关系是否合理</p>
+                <p class="small mb-2">2. 检查关系类型是否正确</p>
+                <p class="small mb-2">3. 合理的关系请标记"正确"</p>
+                <p class="small mb-0">4. 不合理的关系请标记"错误"</p>
+            </div>
+        </div>
+        
+        <!-- 关系类型说明 -->
+        <div class="card shadow-sm border-0 rounded-lg mt-3">
+            <div class="card-header bg-info text-white">
+                <h6 class="mb-0"><i class="bi bi-diagram-3"></i> 关系类型说明</h6>
+            </div>
+            <div class="card-body">
+                <p class="small mb-1"><span class="badge bg-primary">包含</span> 知识点A包含知识点B</p>
+                <p class="small mb-1"><span class="badge bg-success">依赖</span> 知识点A依赖知识点B</p>
+                <p class="small mb-1"><span class="badge bg-info">相关</span> 知识点A与知识点B相关</p>
+                <p class="small mb-1"><span class="badge bg-warning">前提</span> 知识点A是知识点B的前提</p>
+                <p class="small mb-0"><span class="badge bg-danger">冲突</span> 知识点A与知识点B冲突</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 主内容区 -->
+    <div class="col-md-9">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h4 class="mb-1"><i class="bi bi-diagram-3 text-warning"></i> 知识图谱关系审核</h4>
+                <p class="text-muted mb-0">审核AI生成的知识点关系，一次显示10个</p>
+            </div>
+            <div>
+                <a href="{% url 'course_review_dashboard' builder_id=builder.id %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> 返回概览
+                </a>
+            </div>
+        </div>
+        
+        {% if relationships %}
+            <div id="relationshipsContainer">
+                {% for review in relationships %}
+                <div class="card shadow-sm border-0 rounded-lg mb-4 relationship-card" data-id="{{ review.id }}">
+                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">关系 {{ forloop.counter }}</h6>
+                            <small class="text-muted">ID: {{ review.id }}</small>
+                        </div>
+                        <div>
+                            <span class="badge bg-{% if review.relationship_type == '包含' %}primary{% elif review.relationship_type == '依赖' %}success{% elif review.relationship_type == '相关' %}info{% elif review.relationship_type == '前提' %}warning{% elif review.relationship_type == '冲突' %}danger{% else %}secondary{% endif %}">
+                                {{ review.relationship_type }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <!-- 关系展示 -->
+                        <div class="mb-4 text-center">
+                            <div class="d-flex justify-content-center align-items-center mb-3">
+                                <div class="card border-primary" style="width: 200px;">
+                                    <div class="card-body text-center">
+                                        <h6 class="mb-1">{{ review.from_knowledge_point.name }}</h6>
+                                        <small class="text-muted">源知识点</small>
+                                    </div>
+                                </div>
+                                
+                                <div class="mx-4">
+                                    <i class="bi bi-arrow-right fs-3 text-primary"></i>
+                                    <div class="mt-1">
+                                        <span class="badge bg-{% if review.relationship_type == '包含' %}primary{% elif review.relationship_type == '依赖' %}success{% elif review.relationship_type == '相关' %}info{% elif review.relationship_type == '前提' %}warning{% elif review.relationship_type == '冲突' %}danger{% else %}secondary{% endif %}">
+                                            {{ review.relationship_type }}
+                                        </span>
+                                    </div>
+                                </div>
+                                
+                                <div class="card border-success" style="width: 200px;">
+                                    <div class="card-body text-center">
+                                        <h6 class="mb-1">{{ review.to_knowledge_point.name }}</h6>
+                                        <small class="text-muted">目标知识点</small>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 知识点描述 -->
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="card border-0 bg-light">
+                                        <div class="card-body">
+                                            <h6 class="small text-muted mb-2">源知识点描述</h6>
+                                            <p class="small mb-0">{{ review.from_knowledge_point.description|default:"暂无描述"|truncatechars:100 }}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card border-0 bg-light">
+                                        <div class="card-body">
+                                            <h6 class="small text-muted mb-2">目标知识点描述</h6>
+                                            <p class="small mb-0">{{ review.to_knowledge_point.description|default:"暂无描述"|truncatechars:100 }}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 审核操作 -->
+                        <div class="mb-4">
+                            <h6 class="text-primary mb-2"><i class="bi bi-clipboard-check"></i> 审核判断</h6>
+                            <p class="text-muted mb-3">请判断这个关系是否合理：</p>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <div class="card border-success h-100">
+                                        <div class="card-body text-center">
+                                            <h6 class="mb-3"><i class="bi bi-check-circle text-success"></i> 关系合理</h6>
+                                            <p class="small text-muted mb-3">这个关系符合实际情况</p>
+                                            <div class="form-check d-inline-block">
+                                                <input class="form-check-input relationship-approved" type="radio" 
+                                                       name="review{{ review.id }}" id="approved{{ review.id }}" value="approved">
+                                                <label class="form-check-label" for="approved{{ review.id }}">
+                                                    标记为正确
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card border-danger h-100">
+                                        <div class="card-body text-center">
+                                            <h6 class="mb-3"><i class="bi bi-x-circle text-danger"></i> 关系不合理</h6>
+                                            <p class="small text-muted mb-3">这个关系不符合实际情况</p>
+                                            <div class="form-check d-inline-block">
+                                                <input class="form-check-input relationship-rejected" type="radio" 
+                                                       name="review{{ review.id }}" id="rejected{{ review.id }}" value="rejected">
+                                                <label class="form-check-label" for="rejected{{ review.id }}">
+                                                    标记为错误
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">审核备注</label>
+                                <textarea class="form-control review-notes" rows="2" 
+                                          placeholder="请输入审核备注，说明为什么合理或不合理（可选）"></textarea>
+                            </div>
+                        </div>
+                        
+                        <!-- 提交按钮 -->
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <button class="btn btn-outline-secondary btn-sm" onclick="resetRelationship({{ review.id }})">
+                                    <i class="bi bi-arrow-counterclockwise"></i> 重置
+                                </button>
+                            </div>
+                            <div>
+                                <button class="btn btn-primary btn-sm" onclick="submitRelationshipReview({{ review.id }})">
+                                    <i class="bi bi-check-circle"></i> 提交审核
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            
+            <!-- 批量操作 -->
+            <div class="card shadow-sm border-0 rounded-lg p-3 mb-4">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <button class="btn btn-outline-success" onclick="approveAllRelationships()">
+                            <i class="bi bi-check-all"></i> 全部正确
+                        </button>
+                        <button class="btn btn-outline-danger" onclick="rejectAllRelationships()">
+                            <i class="bi bi-x-circle"></i> 全部错误
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick="resetAllRelationships()">
+                            <i class="bi bi-arrow-counterclockwise"></i> 全部重置
+                        </button>
+                    </div>
+                    <div>
+                        <a href="{% url 'review_relationships' builder_id=builder.id %}" class="btn btn-success">
+                            <i class="bi bi-arrow-right-circle"></i> 下一批（{{ relationships|length }}个）
+                        </a>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="card shadow-sm border-0 rounded-lg p-5 text-center">
+                <i class="bi bi-check-circle text-success fs-1 mb-3"></i>
+                <h4 class="mb-3">所有关系已审核完成！</h4>
+                <p class="text-muted mb-4">您已经完成了所有知识图谱关系的审核。</p>
+                <div class="d-flex justify-content-center gap-3">
+                    <a href="{% url 'complete_review' builder_id=builder.id %}" class="btn btn-success">
+                        <i class="bi bi-check-circle"></i> 完成审核并提交课程
+                    </a>
+                    <a href="{% url 'course_review_dashboard' builder_id=builder.id %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-speedometer2"></i> 返回审核概览
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+
+<script>
+function getRelationshipData(relationshipId) {
+    const card = document.querySelector(`.relationship-card[data-id="${relationshipId}"]`);
+    const approvedRadio = card.querySelector(`input[name="review${relationshipId}"][value="approved"]`);
+    const rejectedRadio = card.querySelector(`input[name="review${relationshipId}"][value="rejected"]`);
+    
+    return {
+        is_approved: approvedRadio ? approvedRadio.checked : false,
+        is_rejected: rejectedRadio ? rejectedRadio.checked : false,
+        notes: card.querySelector('.review-notes').value
+    };
+}
+
+function submitRelationshipReview(relationshipId) {
+    const data = getRelationshipData(relationshipId);
+    
+    if (!data.is_approved && !data.is_rejected) {
+        alert('请选择关系是否合理！');
+        return;
+    }
+    
+    fetch(`{% url 'submit_review' builder_id=builder.id review_type='relationship' %}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: new URLSearchParams({
+            'relationship_id': relationshipId,
+            'is_approved': data.is_approved,
+            'is_rejected': data.is_rejected,
+            'review_notes': data.notes
+        })
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            const card = document.querySelector(`.relationship-card[data-id="${relationshipId}"]`);
+            card.style.opacity = '0.5';
+            card.style.pointerEvents = 'none';
+            
+            // 显示成功提示
+            const successBadge = document.createElement('span');
+            successBadge.className = 'badge bg-success ms-2';
+            successBadge.innerHTML = '<i class="bi bi-check"></i> 已提交';
+            card.querySelector('.card-header').appendChild(successBadge);
+            
+            // 检查是否所有关系都已提交
+            checkAllSubmitted();
+        } else {
+            alert('提交失败，请重试！');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('提交失败，请检查网络连接！');
+    });
+}
+
+function resetRelationship(relationshipId) {
+    const card = document.querySelector(`.relationship-card[data-id="${relationshipId}"]`);
+    const approvedRadio = card.querySelector(`input[name="review${relationshipId}"][value="approved"]`);
+    const rejectedRadio = card.querySelector(`input[name="review${relationshipId}"][value="rejected"]`);
+    
+    if (approvedRadio) approvedRadio.checked = false;
+    if (rejectedRadio) rejectedRadio.checked = false;
+    card.querySelector('.review-notes').value = '';
+}
+
+function approveAllRelationships() {
+    document.querySelectorAll('.relationship-approved').forEach(radio => {
+        radio.checked = true;
+    });
+}
+
+function rejectAllRelationships() {
+    document.querySelectorAll('.relationship-rejected').forEach(radio => {
+        radio.checked = true;
+    });
+}
+
+function resetAllRelationships() {
+    document.querySelectorAll('.relationship-card').forEach(card => {
+        const relationshipId = card.getAttribute('data-id');
+        resetRelationship(relationshipId);
+    });
+}
+
+function checkAllSubmitted() {
+    const remainingCards = document.querySelectorAll('.relationship-card:not([style*="opacity: 0.5"])');
+    if (remainingCards.length === 0) {
+        // 所有关系都已提交，显示提示
+        const container = document.getElementById('relationshipsContainer');
+        const message = document.createElement('div');
+        message.className = 'alert alert-success text-center mt-3';
+        message.innerHTML = `
+            <i class="bi bi-check-circle"></i> 本批关系已全部审核完成！
+            <div class="mt-2">
+                <a href="{% url 'review_relationships' builder_id=builder.id %}" class="btn btn-warning btn-sm">
+                    <i class="bi bi-arrow-right-circle"></i> 继续审核下一批
+                </a>
+                <a href="{% url 'complete_review' builder_id=builder.id %}" class="btn btn-success btn-sm">
+                    <i class="bi bi-check-circle"></i> 完成审核并提交课程
+                </a>
+            </div>
+        `;
+        container.appendChild(message);
+    }
+}
+
+// 初始化
+document.addEventListener('DOMContentLoaded', function() {
+    // 添加键盘快捷键
+    document.addEventListener('keydown', function(e) {
+        if (e.ctrlKey && e.key === 'Enter') {
+            const activeCard = document.querySelector('.relationship-card:not([style*="opacity: 0.5"])');
+            if (activeCard) {
+                const relationshipId = activeCard.getAttribute('data-id');
+                submitRelationshipReview(relationshipId);
+            }
+        }
+    });
+    
+    // 添加关系类型颜色提示
+    document.querySelectorAll('.badge').forEach(badge => {
+        const text = badge.textContent.trim();
+        if (text === '包含') {
+            badge.classList.add('bg-primary');
+        } else if (text === '依赖') {
+            badge.classList.add('bg-success');
+        } else if (text === '相关') {
+            badge.classList.add('bg-info');
+        } else if (text === '前提') {
+            badge.classList.add('bg-warning');
+        } else if (text === '冲突') {
+            badge.classList.add('bg-danger');
+        }
+    });
+});
+</script>
+{% endblock %}

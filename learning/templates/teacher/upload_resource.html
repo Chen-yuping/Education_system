@@ -1,0 +1,430 @@
+{% extends 'teacher/course_management_base.html' %}
+{% load static %}
+
+{% block title %}上传资料 - 在线学习诊断系统{% endblock %}
+
+{% block content %}
+
+<div class="row justify-content-center">
+<div class="col-md-8 col-lg-6">
+    <div class="card shadow-sm border-0 rounded-lg p-4 mb-5">
+        <div class="alert alert-info mb-4">
+            <i class="bi bi-info-circle"></i> 支持格式：Word(.docx)、Excel(.xlsx)、PDF(.pdf)、PowerPoint(.pptx)、图片(.jpg, .png)、文本(.txt) | 单个文件最大：20MB | 请勿上传恶意文件
+        </div>
+
+        <form method="post" enctype="multipart/form-data" id="uploadForm">
+            {% csrf_token %}
+
+            <input type="hidden" name="subject_id" value="{{ request.GET.subject_id }}">
+
+            <div class="mb-4">
+                <label for="resourceType" class="form-label fw-semibold">资料类型 <span class="text-danger">*</span></label>
+                <select name="resource_type" id="resourceType" class="form-select border-secondary text-dark">
+                    <option value="课件">📚 课件/教案</option>
+                    <option value="讲义">📝 讲义/笔记</option>
+                    <option value="习题集">📖 习题集/题库</option>
+                    <option value="视频">🎬 视频资料</option>
+                    <option value="音频">🎧 音频资料</option>
+                    <option value="图片">🖼️ 图片资料</option>
+                    <option value="其他">📄 其他资料</option>
+                </select>
+                <div class="form-text text-muted small mt-1">
+                    请选择上传的资料类型，以便学生更好地分类查找。
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label for="resourceTitle" class="form-label fw-semibold">资料标题 <span class="text-danger">*</span></label>
+                <input type="text" name="resource_title" id="resourceTitle" class="form-control border-secondary" 
+                       placeholder="请输入资料标题，如：高等数学第一章课件" required>
+                <div class="form-text text-muted small mt-1">
+                    请为资料起一个清晰的标题，方便学生识别。
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label for="resourceDescription" class="form-label fw-semibold">资料描述</label>
+                <textarea name="resource_description" id="resourceDescription" class="form-control border-secondary" 
+                          rows="3" placeholder="请输入资料简要描述，如：本章主要讲解函数极限与连续..."></textarea>
+                <div class="form-text text-muted small mt-1">
+                    简要描述资料内容，帮助学生了解资料用途。
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label for="{{ form.file.id_for_label }}" class="form-label fw-semibold">{{ form.file.label }}</label>
+                <div class="border-2 border-dashed border-secondary rounded-lg p-5 text-center" id="dropArea">
+                    {{ form.file }}
+                    <i class="bi bi-cloud-upload text-primary fs-3 mb-2"></i>
+                    <p class="mb-2">点击区域选择文件，或直接拖拽文件到此处</p>
+                    <p class="text-muted small">支持多文件上传，单个文件不超过20MB</p>
+                    <div id="fileList" class="mt-3 d-flex flex-wrap gap-2"></div>
+                </div>
+                {% if form.file.errors %}
+                    <div class="text-danger small mt-1">{{ form.file.errors }}</div>
+                {% endif %}
+            </div>
+
+            <div class="mb-4">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="is_public" id="isPublic" checked>
+                    <label class="form-check-label" for="isPublic">
+                        公开给学生查看
+                    </label>
+                </div>
+                <div class="form-text text-muted small mt-1">
+                    勾选后，学生可以在课程资料页面查看此资料。
+                </div>
+            </div>
+
+            <div class="d-flex gap-3">
+                <button type="submit" class="btn btn-primary btn-lg flex-grow-1" id="submitBtn">
+                    <i class="bi bi-upload"></i> 确认上传
+                </button>
+                <button type="reset" class="btn btn-outline-secondary btn-lg" id="resetBtn">
+                    <i class="bi bi-arrow-counterclockwise"></i> 重置
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div class="card shadow-sm border-0 rounded-lg p-4">
+        <h5 class="card-title mb-3"><i class="bi bi-clock-history"></i> 最近上传记录</h5>
+        {% if upload_history %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>资料标题</th>
+                            <th>科目</th>
+                            <th>资料类型</th>
+                            <th>文件类型</th>
+                            <th>上传时间</th>
+                            <th>状态</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for resource in upload_history %}
+                            <tr>
+                                <td class="text-truncate" style="max-width: 150px;" title="{{ resource.title }}">
+                                    {{ resource.title }}
+                                </td>
+                                <td>{{ resource.subject.name }}</td>
+                                <td>
+                                    <span class="badge bg-info">{{ resource.get_resource_type_display }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary">{{ resource.get_file_type_display }}</span>
+                                </td>
+                                <td>{{ resource.uploaded_at|date:"Y-m-d H:i" }}</td>
+                                <td>
+                                    {% if resource.status == 'completed' %}
+                                        <span class="badge bg-success">已上传</span>
+                                    {% elif resource.status == 'processing' %}
+                                        <span class="badge bg-warning">处理中</span>
+                                    {% elif resource.status == 'error' %}
+                                        <span class="badge bg-danger">上传失败</span>
+                                    {% else %}
+                                        <span class="badge bg-info">待处理</span>
+                                    {% endif %}
+                                </td>
+                               <td>
+                                <div class="btn-group btn-group-sm">
+                                    {% if resource.status == 'completed' %}
+                                        <a href="{{ resource.file.url }}" target="_blank" class="btn btn-outline-success" title="预览文件">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    {% endif %}
+
+                                    <a href="{{ resource.file.url }}" class="btn btn-outline-primary" title="下载文件" download>
+                                        <i class="bi bi-download"></i>
+                                    </a>
+
+                                    <a href="javascript:void(0);"
+                               onclick="confirmDelete('{% url 'delete_resource_file' resource.id %}')"
+                               class="btn btn-outline-danger"
+                               title="删除记录">
+                                <i class="bi bi-trash"></i>
+                                    </a>
+                                </div>
+                            </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="text-center text-muted py-3">
+                <i class="bi bi-inbox fs-1"></i>
+                <p class="mt-2">暂无上传记录</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+
+<style>
+    /* 文件上传区域样式 */
+    .border-dashed {
+        border-style: dashed !important;
+    }
+    #dropArea {
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+
+    #dropArea:hover {
+        border-color: #0d6efd !important;
+        background-color: rgba(13, 110, 253, 0.05);
+    }
+</style>
+<script>
+// 1. 初始化文件输入框样式
+document.addEventListener('DOMContentLoaded', function() {
+    const fileInput = document.getElementById('{{ form.file.id_for_label }}');
+    if(fileInput) fileInput.classList.add('d-none'); // 隐藏原始文件输入框
+
+    // 美化表单控件
+    const resourceTypeSelect = document.getElementById('resourceType');
+    if (resourceTypeSelect) {
+        resourceTypeSelect.classList.add('form-select', 'form-select-lg', 'border-secondary');
+    }
+});
+
+// 2. 拖拽上传功能
+const dropArea = document.getElementById('dropArea');
+const fileInput = document.getElementById('{{ form.file.id_for_label }}');
+const fileList = document.getElementById('fileList');
+
+// 点击dropArea触发文件选择
+if(dropArea && fileInput) {
+    dropArea.addEventListener('click', () => {
+        fileInput.click();
+    });
+
+    // 拖拽事件
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropArea.addEventListener(eventName, preventDefaults, false);
+    });
+
+    // 拖拽样式变化
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropArea.addEventListener(eventName, () => {
+            dropArea.classList.add('border-primary', 'bg-primary-subtle');
+        });
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropArea.addEventListener(eventName, () => {
+            dropArea.classList.remove('border-primary', 'bg-primary-subtle');
+        });
+    });
+
+    // 处理文件放置
+    dropArea.addEventListener('drop', handleDrop, false);
+}
+
+function preventDefaults(e) {
+    e.preventDefault();
+    e.stopPropagation();
+}
+
+function handleDrop(e) {
+    const dt = e.dataTransfer;
+    const files = dt.files;
+    if (files.length > 0) {
+        updateFileInput(files);
+        renderFileList(files);
+    }
+}
+
+// 文件选择变化
+if(fileInput) {
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files.length > 0) {
+            renderFileList(fileInput.files);
+        }
+    });
+}
+
+// 更新文件输入框
+function updateFileInput(files) {
+    const dataTransfer = new DataTransfer();
+    Array.from(files).forEach(file => {
+        if (validateFile(file)) {
+            dataTransfer.items.add(file);
+        }
+    });
+    fileInput.files = dataTransfer.files;
+}
+
+// 渲染已选文件列表
+function renderFileList(files) {
+    fileList.innerHTML = '';
+    const validFiles = Array.from(files).filter(file => validateFile(file, true));
+
+    if (validFiles.length === 0) {
+        return;
+    }
+
+    validFiles.forEach((file, index) => {
+        const fileItem = document.createElement('div');
+        fileItem.className = 'bg-light rounded px-3 py-2 d-flex align-items-center gap-2';
+        fileItem.innerHTML = `
+            <i class="bi bi-file-${getFileExtensionClass(file.name)} text-primary"></i>
+            <span class="text-truncate" style="max-width: 150px;" title="${file.name}">${file.name}</span>
+            <span class="text-muted small">(${formatFileSize(file.size)})</span>
+            <button type="button" class="btn-close btn-sm" onclick="removeFile(${index})"></button>
+        `;
+        fileList.appendChild(fileItem);
+    });
+}
+
+// 移除单个文件
+function removeFile(index) {
+    const files = Array.from(fileInput.files);
+    files.splice(index, 1);
+
+    const dataTransfer = new DataTransfer();
+    files.forEach(file => dataTransfer.items.add(file));
+    fileInput.files = dataTransfer.files;
+
+    renderFileList(fileInput.files);
+}
+
+// 3. 文件验证（前端基础验证，后端必须再验证）
+function validateFile(file, showAlert = false) {
+    // 允许的文件类型
+    const allowedTypes = [
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // docx
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // xlsx
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation', // pptx
+        'application/pdf', // pdf
+        'text/plain', // txt
+        'image/jpeg', // jpg
+        'image/png', // png
+        'image/gif', // gif
+        'video/mp4', // mp4
+        'audio/mpeg', // mp3
+        'audio/wav' // wav
+    ];
+    const allowedExtensions = ['.docx', '.xlsx', '.pptx', '.pdf', '.txt', '.jpg', '.jpeg', '.png', '.gif', '.mp4', '.mp3', '.wav'];
+    const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+
+    // 验证文件类型
+    if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(fileExtension)) {
+        if (showAlert) {
+            alert(`文件 ${file.name} 类型不允许！仅支持 docx、xlsx、pptx、pdf、txt、jpg、png、gif、mp4、mp3、wav 格式`);
+        }
+        return false;
+    }
+
+    // 验证文件大小（20MB）
+    const maxSize = 20 * 1024 * 1024;
+    if (file.size > maxSize) {
+        if (showAlert) {
+            alert(`文件 ${file.name} 过大！单个文件最大支持20MB`);
+        }
+        return false;
+    }
+
+    return true;
+}
+
+// 辅助函数：格式化文件大小
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+// 辅助函数：根据文件后缀获取图标类
+function getFileExtensionClass(fileName) {
+    const ext = fileName.split('.').pop().toLowerCase();
+    if (ext === 'docx') return 'word';
+    if (ext === 'xlsx') return 'excel';
+    if (ext === 'pptx') return 'ppt';
+    if (ext === 'pdf') return 'pdf';
+    if (ext === 'txt') return 'text';
+    if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) return 'image';
+    if (ext === 'mp4') return 'video';
+    if (ext === 'mp3' || ext === 'wav') return 'music';
+    return 'default';
+}
+
+// 4. 表单提交前验证
+const uploadForm = document.getElementById('uploadForm');
+if(uploadForm) {
+    uploadForm.addEventListener('submit', (e) => {
+        // 验证资料标题
+        const resourceTitle = document.getElementById('resourceTitle').value.trim();
+        if (!resourceTitle) {
+            alert('请输入资料标题！');
+            e.preventDefault();
+            return;
+        }
+
+        if (fileInput.files.length === 0) {
+            alert('请选择要上传的文件！');
+            e.preventDefault();
+            return;
+        }
+
+        // 验证所有文件
+        const files = Array.from(fileInput.files);
+        const invalidFiles = files.filter(file => !validateFile(file));
+
+        if (invalidFiles.length > 0) {
+            alert('存在无效文件，请检查后重新上传！');
+            e.preventDefault();
+            return;
+        }
+
+        // 禁用提交按钮防止重复提交
+        const submitBtn = document.getElementById('submitBtn');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 上传中，请稍候...';
+    });
+}
+
+// 5. 删除确认
+function confirmDelete(url) {
+    if (confirm('确定要删除该资料吗？删除后不可恢复！')) {
+        // 使用表单提交删除请求
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = url;
+
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrfmiddlewaretoken';
+        csrfInput.value = csrfToken;
+        form.appendChild(csrfInput);
+
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+// 6. 重置按钮事件
+const resetBtn = document.getElementById('resetBtn');
+if(resetBtn) {
+    resetBtn.addEventListener('click', () => {
+        fileList.innerHTML = '';
+        if(fileInput) fileInput.value = '';
+        // 恢复下拉框默认选中第一项
+        document.getElementById('resourceType').value = '课件';
+        document.getElementById('resourceTitle').value = '';
+        document.getElementById('resourceDescription').value = '';
+        document.getElementById('isPublic').checked = true;
+    });
+}
+</script>
+{% endblock %}

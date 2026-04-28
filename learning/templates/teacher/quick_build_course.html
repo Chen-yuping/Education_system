@@ -1,0 +1,227 @@
+{% extends 'teacher/quick_build_course_base.html' %}
+{% load static %}
+
+{% block title %}快速构建课程 - 在线学习诊断系统{% endblock %}
+
+{% block content %}
+
+<div class="row justify-content-center">
+    <!-- 主内容区 - 限制最大宽度 -->
+    <div class="col-md-8 col-lg-7 col-xl-6">
+        <div class="card shadow-sm border-0 rounded-lg p-4 mb-4">
+            <div class="alert alert-info mb-4">
+                <i class="bi bi-info-circle"></i> 上传PDF课本，系统将自动分析内容并创建课程。
+            </div>
+
+            <form method="post" enctype="multipart/form-data" id="uploadForm">
+                {% csrf_token %}
+
+                <div class="mb-4">
+                    <label for="courseName" class="form-label fw-semibold">课程名称 <span class="text-danger">*</span></label>
+                    <input type="text" name="subject_name" id="courseName" class="form-control border-secondary"
+                           placeholder="请输入课程名称，如：高等数学" required>
+                    {% if form.subject_name.errors %}
+                        <div class="text-danger small mt-1">{{ form.subject_name.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="mb-4">
+                    <label for="courseDescription" class="form-label fw-semibold">课程描述（可选）</label>
+                    <textarea name="subject_description" id="courseDescription" class="form-control border-secondary"
+                              rows="2" placeholder="简要描述课程内容"></textarea>
+                    {% if form.subject_description.errors %}
+                        <div class="text-danger small mt-1">{{ form.subject_description.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="mb-4">
+                    <label for="pdfFile" class="form-label fw-semibold">PDF课本文件 <span class="text-danger">*</span></label>
+                    <div class="border-2 border-dashed border-secondary rounded-lg p-4 text-center" id="dropArea">
+                        <input type="file" name="textbook_file" id="pdfFile" class="d-none" accept=".pdf" required>
+                        <i class="bi bi-file-pdf text-danger fs-1 mb-2"></i>
+                        <p class="mb-2">点击选择PDF文件，或拖拽文件到此处</p>
+                        <p class="text-muted small">仅支持PDF格式，文件大小不超过50MB</p>
+                        <div id="fileInfo" class="mt-3"></div>
+                    </div>
+                    {% if form.textbook_file.errors %}
+                        <div class="text-danger small mt-1">{{ form.textbook_file.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="d-flex gap-3">
+                    <button type="submit" class="btn btn-primary btn-lg flex-grow-1" id="submitBtn">
+                        <i class="bi bi-lightning-charge"></i> 开始构建课程
+                    </button>
+                    <button type="reset" class="btn btn-outline-secondary btn-lg">
+                        <i class="bi bi-arrow-counterclockwise"></i> 重置
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+<!-- 其余 script 和 style 保持不变 -->
+
+{% block extra_js %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+
+<style>
+    .border-dashed {
+        border-style: dashed !important;
+    }
+    #dropArea {
+        transition: all 0.3s ease;
+        cursor: pointer;
+        min-height: 200px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+    #dropArea:hover {
+        border-color: #0d6efd !important;
+        background-color: rgba(13, 110, 253, 0.05);
+    }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const dropArea = document.getElementById('dropArea');
+    const pdfFile = document.getElementById('pdfFile');
+    const fileInfo = document.getElementById('fileInfo');
+    const submitBtn = document.getElementById('submitBtn');
+    const uploadForm = document.getElementById('uploadForm');
+    
+    // 点击dropArea触发文件选择
+    if (dropArea && pdfFile) {
+        dropArea.addEventListener('click', () => {
+            pdfFile.click();
+        });
+        
+        // 拖拽功能
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+        
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => {
+                dropArea.classList.add('border-primary', 'bg-primary-subtle');
+            });
+        });
+        
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => {
+                dropArea.classList.remove('border-primary', 'bg-primary-subtle');
+            });
+        });
+        
+        dropArea.addEventListener('drop', handleDrop, false);
+        
+        // 文件选择变化
+        pdfFile.addEventListener('change', () => {
+            if (pdfFile.files.length > 0) {
+                const file = pdfFile.files[0];
+                if (validateFile(file, true)) {
+                    showFileInfo(file);
+                }
+            }
+        });
+    }
+    
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        if (files.length > 0) {
+            const file = files[0];
+            if (validateFile(file, true)) {
+                updateFileInput(file);
+                showFileInfo(file);
+            }
+        }
+    }
+    
+    function updateFileInput(file) {
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        pdfFile.files = dataTransfer.files;
+    }
+    
+    function showFileInfo(file) {
+        fileInfo.innerHTML = `
+            <div class="alert alert-success d-flex align-items-center">
+                <i class="bi bi-file-pdf fs-4 me-3 text-danger"></i>
+                <div>
+                    <strong>${file.name}</strong>
+                    <div class="text-muted small">${formatFileSize(file.size)}</div>
+                </div>
+            </div>
+        `;
+    }
+    
+    function validateFile(file, showAlert = false) {
+        const allowedExtensions = ['.pdf'];
+        const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+        
+        if (!allowedExtensions.includes(fileExtension)) {
+            if (showAlert) {
+                alert(`文件 ${file.name} 类型不允许！仅支持PDF格式`);
+            }
+            return false;
+        }
+        
+        const maxSize = 50 * 1024 * 1024;
+        if (file.size > maxSize) {
+            if (showAlert) {
+                alert(`文件 ${file.name} 过大！单个文件最大支持50MB`);
+            }
+            return false;
+        }
+        
+        return true;
+    }
+    
+    function formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+    
+    // 表单提交验证
+    if (uploadForm) {
+        uploadForm.addEventListener('submit', (e) => {
+            const courseName = document.getElementById('courseName').value.trim();
+            if (!courseName) {
+                alert('请输入课程名称！');
+                e.preventDefault();
+                return;
+            }
+            
+            if (pdfFile.files.length === 0) {
+                alert('请选择PDF课本文件！');
+                e.preventDefault();
+                return;
+            }
+            
+            const file = pdfFile.files[0];
+            if (!validateFile(file)) {
+                alert('PDF文件无效，请检查后重新上传！');
+                e.preventDefault();
+                return;
+            }
+            
+            // 禁用提交按钮防止重复提交
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> AI正在分析课本，请稍候...';
+        });
+    }
+});
+</script>
+{% endblock %}
