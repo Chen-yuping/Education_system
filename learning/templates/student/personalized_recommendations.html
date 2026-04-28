@@ -160,6 +160,38 @@
         background: rgba(255, 255, 255, 0.3);
         color: #fff;
     }
+
+    /* 薄弱知识点滑块容器 */
+    .weak-points-scroll {
+        max-height: 400px;
+        overflow-y: auto;
+        padding-right: 5px;
+    }
+
+    /* 自定义滑块样式 - Firefox */
+    .weak-points-scroll {
+        scrollbar-width: thin;
+        scrollbar-color: #999 #f5f5f5;
+    }
+
+    /* 自定义滑块样式 - Webkit浏览器 */
+    .weak-points-scroll::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .weak-points-scroll::-webkit-scrollbar-track {
+        background: #f5f5f5;
+        border-radius: 4px;
+    }
+
+    .weak-points-scroll::-webkit-scrollbar-thumb {
+        background: #999;
+        border-radius: 4px;
+    }
+
+    .weak-points-scroll::-webkit-scrollbar-thumb:hover {
+        background: #666;
+    }
 </style>
 {% endblock %}
 
@@ -253,31 +285,33 @@
         <div class="card mb-4">
             <div class="card-header bg-danger text-white">
                 <h5 class="mb-0">
-                    <i class="fas fa-exclamation-triangle me-2"></i>薄弱知识点
+                    <i class="fas fa-exclamation-triangle me-2"></i>知识点掌握情况
                 </h5>
             </div>
-            <div class="card-body">
-                {% if weak_points %}
-                    {% for point in weak_points %}
-                    {% with mastery_pct=point.mastery_level|floatformat:0 %}
-                    <div class="weak-point-item">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <strong>{{ point.knowledge_point.name }}</strong>
-                            <span class="badge bg-danger">
-                                {{ mastery_pct }}%
-                            </span>
-                        </div>
-                        <div class="progress" style="height: 6px;">
-                            <div class="progress-bar bg-danger" style="width: {{ mastery_pct }}%">
+            <div class="card-body p-0">
+                {% if knowledge_points %}
+                    <div class="weak-points-scroll p-3">
+                        {% for item in knowledge_points %}
+                        {% with mastery_pct=item.mastery_pct %}
+                        <div class="weak-point-item">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <strong>{{ item.knowledge_point.name }}</strong>
+                                <span class="badge {% if mastery_pct < 40 %}bg-danger{% elif mastery_pct < 60 %}bg-danger{% elif mastery_pct < 80 %}bg-warning{% else %}bg-success{% endif %}">
+                                    {{ mastery_pct }}%
+                                </span>
+                            </div>
+                            <div class="progress" style="height: 6px;">
+                                <div class="progress-bar {% if mastery_pct < 40 %}bg-danger{% elif mastery_pct < 60 %}bg-danger{% elif mastery_pct < 80 %}bg-warning{% else %}bg-success{% endif %}" style="width: {{ mastery_pct|add:0 }}%;">
+                                </div>
                             </div>
                         </div>
+                        {% endwith %}
+                        {% endfor %}
                     </div>
-                    {% endwith %}
-                    {% endfor %}
                 {% else %}
                 <div class="text-center py-4">
                     <i class="fas fa-check-circle fa-2x text-success mb-3"></i>
-                    <p class="text-muted mb-0">当前没有薄弱知识点</p>
+                    <p class="text-muted mb-0">暂无知识点数据</p>
                 </div>
                 {% endif %}
             </div>

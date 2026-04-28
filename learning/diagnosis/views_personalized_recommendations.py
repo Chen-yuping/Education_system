@@ -42,12 +42,32 @@ def personalized_recommendations(request, subject_id=None):
     # 5. 获取推荐题目（10个）
     recommended_exercises = get_10_recommended_exercises(request.user, current_subject)
 
-    # 6. 获取学生的薄弱知识点（用于显示）
-    weak_points = StudentDiagnosis.objects.filter(
-        student=request.user,
-        knowledge_point__subject=current_subject,
-        mastery_level__lt=0.6
-    ).select_related('knowledge_point').order_by('mastery_level')[:5]
+    # 6. 获取该科目的所有知识点及其掌握程度，只显示掌握程度低的（< 60%）
+    # 先获取该科目的所有知识点
+    all_knowledge_points = KnowledgePoint.objects.filter(subject=current_subject)
+    
+    # 获取学生对这些知识点的诊断结果，只保留掌握程度 < 60% 的（与图谱中的红色节点一致）
+    knowledge_points_with_mastery = []
+    for kp in all_knowledge_points:
+        # 只获取 diagnosis_model=3 的数据，与学生诊断图谱保持一致
+        diagnosis = StudentDiagnosis.objects.filter(
+            student=request.user,
+            knowledge_point=kp,
+            diagnosis_model_id=3  # 只获取 diagnosis_model=3 的数据
+        ).first()
+        
+        mastery_level = diagnosis.mastery_level if diagnosis else 0.0
+        
+        # 只添加掌握程度 < 60% 的知识点（与图谱中的红色节点一致）
+        if mastery_level < 0.6:
+            knowledge_points_with_mastery.append({
+                'knowledge_point': kp,
+                'mastery_level': mastery_level,
+                'mastery_pct': round(mastery_level * 100, 1)  # 改为浮点数显示，更精确
+            })
+    
+    # 按掌握程度排序（低到高）
+    knowledge_points_with_mastery.sort(key=lambda x: x['mastery_level'])
 
     # 7. 将推荐题目ID存储到session中，用于练习流程
     exercise_ids = [ex.id for ex in recommended_exercises]
@@ -59,7 +79,7 @@ def personalized_recommendations(request, subject_id=None):
         'current_subject': current_subject,
         'subject': current_subject,  # 添加这个以保持与其他页面一致
         'exercises': recommended_exercises,
-        'weak_points': weak_points,
+        'knowledge_points': knowledge_points_with_mastery,
         'title': '个性化推荐习题',
         'exercise_count': len(recommended_exercises),
     }
@@ -115,13 +135,14 @@ def get_10_recommended_exercises(student, subject):
 
 def get_weak_knowledge_exercises(student, subject, answered_exercise_ids, limit=5):
     """
-    获取薄弱知识点相关题目
+    获取薄弱知识点相关题目（掌握程度 < 60%，与图谱中的红色节点一致）
     """
-    # 1. 获取学生的薄弱知识点ID（掌握程度<60%）
+    # 1. 获取学生的薄弱知识点ID（掌握程度<60%，只获取 diagnosis_model=3 的数据）
     weak_knowledge_ids = StudentDiagnosis.objects.filter(
         student=student,
         knowledge_point__subject=subject,
-        mastery_level__lt=0.6
+        mastery_level__lt=0.6,
+        diagnosis_model_id=3  # 只获取 diagnosis_model=3 的数据，与学生诊断图谱保持一致
     ).values_list('knowledge_point_id', flat=True)
 
     if not weak_knowledge_ids:
