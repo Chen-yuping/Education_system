@@ -36,7 +36,7 @@ def dashboard(request):
 def student_dashboard(request):
     enrolled_records = request.user.enrolled_subjects.all().select_related('subject').order_by('subject__name')
     subjects = [record.subject for record in enrolled_records]
-    recent_logs = AnswerLog.objects.filter(student=request.user).order_by('-submitted_at')[:10]
+    recent_logs = AnswerLog.objects.filter(student=request.user).order_by('-submitted_at')[:13]
     total_answers = AnswerLog.objects.filter(student=request.user).count()
     
     # 计算总体掌握情况
