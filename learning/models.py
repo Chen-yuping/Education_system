@@ -198,6 +198,7 @@ class StudentDiagnosis(models.Model):
     class Meta:
         verbose_name = "学生诊断"
         verbose_name_plural = "学生诊断"
+        unique_together = ('student', 'knowledge_point', 'diagnosis_model')  # 添加这行
 
     def __str__(self):
         return f"{self.student.username} - {self.knowledge_point.name}"

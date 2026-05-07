@@ -1,0 +1,2 @@
+epoch= 9, accuracy= 0.556213, auc= 0.598440
+epoch= 9, accuracy= 0.556213, auc= 0.593759

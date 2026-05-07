@@ -115,9 +115,9 @@ class IRT:
         trainer = torch.optim.Adam(self.irt_net.parameters(), lr)
         best_epoch = 0
         best_auc = 0.
-        acc1 = 0.
+        best_acc = 0.
         best_f1 = 0.
-        rmse1 = 1.
+        best_rmse = 1.
 
         for e in range(epoch):
             losses = []
@@ -143,12 +143,12 @@ class IRT:
                 if auc > best_auc:
                     best_epoch = e
                     best_auc = auc
-                    acc = accuracy
+                    best_acc = accuracy
                     best_f1 = f1
-                    rmse=rmse
-                    # self.save("params/irt.params")
-            print('BEST epoch<%d>, auc: %s, acc: %s, rmse: %.6f, f1: %.6f' % (best_epoch, best_auc, acc1, rmse1, best_f1))
-        return best_epoch, best_auc, acc,rmse
+                    best_rmse=rmse
+                    self.save("params/irt.params")
+            print('BEST epoch<%d>, auc: %s, acc: %s, rmse: %.6f, f1: %.6f' % (best_epoch, best_auc, best_acc, best_rmse, best_f1))
+        return best_epoch, best_auc, best_acc,best_rmse
 
     def eval(self, test_data, device="cpu") -> tuple:
         self.irt_net = self.irt_net.to(device)

@@ -7,16 +7,17 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 from django.db.models import Count, Avg, Q as DjangoQ, F, Sum
 from django.db import transaction
-
+from .data_export import export_training_data
 from ..models import *
-from .services import DiagnosisService
-
+import threading
+import os
+import sys
 
 # 教师身份判断
 def is_teacher(user):
     return user.user_type == 'teacher'
 
-
+"""学生诊断分析页面"""
 @login_required
 @user_passes_test(is_teacher)
 def diagnosis(request):
@@ -40,12 +41,11 @@ def diagnosis(request):
 
     return render(request, 'teacher/diagnosis.html', context)
 
-
+"""运行诊断分析API"""
 @login_required
 @user_passes_test(is_teacher)
 @csrf_exempt
 def run_diagnosis(request):
-    """运行诊断分析API"""
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'message': '只支持POST请求'}, status=405)
 
@@ -55,53 +55,44 @@ def run_diagnosis(request):
         model_id = data.get('model_id')
 
         if not subject_id or not model_id:
-            return JsonResponse({
-                'status': 'error',
-                'message': '缺少必要参数'
-            }, status=400)
+            return JsonResponse({'status': 'error', 'message': '缺少必要参数'}, status=400)
 
         # 验证权限
         teacher = request.user
-        if not TeacherSubject.objects.filter(
-                teacher=teacher,
-                subject_id=subject_id
-        ).exists():
-            return JsonResponse({
-                'status': 'error',
-                'message': '无权限访问该科目'
-            }, status=403)
+        if not TeacherSubject.objects.filter(teacher=teacher, subject_id=subject_id).exists():
+            return JsonResponse({'status': 'error', 'message': '无权限访问该科目'}, status=403)
 
         # 检查模型是否存在
         try:
             diagnosis_model = DiagnosisModel.objects.get(id=model_id, is_active=True)
         except DiagnosisModel.DoesNotExist:
-            return JsonResponse({
-                'status': 'error',
-                'message': '诊断模型不存在或已禁用'
-            }, status=404)
+            return JsonResponse({'status': 'error', 'message': '诊断模型不存在或已禁用'}, status=404)
 
-        # 创建诊断服务并运行诊断
-        service = DiagnosisService(teacher.id)
-        diagnosis_data = service.run_diagnosis(subject_id, diagnosis_model.name)
+        # 1. 导出训练数据
+        try:
+            export_result = export_training_data(subject_id)
+            print(f"数据导出成功: {export_result}")
+        except Exception as e:
+            print(f"数据导出失败: {str(e)}")
+            return JsonResponse({'status': 'error', 'message': f'数据导出失败: {str(e)}'}, status=500)
 
-        if 'error' in diagnosis_data:
-            return JsonResponse({
-                'status': 'error',
-                'message': diagnosis_data['error']
-            }, status=400)
+        # 2. 训练模型
+        model_name = diagnosis_model.name
+        if export_result['success']:
+            run_training(subject_id, model_name)
 
-        # 保存诊断结果到StudentDiagnosis
-        saved_count = service.save_student_diagnoses(subject_id, diagnosis_data, model_id)
+        # 3. 推理获取诊断数据
+        from inference_and_save import infer_and_get_diagnosis_data
+        diagnosis_data = infer_and_get_diagnosis_data(subject_id, model_name)
 
-        # 构建响应数据
+        if diagnosis_data is None:
+            return JsonResponse({'status': 'error', 'message': '推理失败'}, status=500)
+
+        # 4. 构建响应数据
         subject = Subject.objects.get(id=subject_id)
         enrolled_students_count = StudentSubject.objects.filter(subject=subject).count()
-        
-        # 获取有做题记录的学生数
-        students_with_logs_count = len(diagnosis_data.get('diagnosis_results', {}))
-        
+
         # 获取知识点覆盖信息
-        total_kp_count = len(diagnosis_data.get('knowledge_points', []))
         covered_kp_ids = QMatrix.objects.filter(
             exercise__in=AnswerLog.objects.filter(
                 exercise__subject=subject,
@@ -110,25 +101,22 @@ def run_diagnosis(request):
         ).values_list('knowledge_point_id', flat=True).distinct()
         covered_kp_count = len(set(covered_kp_ids))
 
-        # 计算统计信息
-        overall_scores = []
-        for student_id, result_data in diagnosis_data.get('diagnosis_results', {}).items():
-            overall_scores.append(result_data['overall_score'])
-
-        avg_mastery = sum(overall_scores) / len(overall_scores) if overall_scores else 0
+        # 计算平均掌握度
+        overall_scores = [r['overall_score'] for r in diagnosis_data['diagnosis_results'].values()]
+        avg_mastery = (sum(overall_scores) / len(overall_scores) * 100) if overall_scores else 0
 
         response_data = {
             'status': 'success',
-            'message': f'诊断完成，共分析了{saved_count}名学生',
+            'message': f'诊断完成，共分析了{len(diagnosis_data["diagnosis_results"])}名学生',
             'diagnosis_summary': {
                 'subject_name': subject.name,
                 'subject_id': subject.id,
-                'total_students': students_with_logs_count,  # 有做题记录的学生数
-                'enrolled_students_count': enrolled_students_count,  # 选课学生总数
-                'diagnosed_students': saved_count,
-                'total_kp_count': total_kp_count,  # 知识点总数
-                'covered_kp_count': covered_kp_count,  # 覆盖的知识点数
-                'avg_mastery': round(avg_mastery * 100, 2),
+                'total_students': len(diagnosis_data['diagnosis_results']),
+                'enrolled_students_count': enrolled_students_count,
+                'diagnosed_students': len(diagnosis_data['diagnosis_results']),
+                'total_kp_count': diagnosis_data['total_kp_count'],
+                'covered_kp_count': covered_kp_count,
+                'avg_mastery': round(avg_mastery, 2),
                 'diagnosis_time': timezone.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'model_used': diagnosis_model.name,
                 'model_id': model_id
@@ -139,23 +127,42 @@ def run_diagnosis(request):
         return JsonResponse(response_data)
 
     except json.JSONDecodeError:
-        return JsonResponse({
-            'status': 'error',
-            'message': 'JSON解析错误'
-        }, status=400)
+        return JsonResponse({'status': 'error', 'message': 'JSON解析错误'}, status=400)
     except Subject.DoesNotExist:
-        return JsonResponse({
-            'status': 'error',
-            'message': '科目不存在'
-        }, status=404)
+        return JsonResponse({'status': 'error', 'message': '科目不存在'}, status=404)
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return JsonResponse({
-            'status': 'error',
-            'message': f'诊断分析失败: {str(e)}'
-        }, status=500)
+        return JsonResponse({'status': 'error', 'message': f'诊断分析失败: {str(e)}'}, status=500)
 
+
+# 添加 CMD_survey 到路径
+CMD_SURVEY_PATH = os.path.join(os.path.dirname(__file__), 'CMD_survey')
+if CMD_SURVEY_PATH not in sys.path:
+    sys.path.insert(0, os.path.dirname(CMD_SURVEY_PATH))
+
+# """同步执行模型训练（会阻塞直到训练完成）"""
+def run_training(subject_id, model_name):
+
+    try:
+        # 设置环境变量
+        os.environ['CD_DATASET'] = str(subject_id)
+
+        from main import model_functions
+
+        # 模型名称需要与 main.py 中的键匹配（大写）
+        # 数据库存储的是 "IRT"、"NCDM" 等，直接使用
+        if model_name in model_functions:
+            print(f"开始训练 {model_name} 模型...")
+            model_functions[model_name]()
+        else:
+            print(f"未知模型: {model_name}")
+            print(f"可用模型: {list(model_functions.keys())}")
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"训练失败: {str(e)}")
 
 @login_required
 @user_passes_test(is_teacher)

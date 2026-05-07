@@ -5,7 +5,7 @@ from torch import nn
 from tqdm import tqdm
 from sklearn.metrics import roc_auc_score, accuracy_score, f1_score
 import sys
-from model.QCCDM import QCCDM
+from .QCCDM import QCCDM
 
 
 class QCCDM_Adapter:

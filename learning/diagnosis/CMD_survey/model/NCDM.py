@@ -112,9 +112,9 @@ class NCDM:
         optimizer = optim.Adam(self.ncdm_net.parameters(), lr=lr)
         best_epoch = 0
         best_auc = 0.
-        acc1 = 0.
+        best_acc = 0.
         best_f1 = 0.
-        rmse1 = 1.
+        best_rmse = 1.
 
         for epoch_i in range(epoch):
             epoch_losses = []
@@ -143,12 +143,12 @@ class NCDM:
                 if auc > best_auc:
                     best_epoch = epoch_i
                     best_auc = auc
-                    acc = accuracy
+                    best_acc = accuracy
                     best_f1 = f1
-                    rmse = rmse
+                    best_rmse = rmse
                     # self.save("params/ncdm.params")
-            print('BEST epoch<%d>, auc: %s, acc: %s, rmse: %.6f, f1: %.6f' % (best_epoch, best_auc, acc1, rmse1, best_f1))
-        return best_epoch, best_auc, acc,rmse
+            print('BEST epoch<%d>, auc: %s, acc: %s, rmse: %.6f, f1: %.6f' % (best_epoch, best_auc, best_acc, best_rmse, best_f1))
+        return best_epoch, best_auc, best_acc,best_rmse
 
     def eval(self, test_data, device="cpu"):
         self.ncdm_net = self.ncdm_net.to(device)
