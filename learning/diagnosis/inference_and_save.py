@@ -1,37 +1,87 @@
+# inference_and_save.py
+
 import torch
 import os
 import csv
 import json
+import threading
 from collections import defaultdict
-from learning.models import KnowledgePoint
+from django.utils import timezone
+from learning.models import StudentDiagnosis, User, KnowledgePoint, DiagnosisModel, KnowledgeGraph
 from CMD_survey.model import NCDM
 
 
-def infer_and_get_diagnosis_data(subject_id, model_name):
-    """
-    推理获取诊断数据（不写数据库），直接返回用于前端可视化
+def save_to_database_async(subject_id, model_id, mastery_vectors, student_known_kps, user_mapping, kp_mapping, un):
+    """异步保存诊断数据到数据库"""
 
-    Returns:
-        dict: {
-            'knowledge_points': [...],      # 知识点列表及平均掌握度
-            'diagnosis_results': {...},     # 每个学生的诊断结果
-            'knowledge_relations': [...]    # 知识点关系（用于知识图谱）
-        }
+    def _save():
+        try:
+            from learning.models import StudentDiagnosis, User, KnowledgePoint, DiagnosisModel
+            from django.utils import timezone
+
+            diagnosis_model = DiagnosisModel.objects.get(id=model_id)
+            saved_count = 0
+
+            for new_student_id, known_kps in student_known_kps.items():
+                student_original_id = user_mapping.get(new_student_id)
+                if not student_original_id:
+                    continue
+
+                student = User.objects.filter(id=student_original_id, user_type='student').first()
+                if not student:
+                    continue
+
+                mastery_vector = mastery_vectors[new_student_id - 1]
+
+                for new_kp_id in known_kps:
+                    mastery = float(mastery_vector[new_kp_id - 1])
+                    kp_original_id = kp_mapping.get(new_kp_id)
+
+                    if not kp_original_id:
+                        continue
+
+                    knowledge_point = KnowledgePoint.objects.filter(id=kp_original_id).first()
+                    if not knowledge_point:
+                        continue
+
+                    StudentDiagnosis.objects.update_or_create(
+                        student=student,
+                        knowledge_point=knowledge_point,
+                        diagnosis_model=diagnosis_model,
+                        defaults={
+                            'mastery_level': round(mastery, 3),
+                            'last_practiced': timezone.now()
+                        }
+                    )
+                    saved_count += 1
+
+            print(f"后台保存完成：已保存/更新 {saved_count} 条诊断记录")
+        except Exception as e:
+            print(f"后台保存失败: {str(e)}")
+
+    thread = threading.Thread(target=_save)
+    thread.daemon = True
+    thread.start()
+
+
+def infer_and_get_diagnosis_data(subject_id, model_id, model_name):
+    """
+    推理获取诊断数据（返回前端数据，后台异步保存到数据库）
     """
     # 1. 数据目录
     data_dir = os.path.join(os.path.dirname(__file__), 'data', str(subject_id))
 
     # 2. 读取配置
     with open(os.path.join(data_dir, 'config.txt'), 'r') as f:
-        f.readline()  # 跳过注释
+        f.readline()
         un, en, kn = f.readline().split(',')
         un, en, kn = int(un), int(en), int(kn)
 
     print(f"学生数: {un}, 习题数: {en}, 知识点数: {kn}")
 
     # 3. 读取映射表
-    user_mapping = {}  # new_id -> original_id
-    kp_mapping = {}  # new_id -> original_id
+    user_mapping = {}
+    kp_mapping = {}
 
     with open(os.path.join(data_dir, 'homologous.csv'), 'r', encoding='utf-8') as f:
         reader = csv.reader(f)
@@ -42,16 +92,11 @@ def infer_and_get_diagnosis_data(subject_id, model_name):
             if row[4]:
                 kp_mapping[int(row[4])] = int(row[5])
 
-    # 4. 读取 log_data.json，获取每个学生实际做过的知识点
+    # 4. 读取 log_data.json
     log_data_path = os.path.join(data_dir, 'log_data.json')
-    if not os.path.exists(log_data_path):
-        print(f"log_data.json 不存在，请先运行 data_export.py")
-        return None
-
     with open(log_data_path, 'r', encoding='utf-8') as f:
         all_logs = json.load(f)
 
-    # 构建每个学生做过的知识点集合（新ID）
     student_known_kps = defaultdict(set)
     for log in all_logs:
         student_new_id = log['user_id']
@@ -62,12 +107,7 @@ def infer_and_get_diagnosis_data(subject_id, model_name):
     device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
     model_path = os.path.join(data_dir, 'models', f'{model_name}.pth')
 
-    if not os.path.exists(model_path):
-        print(f"模型文件不存在: {model_path}")
-        return None
-
     if model_name.upper() == 'NCDM':
-        from CMD_survey.model import NCDM
         cdm = NCDM.NCDM(kn, en, un)
         cdm.load(model_path)
         cdm.ncdm_net.to(device)
@@ -83,15 +123,18 @@ def infer_and_get_diagnosis_data(subject_id, model_name):
         print(f"模型 {model_name} 暂不支持推理")
         return None
 
-    # 6. 获取原始知识点信息（用于返回）
+    # 6. 异步保存到数据库（不阻塞）
+    save_to_database_async(subject_id, model_id, mastery_vectors, student_known_kps,
+                           user_mapping, kp_mapping, un)
+
+    # 7. 获取原始知识点信息（用于前端返回）
     all_knowledge_points = KnowledgePoint.objects.filter(subject_id=subject_id)
     kp_info = {kp.id: kp.name for kp in all_knowledge_points}
 
-    # 7. 构建知识点平均掌握度
+    # 8. 构建知识点平均掌握度（用于前端）
     kp_mastery_sum = defaultdict(float)
     kp_count = defaultdict(int)
 
-    # 构建诊断结果
     diagnosis_results = {}
 
     for new_student_id, known_kps in student_known_kps.items():
@@ -99,41 +142,34 @@ def infer_and_get_diagnosis_data(subject_id, model_name):
         if not student_original_id:
             continue
 
-        # 该学生的掌握度向量
         mastery_vector = mastery_vectors[new_student_id - 1]
-
         student_mastery = {}
         weak_points = []
 
         for new_kp_id in known_kps:
-            mastery = mastery_vector[new_kp_id - 1]
+            mastery = float(mastery_vector[new_kp_id - 1])
             kp_original_id = kp_mapping.get(new_kp_id)
 
             if not kp_original_id:
                 continue
 
-            # 累加知识点掌握度（用于计算平均值）
             kp_mastery_sum[kp_original_id] += mastery
             kp_count[kp_original_id] += 1
 
-            student_mastery[str(kp_original_id)] = round(float(mastery), 3)
+            student_mastery[str(kp_original_id)] = round(mastery, 3)
 
             if mastery < 0.6:
                 weak_points.append({
-                    'id': kp_original_id,
+                    'id': int(kp_original_id),
                     'name': kp_info.get(kp_original_id, '未知'),
-                    'mastery': round(float(mastery), 3)
+                    'mastery': round(mastery, 3)
                 })
 
-        overall_score = round(float(sum(student_mastery.values()) / len(student_mastery)), 3) if student_mastery else 0.0
+        overall_score = round(sum(student_mastery.values()) / len(student_mastery), 3) if student_mastery else 0.0
 
-        # 学生名称处理
-        try:
-            from learning.models import User
-            student_obj = User.objects.filter(id=student_original_id).first()
-            student_name = student_obj.username if student_obj else f"学生{student_original_id}"
-        except:
-            student_name = f"学生{student_original_id}"
+        # 获取学生名称
+        student_obj = User.objects.filter(id=student_original_id).first()
+        student_name = student_obj.username if student_obj else f"学生{student_original_id}"
 
         diagnosis_results[student_original_id] = {
             'student_id': student_original_id,
@@ -144,23 +180,22 @@ def infer_and_get_diagnosis_data(subject_id, model_name):
             'answer_count': len(known_kps)
         }
 
-    # 8. 构建知识点列表（包含平均掌握度）
+    # 9. 构建知识点列表
     knowledge_points_data = []
     for kp_id, name in kp_info.items():
-        avg_mastery = round(float((kp_mastery_sum.get(kp_id, 0) / kp_count.get(kp_id, 1)) * 100), 3)
+        avg_mastery = round((kp_mastery_sum.get(kp_id, 0) / kp_count.get(kp_id, 1)) * 100, 3)
         knowledge_points_data.append({
-            'id': kp_id,
+            'id': int(kp_id),
             'name': name,
             'avg_mastery': avg_mastery,
-            'exercise_count': 0  # 可选，后续可补充
+            'exercise_count': 0
         })
 
-    # 9. 获取知识点关系（用于知识图谱）
-    from learning.models import KnowledgeGraph
+    # 10. 获取知识点关系
     knowledge_relations = []
     kg_relations = KnowledgeGraph.objects.filter(subject_id=subject_id).values_list('source_id', 'target_id')
     for source_id, target_id in kg_relations:
-        knowledge_relations.append({'source': source_id, 'target': target_id})
+        knowledge_relations.append({'source': int(source_id), 'target': int(target_id)})
 
     return {
         'knowledge_points': knowledge_points_data,

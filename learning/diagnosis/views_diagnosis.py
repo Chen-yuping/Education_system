@@ -83,7 +83,7 @@ def run_diagnosis(request):
 
         # 3. 推理获取诊断数据
         from inference_and_save import infer_and_get_diagnosis_data
-        diagnosis_data = infer_and_get_diagnosis_data(subject_id, model_name)
+        diagnosis_data = infer_and_get_diagnosis_data(subject_id, model_id, model_name)
 
         if diagnosis_data is None:
             return JsonResponse({'status': 'error', 'message': '推理失败'}, status=500)

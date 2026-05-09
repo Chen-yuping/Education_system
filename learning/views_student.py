@@ -12,7 +12,6 @@ from .forms import ExerciseForm, KnowledgePointForm, QMatrixForm
 from .diagnosis.views_diagnosis import *
 from django.utils import timezone
 from datetime import timedelta
-
 #登录用户判断
 def is_teacher(user):
     return user.user_type == 'teacher'
@@ -113,6 +112,22 @@ def student_dashboard(request):
         'weak_kp_json': json.dumps(weak_kp_data)
     })
 
+#二.在线学习
+@login_required
+@user_passes_test(is_student)
+def my_subjects(request):
+
+    # 获取当前学生已选的科目记录（包含科目信息和选课时间）
+    enrolled_records = StudentSubject.objects.filter(
+        student=request.user
+    ).select_related('subject').order_by('-enrolled_at')
+
+    # 无需额外处理，直接将记录传递给模板（每条记录都包含 subject 和 enrolled_at）
+    context = {
+        'enrolled_records': enrolled_records,  # 直接传递完整记录
+    }
+    return render(request, 'student/student_onlinelearning.html', context)
+
 # 推荐习题页面
 @login_required
 @user_passes_test(is_student)
@@ -178,25 +193,9 @@ def recommended_exercises(request, subject_id):
         messages.warning(request, '该科目暂无习题')
         return redirect('student_dashboard')
 
-#二.在线学习
-@login_required
-@user_passes_test(is_student)
-def my_subjects(request):
 
-    # 获取当前学生已选的科目记录（包含科目信息和选课时间）
-    enrolled_records = StudentSubject.objects.filter(
-        student=request.user
-    ).select_related('subject').order_by('-enrolled_at')
 
-    # 无需额外处理，直接将记录传递给模板（每条记录都包含 subject 和 enrolled_at）
-    context = {
-        'enrolled_records': enrolled_records,  # 直接传递完整记录
-    }
-    return render(request, 'student/student_onlinelearning.html', context)
-
-#所有课程
-@login_required
-#课程管理
+#课程管理#所有课程
 @login_required
 @user_passes_test(is_student)
 def student_subject_selection(request):
@@ -235,39 +234,43 @@ def student_subject_selection(request):
 @user_passes_test(is_student)
 def student_course_management(request):
     """学生课程管理页面 - 选课和查看课程详情"""
-    # 获取学生已选课程
+
+    # 获取已选课程ID列表
+    enrolled_subject_ids = StudentSubject.objects.filter(
+        student=request.user
+    ).values_list('subject_id', flat=True)
+
+    # 我的课程：使用 annotate 预计算习题数和知识点数
     my_subjects = StudentSubject.objects.filter(
         student=request.user
-    ).select_related('subject').prefetch_related(
-        'subject__exercise_set',
-        'subject__knowledgepoint_set'
+    ).select_related('subject').annotate(
+        exercise_count=Count('subject__exercise', distinct=True),  # 关键修改：使用 'subject__exercise'
+        knowledgepoint_count=Count('subject__knowledgepoint', distinct=True)
     )
-    
-    # 获取已选课程的ID列表
-    enrolled_subject_ids = [ss.subject.id for ss in my_subjects]
-    
-    # 获取可选课程（排除已选的）
+
+    # 可选课程：同样使用 annotate 预计算
     available_subjects = Subject.objects.exclude(
         id__in=enrolled_subject_ids
-    ).prefetch_related('exercise_set', 'knowledgepoint_set')
-    
+    ).annotate(
+        exercise_count=Count('exercise', distinct=True),  # 关键修改：使用 'exercise'
+        knowledgepoint_count=Count('knowledgepoint', distinct=True)
+    )
+
     if request.method == 'POST':
         subject_id = request.POST.get('subject_id')
         action = request.POST.get('action')
-        
+
         if action == 'select' and subject_id:
-            # 选课
             subject = get_object_or_404(Subject, id=subject_id)
             StudentSubject.objects.get_or_create(student=request.user, subject=subject)
             messages.success(request, f'已成功选修《{subject.name}》课程')
         elif action == 'remove' and subject_id:
-            # 退课
             subject = get_object_or_404(Subject, id=subject_id)
             StudentSubject.objects.filter(student=request.user, subject_id=subject_id).delete()
             messages.success(request, f'已退选《{subject.name}》课程')
-        
+
         return redirect('student_course_management')
-    
+
     context = {
         'my_subjects': my_subjects,
         'available_subjects': available_subjects,
