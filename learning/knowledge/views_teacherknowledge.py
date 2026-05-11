@@ -54,20 +54,70 @@ def knowledge_graph(request):
 @user_passes_test(is_teacher)
 @require_GET
 def knowledge_points_api(request, subject_id):
-    """获取知识点关系图数据 - 返回JSON格式"""
+    """获取知识点关系图数据 - 优先从Neo4j查询，回退到MySQL"""
     try:
 
         # 验证科目存在
         subject = Subject.objects.get(id=subject_id)
 
+        # ---- 优先从Neo4j获取图谱结构 ----
+        from learning.knowledge_graph_builder.graph_storage import get_neo4j_graph
+        neo4j_data = get_neo4j_graph(subject.name)
+
+        if neo4j_data is not None:
+            # Neo4j查询成功，补充习题数量（仍需从MySQL获取）
+            nodes = []
+            for n in neo4j_data['nodes']:
+                kp_id = n['id']
+                # 如果存储了真实的kp_id则查询习题数，否则为0
+                exercise_count = 0
+                if isinstance(kp_id, int):
+                    try:
+                        kp = KnowledgePoint.objects.get(id=kp_id)
+                        exercise_model = None
+                        if subject.name == '数学':
+                            exercise_model = MathExercise
+                        elif subject.name == '语文':
+                            exercise_model = ChineseExercise
+                        elif subject.name == '英语':
+                            exercise_model = EnglishExercise
+                        if exercise_model:
+                            exercise_count = QMatrix.objects.filter(
+                                content_type__model=exercise_model._meta.model_name,
+                                knowledge_point=kp
+                            ).count()
+                    except KnowledgePoint.DoesNotExist:
+                        pass
+
+                nodes.append({
+                    'id': kp_id,
+                    'name': n['name'],
+                    'subject': subject.name,
+                    'exercise_count': exercise_count,
+                })
+
+            links = neo4j_data['links']
+
+            response_data = {
+                'status': 'success',
+                'subject_id': subject_id,
+                'subject_name': subject.name,
+                'nodes': nodes,
+                'links': links,
+                'node_count': len(nodes),
+                'link_count': len(links),
+                'data_source': 'neo4j',
+                'message': f'成功获取{len(nodes)}个知识点和{len(links)}个关系（Neo4j）'
+            }
+            return JsonResponse(response_data)
+
+        # ---- Neo4j不可用，回退到MySQL ----
         # 获取该科目的所有知识点
         knowledge_points = KnowledgePoint.objects.filter(subject_id=subject_id)
 
         # 构建节点数据
         nodes = []
         for kp in knowledge_points:
-            # 获取每个知识点的习题数量（从QMatrix统计）
-
             # 获取科目对应的习题模型
             exercise_model = None
             if subject.name == '数学':
@@ -79,7 +129,6 @@ def knowledge_points_api(request, subject_id):
 
             exercise_count = 0
             if exercise_model:
-                # 统计与该知识点相关的习题数量
                 exercise_count = QMatrix.objects.filter(
                     content_type__model=exercise_model._meta.model_name,
                     knowledge_point=kp
@@ -95,21 +144,17 @@ def knowledge_points_api(request, subject_id):
         # 获取该科目的所有知识点关系
         relationships = KnowledgeGraph.objects.filter(subject_id=subject_id)
 
-        # 处理关系，合并双向关系
         links = []
         processed_pairs = set()
 
         for rel in relationships:
-            # 创建唯一标识符
             source_id = rel.source_id
             target_id = rel.target_id
             pair_key = frozenset([source_id, target_id])
 
-            # 跳过已处理的关系对
             if pair_key in processed_pairs:
                 continue
 
-            # 检查是否存在反向关系
             reverse_exists = KnowledgeGraph.objects.filter(
                 subject_id=subject_id,
                 source_id=target_id,
@@ -117,7 +162,6 @@ def knowledge_points_api(request, subject_id):
             ).exists()
 
             if reverse_exists:
-                # 双向关系 - 无箭头
                 links.append({
                     'source': min(source_id, target_id),
                     'target': max(source_id, target_id),
@@ -125,7 +169,6 @@ def knowledge_points_api(request, subject_id):
                     'arrow': False
                 })
             else:
-                # 单向关系 - 有箭头
                 links.append({
                     'source': source_id,
                     'target': target_id,
@@ -133,7 +176,6 @@ def knowledge_points_api(request, subject_id):
                     'arrow': True
                 })
 
-            # 标记已处理
             processed_pairs.add(pair_key)
 
         response_data = {
@@ -144,6 +186,7 @@ def knowledge_points_api(request, subject_id):
             'links': links,
             'node_count': len(nodes),
             'link_count': len(links),
+            'data_source': 'mysql',
             'message': f'成功获取{len(nodes)}个知识点和{len(links)}个关系'
         }
         return JsonResponse(response_data)
@@ -157,6 +200,8 @@ def knowledge_points_api(request, subject_id):
         }, status=404)
     except Exception as e:
         print(f"API错误: {e}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({
             'status': 'error',
             'message': f'获取数据失败: {str(e)}',

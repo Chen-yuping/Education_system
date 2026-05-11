@@ -28,7 +28,7 @@ except ImportError:
 
 from django.utils import timezone
 from django.db import transaction
-from learning.models import Exercise, Choice, KnowledgePoint, QMatrix
+from learning.models import Subject, TeacherSubject, Exercise, Choice, KnowledgePoint, QMatrix
 
 
 # ==========================================
@@ -469,32 +469,31 @@ def smart_handle_upload(file_record, mode='ai'):
 def analyze_textbook_pdf(textbook_builder):
     """
     分析PDF课本，提取章节结构、知识点、习题，并构建知识图谱
+    使用新的知识图谱构建管线（LLM三元组抽取 → 别名映射 → 实体标准化 → 存储）
     """
     print(f">>> 开始分析PDF课本: {textbook_builder.subject_name}")
-    
+
     try:
         # 1. 提取PDF文本
         textbook_builder.status = 'extracting_text'
         textbook_builder.save()
-        
+
         file_path = textbook_builder.textbook_file.path
-        full_text = ""
-        
-        with pdfplumber.open(file_path) as pdf:
-            for page_num, page in enumerate(pdf.pages):
-                text = page.extract_text() or ''
-                full_text += text + "\n"
-        
+
+        # 使用PyMuPDF提取文本（支持OCR回退）
+        from learning.knowledge_graph_builder.pdf_extractor import extract_text_from_pdf
+        full_text = extract_text_from_pdf(file_path)
+
         textbook_builder.extracted_text = full_text[:10000]  # 保存前10000字符用于参考
         textbook_builder.status = 'analyzing_content'
         textbook_builder.save()
-        
+
         # 2. 分析章节结构
         chapters = extract_chapters_from_text(full_text)
         textbook_builder.chapter_count = len(chapters)
         textbook_builder.status = 'generating_exercises'
         textbook_builder.save()
-        
+
         # 3. 创建课程科目
         subject, created = Subject.objects.get_or_create(
             name=textbook_builder.subject_name,
@@ -502,45 +501,65 @@ def analyze_textbook_pdf(textbook_builder):
                 'description': textbook_builder.subject_description or f"基于《{textbook_builder.subject_name}》PDF课本快速构建的课程"
             }
         )
-        
+
         # 4. 教师关联课程
         TeacherSubject.objects.get_or_create(
             teacher=textbook_builder.teacher,
             subject=subject
         )
-        
+
         textbook_builder.generated_subject = subject
         textbook_builder.status = 'extracting_knowledge'
         textbook_builder.save()
-        
-        # 5. 提取知识点
-        knowledge_points = extract_knowledge_points_from_text(full_text, subject)
-        textbook_builder.knowledge_point_count = len(knowledge_points)
+
+        # ===== 5. 使用知识图谱构建管线 =====
+        #   - LLM三元组抽取
+        #   - 别名映射构建
+        #   - 实体名称标准化
+        #   - 存入Django模型 (KnowledgePoint, KnowledgeGraph)
+        #   - 尝试存入Neo4j
+        from learning.knowledge_graph_builder.pipeline import KnowledgeGraphPipeline
+
+        import tempfile
+        output_dir = tempfile.mkdtemp(prefix=f"kg_{textbook_builder.id}_")
+
+        pipeline = KnowledgeGraphPipeline(
+            textbook_builder=textbook_builder,
+            output_dir=output_dir
+        )
+        pipeline_result = pipeline.run(
+            pdf_path=file_path,
+            subject=subject,
+            subject_name=textbook_builder.subject_name
+        )
+
+        textbook_builder.knowledge_point_count = pipeline_result.get("kp_count", 0)
+        textbook_builder.relationship_count = pipeline_result.get("rel_count", 0)
+
+        if not pipeline_result["success"]:
+            raise Exception(pipeline_result.get("error", "知识图谱构建失败"))
+
+        # 6. 生成习题（保持原有流程）
         textbook_builder.status = 'building_graph'
         textbook_builder.save()
-        
-        # 6. 构建知识点关系
-        relationships = build_knowledge_graph(knowledge_points, subject)
-        textbook_builder.relationship_count = len(relationships)
-        
-        # 7. 生成习题
+
         exercises = generate_exercises_from_textbook(full_text, subject, textbook_builder.teacher)
         textbook_builder.exercise_count = len(exercises)
-        
-        # 8. 完成初步处理，设置为待审核状态
+
+        # 7. 完成初步处理，设置为待审核状态
         textbook_builder.status = 'review_pending'
         textbook_builder.processed_at = timezone.now()
         textbook_builder.save()
-        
+
         return {
             'success': True,
             'subject_id': subject.id,
             'chapters': len(chapters),
-            'knowledge_points': len(knowledge_points),
-            'relationships': len(relationships),
+            'knowledge_points': pipeline_result.get("kp_count", 0),
+            'relationships': pipeline_result.get("rel_count", 0),
             'exercises': len(exercises)
         }
-        
+
     except Exception as e:
         print(f"PDF课本分析失败: {e}")
         traceback.print_exc()

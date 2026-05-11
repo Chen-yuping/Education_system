@@ -244,17 +244,19 @@ def quick_build_course(request):
                     # 更新状态为待审核
                     textbook_builder.status = 'review_pending'
                     textbook_builder.save()
-                    
+
                     # 创建审核记录
                     create_review_records(textbook_builder)
-                    
+
                     messages.success(request, f'✅ 课程初步构建完成！已生成{result.get("exercises", 0)}道习题，{result.get("knowledge_points", 0)}个知识点。请开始审核。')
                     return redirect('course_review_dashboard', builder_id=textbook_builder.id)
                 else:
                     messages.error(request, f'课程构建失败: {result.get("error", "未知错误")}')
-                    
+                    return redirect(request.path)
+
             except Exception as e:
                 messages.error(request, f'上传失败: {str(e)}')
+                return redirect(request.path)
     else:
         form = TextbookCourseBuilderForm()
     
@@ -311,7 +313,7 @@ def create_review_records(builder):
                 builder=builder,
                 knowledge_point=kp,
                 original_name=kp.name,
-                original_description=kp.description or ''
+                original_description=''
             )
     
     # 创建关系审核记录
@@ -507,9 +509,9 @@ def submit_review(request, builder_id, review_type):
             if reviewed_name and reviewed_name != review.knowledge_point.name:
                 review.knowledge_point.name = reviewed_name
                 review.knowledge_point.save()
-            if reviewed_description and reviewed_description != review.knowledge_point.description:
-                review.knowledge_point.description = reviewed_description
-                review.knowledge_point.save()
+            if reviewed_description and reviewed_description != review.original_description:
+                # KnowledgePoint model does not have a description field, skip saving to it
+                pass
             
             # 更新审核统计
             builder.knowledge_points_reviewed = TextbookReviewKnowledgePoint.objects.filter(
