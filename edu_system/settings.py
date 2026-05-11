@@ -4,9 +4,9 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'django-insecure-your-secret-key-here'
-NEO4J_URI = os.environ.get('NEO4J_URI', 'bolt://localhost:7687')
-NEO4J_USER = 'neo4j'
-NEO4J_PASSWORD = os.environ.get('NEO4J_PASSWORD', '123456')
+NEO4J_URI = os.environ.get('NEO4J_URI', 'neo4j+s://75dd7d76.databases.neo4j.io')
+NEO4J_USER = os.environ.get('NEO4J_USER', '75dd7d76')
+NEO4J_PASSWORD = os.environ.get('NEO4J_PASSWORD', 'ttnI1qTX2JFkKFtc7ioANyPb4AUqRb9kDwrcs6083Dg')
 DEBUG = True
 
 # ALLOWED_HOSTS = ['127.0.0.1', 'localhost']

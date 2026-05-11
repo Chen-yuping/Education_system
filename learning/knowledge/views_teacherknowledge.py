@@ -54,64 +54,12 @@ def knowledge_graph(request):
 @user_passes_test(is_teacher)
 @require_GET
 def knowledge_points_api(request, subject_id):
-    """获取知识点关系图数据 - 优先从Neo4j查询，回退到MySQL"""
+    """获取知识点关系图数据 - 从MySQL获取数据"""
     try:
 
         # 验证科目存在
         subject = Subject.objects.get(id=subject_id)
 
-        # ---- 优先从Neo4j获取图谱结构 ----
-        from learning.knowledge_graph_builder.graph_storage import get_neo4j_graph
-        neo4j_data = get_neo4j_graph(subject.name)
-
-        if neo4j_data is not None:
-            # Neo4j查询成功，补充习题数量（仍需从MySQL获取）
-            nodes = []
-            for n in neo4j_data['nodes']:
-                kp_id = n['id']
-                # 如果存储了真实的kp_id则查询习题数，否则为0
-                exercise_count = 0
-                if isinstance(kp_id, int):
-                    try:
-                        kp = KnowledgePoint.objects.get(id=kp_id)
-                        exercise_model = None
-                        if subject.name == '数学':
-                            exercise_model = MathExercise
-                        elif subject.name == '语文':
-                            exercise_model = ChineseExercise
-                        elif subject.name == '英语':
-                            exercise_model = EnglishExercise
-                        if exercise_model:
-                            exercise_count = QMatrix.objects.filter(
-                                content_type__model=exercise_model._meta.model_name,
-                                knowledge_point=kp
-                            ).count()
-                    except KnowledgePoint.DoesNotExist:
-                        pass
-
-                nodes.append({
-                    'id': kp_id,
-                    'name': n['name'],
-                    'subject': subject.name,
-                    'exercise_count': exercise_count,
-                })
-
-            links = neo4j_data['links']
-
-            response_data = {
-                'status': 'success',
-                'subject_id': subject_id,
-                'subject_name': subject.name,
-                'nodes': nodes,
-                'links': links,
-                'node_count': len(nodes),
-                'link_count': len(links),
-                'data_source': 'neo4j',
-                'message': f'成功获取{len(nodes)}个知识点和{len(links)}个关系（Neo4j）'
-            }
-            return JsonResponse(response_data)
-
-        # ---- Neo4j不可用，回退到MySQL ----
         # 获取该科目的所有知识点
         knowledge_points = KnowledgePoint.objects.filter(subject_id=subject_id)
 

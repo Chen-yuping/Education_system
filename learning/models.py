@@ -9,6 +9,7 @@ from django.core.validators import FileExtensionValidator
 class Subject(models.Model):
     name = models.CharField(max_length=100, verbose_name="科目名称")
     description = models.TextField(blank=True, verbose_name="科目描述")
+    dataset = models.CharField(max_length=100, default='', blank=True, verbose_name="所属数据集")
     image = models.ImageField(upload_to='subjects/', blank=True, null=True, verbose_name="科目图片")
 
     class Meta:
@@ -144,6 +145,12 @@ class AnswerLog(models.Model):
     time_spent = models.IntegerField(default=0, verbose_name="答题耗时(秒)")
     submitted_at = models.DateTimeField(auto_now_add=True, verbose_name="提交时间")
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, verbose_name="所属科目", null=True, blank=True)
+    ai_feedback = models.TextField(blank=True, default='', verbose_name="AI批改反馈")
+    feedback = models.TextField(blank=True, default='', verbose_name="教师批改反馈")
+    graded_at = models.DateTimeField(null=True, blank=True, verbose_name="批改时间")
+    graded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='graded_answers', verbose_name="批改教师")
+    grading_confidence = models.FloatField(null=True, blank=True, verbose_name="批改置信度")
+    score = models.DecimalField(max_digits=5, decimal_places=1, null=True, blank=True, verbose_name="得分")
 
     class Meta:
         verbose_name = "答题记录"

@@ -89,10 +89,7 @@ class KnowledgeGraphPipeline:
 
             storage_result = save_to_django(triples, subject)
 
-            try:
-                save_to_neo4j(triples, subject_name, entity_map=storage_result.get("entity_map"))
-            except Exception:
-                pass
+            # Neo4j存储已弃用，图谱数据直接由MySQL提供
 
             print("\n" + "=" * 50)
             print("知识图谱构建完成！")
