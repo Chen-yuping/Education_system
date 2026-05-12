@@ -150,6 +150,52 @@ class NCDM:
             print('BEST epoch<%d>, auc: %s, acc: %s, rmse: %.6f, f1: %.6f' % (best_epoch, best_auc, best_acc, best_rmse, best_f1))
         return best_epoch, best_auc, best_acc,best_rmse
 
+    def train_with_curves(self, train_data, test_data=None, epoch=10, device="cpu", lr=0.002, silence=False):
+        self.ncdm_net = self.ncdm_net.to(device)
+        loss_function = nn.BCELoss()
+        optimizer = optim.Adam(self.ncdm_net.parameters(), lr=lr)
+        best_epoch = 0
+        best_auc = 0.
+        best_acc = 0.
+        best_f1 = 0.
+        best_rmse = 1.
+        training_curves = {'acc': [], 'auc': [], 'rmse': []}
+
+        for epoch_i in range(epoch):
+            self.ncdm_net.train()
+            epoch_losses = []
+            for batch_data in tqdm(train_data, "Epoch %s" % epoch_i, file=sys.stdout):
+                user_id, item_id, knowledge_emb, y = batch_data
+                user_id: torch.Tensor = user_id.to(device)
+                item_id: torch.Tensor = item_id.to(device)
+                knowledge_emb: torch.Tensor = knowledge_emb.to(device)
+                y: torch.Tensor = y.to(device)
+                pred: torch.Tensor = self.ncdm_net(user_id, item_id, knowledge_emb)
+                loss = loss_function(pred, y)
+
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+                epoch_losses.append(loss.mean().item())
+
+            print("[Epoch %d] average loss: %.6f" % (epoch_i, float(np.mean(epoch_losses))))
+
+            if test_data is not None:
+                auc, accuracy, rmse, f1 = self.eval(test_data, device=device)
+                training_curves['acc'].append(accuracy)
+                training_curves['auc'].append(auc)
+                training_curves['rmse'].append(rmse)
+                print("[Epoch %d] auc: %.6f, accuracy: %.6f, rmse: %.6f, f1: %.6f" % (epoch_i, auc, accuracy, rmse, f1))
+                if auc > best_auc:
+                    best_epoch = epoch_i
+                    best_auc = auc
+                    best_acc = accuracy
+                    best_f1 = f1
+                    best_rmse = rmse
+            print('BEST epoch<%d>, auc: %s, acc: %s, rmse: %.6f, f1: %.6f' % (best_epoch, best_auc, best_acc, best_rmse, best_f1))
+        return (best_epoch, best_auc, best_acc, best_rmse), training_curves
+
     def eval(self, test_data, device="cpu"):
         self.ncdm_net = self.ncdm_net.to(device)
         self.ncdm_net.eval()
