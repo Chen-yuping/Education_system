@@ -1,0 +1,22 @@
+SOFT_GATE_MODEL_NAMES = {
+    "GDNCDM",
+    "SGIRDNCDM",
+    "IRD-NCDM-SoftGate",
+    "IRD-NCDM-SGFP",
+    "SG-IRD-NCDM",
+}
+
+NO_GATE_MODEL_NAMES = {
+    "DNCDM",
+    "IRDNCDM",
+    "IRD-NCDM-NoGate",
+    "IRD-NCDM-FP",
+    "FP-IRD-NCDM",
+}
+
+DISPLAY_MODEL_NAMES = {
+    "DNCDM",
+    "GDNCDM",
+}
+
+MODEL_NAMES = SOFT_GATE_MODEL_NAMES.union(NO_GATE_MODEL_NAMES)

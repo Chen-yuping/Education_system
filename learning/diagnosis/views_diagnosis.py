@@ -68,7 +68,10 @@ def run_diagnosis(request):
         except DiagnosisModel.DoesNotExist:
             return JsonResponse({'status': 'error', 'message': '诊断模型不存在或已禁用'}, status=404)
 
-        # 1. 导出训练数据
+        model_name = diagnosis_model.name
+
+        from .dual_relation_ncdm import MODEL_NAMES as IRD_NCDM_MODEL_NAMES
+        is_ird_ncdm_model = model_name in IRD_NCDM_MODEL_NAMES
         try:
             export_result = export_training_data(subject_id)
             print(f"数据导出成功: {export_result}")
@@ -76,13 +79,14 @@ def run_diagnosis(request):
             print(f"数据导出失败: {str(e)}")
             return JsonResponse({'status': 'error', 'message': f'数据导出失败: {str(e)}'}, status=500)
 
-        # 2. 训练模型
-        model_name = diagnosis_model.name
         if export_result['success']:
             run_training(subject_id, model_name)
 
         # 3. 推理获取诊断数据
-        from inference_and_save import infer_and_get_diagnosis_data
+        if is_ird_ncdm_model:
+            from .dual_relation_ncdm.platform import infer_and_get_diagnosis_data
+        else:
+            from inference_and_save import infer_and_get_diagnosis_data
         diagnosis_data = infer_and_get_diagnosis_data(subject_id, model_id, model_name)
 
         if diagnosis_data is None:
@@ -145,6 +149,15 @@ if CMD_SURVEY_PATH not in sys.path:
 def run_training(subject_id, model_name):
 
     try:
+        from .dual_relation_ncdm import MODEL_NAMES as IRD_NCDM_MODEL_NAMES
+        if model_name in IRD_NCDM_MODEL_NAMES:
+            from .dual_relation_ncdm.platform import train_subject
+
+            print(f"开始训练 {model_name} 模型...")
+            result = train_subject(subject_id, model_name=model_name)
+            print(f"{model_name} 训练完成: {result}")
+            return result
+
         # 设置环境变量
         os.environ['CD_DATASET'] = str(subject_id)
 

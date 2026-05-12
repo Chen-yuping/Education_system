@@ -258,6 +258,55 @@ def run_training_task(dataset_name, model_name, experiment_id, user_id):
     try:
         print(f"========== 开始训练任务: {dataset_name}_{model_name} ==========")
 
+        from .diagnosis.dual_relation_ncdm import MODEL_NAMES as IRD_NCDM_MODEL_NAMES
+        if model_name in IRD_NCDM_MODEL_NAMES:
+            from .diagnosis.dual_relation_ncdm.platform import train_researcher_dataset
+
+            result_data = train_researcher_dataset(dataset_name, model_name=model_name)
+            best_epoch = result_data['best_epoch']
+            best_auc = result_data['auc']
+            best_acc = result_data['acc']
+            rmse = result_data['rmse']
+            training_curves = result_data.get('training_curves') or {
+                'acc': [best_acc],
+                'auc': [best_auc],
+                'rmse': [rmse],
+            }
+
+            if experiment_id:
+                from .models import Experiment, ModelTrainingResult, Dataset, DiagnosisModel
+                from django.contrib.auth import get_user_model
+                User = get_user_model()
+                experiment = Experiment.objects.get(batch_id=experiment_id)
+                dataset_obj = Dataset.objects.get(name=dataset_name)
+                model_obj = DiagnosisModel.objects.get(name=model_name)
+                ModelTrainingResult.objects.create(
+                    experiment=experiment,
+                    diagnosis_model=model_obj,
+                    dataset=dataset_obj,
+                    best_round=best_epoch,
+                    acc=best_acc,
+                    auc=best_auc,
+                    rmse=rmse,
+                    best_round_time=result_data.get('best_round_time', 0.0),
+                    total_time=result_data.get('total_time', 0.0),
+                    created_by=User.objects.get(id=user_id)
+                )
+
+            task_key = f"{dataset_name}_{model_name}"
+            training_tasks[task_key] = {
+                'status': 'completed',
+                'result': {
+                    'best_epoch': best_epoch,
+                    'acc': best_acc,
+                    'auc': best_auc,
+                    'rmse': rmse,
+                    'training_curves': training_curves
+                }
+            }
+            print(f"========== 任务 {dataset_name}_{model_name} 完成 ==========")
+            return
+
         # 设置环境变量，告诉params.py使用哪个数据集
         os.environ['CD_DATASET'] = dataset_name
         print(f"设置环境变量 CD_DATASET={dataset_name}")
