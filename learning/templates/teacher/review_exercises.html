@@ -1,0 +1,329 @@
+{% extends 'teacher/course_management_base.html' %}
+{% load static %}
+
+{% block title %}审核习题 - 在线学习诊断系统{% endblock %}
+
+{% block content %}
+
+<div class="row">
+    <!-- 侧边导航栏 -->
+    <div class="col-md-3 mb-4">
+        <div class="card shadow-sm border-0 rounded-lg">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-list-check"></i> 审核导航</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    <a href="{% url 'course_review_dashboard' builder_id=builder.id %}" 
+                       class="list-group-item list-group-item-action">
+                        <i class="bi bi-speedometer2 me-2"></i> 审核概览
+                    </a>
+                    <a href="{% url 'review_exercises' builder_id=builder.id %}" 
+                       class="list-group-item list-group-item-action active">
+                        <i class="bi bi-question-circle me-2"></i> 审核习题
+                    </a>
+                    <a href="{% url 'review_knowledge_points' builder_id=builder.id %}" 
+                       class="list-group-item list-group-item-action">
+                        <i class="bi bi-lightbulb me-2"></i> 审核知识点
+                    </a>
+                    <a href="{% url 'review_relationships' builder_id=builder.id %}" 
+                       class="list-group-item list-group-item-action">
+                        <i class="bi bi-diagram-3 me-2"></i> 审核知识图谱
+                    </a>
+                    <div class="list-group-item">
+                        <div class="d-grid">
+                            <a href="{% url 'complete_review' builder_id=builder.id %}" 
+                               class="btn btn-success">
+                                <i class="bi bi-check-circle"></i> 完成审核并提交
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 课程信息 -->
+        <div class="card shadow-sm border-0 rounded-lg mt-3">
+            <div class="card-header bg-light">
+                <h6 class="mb-0"><i class="bi bi-info-circle"></i> 课程信息</h6>
+            </div>
+            <div class="card-body">
+                <h6 class="mb-2">{{ builder.subject_name }}</h6>
+                <p class="small text-muted mb-0">当前审核: 习题 ({{ exercises|length }}个)</p>
+            </div>
+        </div>
+        
+        <!-- 审核说明 -->
+        <div class="card shadow-sm border-0 rounded-lg mt-3">
+            <div class="card-header bg-info text-white">
+                <h6 class="mb-0"><i class="bi bi-info-circle"></i> 审核说明</h6>
+            </div>
+            <div class="card-body">
+                <p class="small mb-2">1. 检查习题内容是否合理</p>
+                <p class="small mb-2">2. 检查题目表述是否清晰</p>
+                <p class="small mb-2">3. 检查答案是否正确</p>
+                <p class="small mb-0">4. 可以修改题目内容</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 主内容区 -->
+    <div class="col-md-9">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h4 class="mb-1"><i class="bi bi-question-circle text-primary"></i> 习题审核</h4>
+                <p class="text-muted mb-0">审核AI生成的习题，一次显示10个</p>
+            </div>
+            <div>
+                <a href="{% url 'course_review_dashboard' builder_id=builder.id %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> 返回概览
+                </a>
+            </div>
+        </div>
+        
+        {% if exercises %}
+            <div id="exercisesContainer">
+                {% for review in exercises %}
+                <div class="card shadow-sm border-0 rounded-lg mb-4 exercise-card" data-id="{{ review.exercise.id }}">
+                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">习题 {{ forloop.counter }}</h6>
+                            <small class="text-muted">ID: {{ review.exercise.id }}</small>
+                        </div>
+                        <div>
+                            <span class="badge bg-{% if review.exercise.question_type == 'single' %}primary{% elif review.exercise.question_type == 'multiple' %}info{% elif review.exercise.question_type == 'judgment' %}warning{% else %}secondary{% endif %}">
+                                {% if review.exercise.question_type == 'single' %}单选题
+                                {% elif review.exercise.question_type == 'multiple' %}多选题
+                                {% elif review.exercise.question_type == 'judgment' %}判断题
+                                {% else %}{{ review.exercise.question_type }}{% endif %}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <!-- 原始内容 -->
+                        <div class="mb-4">
+                            <h6 class="text-muted mb-2"><i class="bi bi-file-earmark-text"></i> 原始内容</h6>
+                            <div class="border rounded p-3 bg-light">
+                                <p class="mb-2"><strong>题目:</strong> {{ review.exercise.content }}</p>
+                                {% if review.exercise.options %}
+                                    <p class="mb-1"><strong>选项:</strong></p>
+                                    <pre class="mb-2 small">{{ review.exercise.options }}</pre>
+                                {% endif %}
+                                <p class="mb-0"><strong>答案:</strong> {{ review.exercise.answer }}</p>
+                            </div>
+                        </div>
+                        
+                        <!-- 审核编辑区 -->
+                        <div class="mb-4">
+                            <h6 class="text-primary mb-2"><i class="bi bi-pencil-square"></i> 审核编辑</h6>
+                            <div class="mb-3">
+                                <label class="form-label">修改题目内容</label>
+                                <textarea class="form-control review-content" rows="3" 
+                                          placeholder="如果需要修改题目内容，请在此编辑...">{{ review.exercise.content }}</textarea>
+                            </div>
+                            {% if review.exercise.options %}
+                            <div class="mb-3">
+                                <label class="form-label">修改选项（JSON格式）</label>
+                                <textarea class="form-control review-options" rows="2" 
+                                          placeholder="如果需要修改选项，请在此编辑...">{{ review.exercise.options }}</textarea>
+                            </div>
+                            {% endif %}
+                            <div class="mb-3">
+                                <label class="form-label">修改答案</label>
+                                <input type="text" class="form-control review-answer" 
+                                       value="{{ review.exercise.answer }}" placeholder="请输入答案">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">审核备注</label>
+                                <textarea class="form-control review-notes" rows="2" 
+                                          placeholder="请输入审核备注（可选）"></textarea>
+                            </div>
+                        </div>
+                        
+                        <!-- 审核操作 -->
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="form-check">
+                                <input class="form-check-input exercise-approved" type="checkbox" id="approved{{ review.exercise.id }}">
+                                <label class="form-check-label" for="approved{{ review.exercise.id }}">
+                                    通过审核
+                                </label>
+                            </div>
+                            <div>
+                                <button class="btn btn-outline-secondary btn-sm" onclick="resetExercise({{ review.exercise.id }})">
+                                    <i class="bi bi-arrow-counterclockwise"></i> 重置
+                                </button>
+                                <button class="btn btn-primary btn-sm" onclick="submitExerciseReview({{ review.exercise.id }})">
+                                    <i class="bi bi-check-circle"></i> 提交审核
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            
+            <!-- 批量操作 -->
+            <div class="card shadow-sm border-0 rounded-lg p-3 mb-4">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <button class="btn btn-outline-primary" onclick="approveAllExercises()">
+                            <i class="bi bi-check-all"></i> 全部通过
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick="resetAllExercises()">
+                            <i class="bi bi-arrow-counterclockwise"></i> 全部重置
+                        </button>
+                    </div>
+                    <div>
+                        <a href="{% url 'review_exercises' builder_id=builder.id %}" class="btn btn-success">
+                            <i class="bi bi-arrow-right-circle"></i> 下一批（{{ exercises|length }}个）
+                        </a>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="card shadow-sm border-0 rounded-lg p-5 text-center">
+                <i class="bi bi-check-circle text-success fs-1 mb-3"></i>
+                <h4 class="mb-3">所有习题已审核完成！</h4>
+                <p class="text-muted mb-4">您已经完成了所有习题的审核。</p>
+                <div class="d-flex justify-content-center gap-3">
+                    <a href="{% url 'review_knowledge_points' builder_id=builder.id %}" class="btn btn-primary">
+                        <i class="bi bi-lightbulb"></i> 继续审核知识点
+                    </a>
+                    <a href="{% url 'course_review_dashboard' builder_id=builder.id %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-speedometer2"></i> 返回审核概览
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+
+<script>
+function getExerciseData(exerciseId) {
+    const card = document.querySelector(`.exercise-card[data-id="${exerciseId}"]`);
+    return {
+        content: card.querySelector('.review-content').value,
+        options: card.querySelector('.review-options') ? card.querySelector('.review-options').value : '',
+        answer: card.querySelector('.review-answer').value,
+        notes: card.querySelector('.review-notes').value,
+        is_approved: card.querySelector('.exercise-approved').checked
+    };
+}
+
+function submitExerciseReview(exerciseId) {
+    const data = getExerciseData(exerciseId);
+    
+    if (!data.content.trim()) {
+        alert('题目内容不能为空！');
+        return;
+    }
+    
+    if (!data.answer.trim()) {
+        alert('答案不能为空！');
+        return;
+    }
+    
+    fetch(`{% url 'submit_review' builder_id=builder.id review_type='exercise' %}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: new URLSearchParams({
+            'exercise_id': exerciseId,
+            'reviewed_content': data.content,
+            'is_approved': data.is_approved,
+            'review_notes': data.notes
+        })
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            const card = document.querySelector(`.exercise-card[data-id="${exerciseId}"]`);
+            card.style.opacity = '0.5';
+            card.style.pointerEvents = 'none';
+            
+            // 显示成功提示
+            const successBadge = document.createElement('span');
+            successBadge.className = 'badge bg-success ms-2';
+            successBadge.innerHTML = '<i class="bi bi-check"></i> 已提交';
+            card.querySelector('.card-header').appendChild(successBadge);
+            
+            // 检查是否所有习题都已提交
+            checkAllSubmitted();
+        } else {
+            alert('提交失败，请重试！');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('提交失败，请检查网络连接！');
+    });
+}
+
+function resetExercise(exerciseId) {
+    const card = document.querySelector(`.exercise-card[data-id="${exerciseId}"]`);
+    card.querySelector('.review-content').value = card.querySelector('.review-content').defaultValue;
+    if (card.querySelector('.review-options')) {
+        card.querySelector('.review-options').value = card.querySelector('.review-options').defaultValue;
+    }
+    card.querySelector('.review-answer').value = card.querySelector('.review-answer').defaultValue;
+    card.querySelector('.review-notes').value = '';
+    card.querySelector('.exercise-approved').checked = false;
+}
+
+function approveAllExercises() {
+    document.querySelectorAll('.exercise-approved').forEach(checkbox => {
+        checkbox.checked = true;
+    });
+}
+
+function resetAllExercises() {
+    document.querySelectorAll('.exercise-card').forEach(card => {
+        const exerciseId = card.getAttribute('data-id');
+        resetExercise(exerciseId);
+    });
+}
+
+function checkAllSubmitted() {
+    const remainingCards = document.querySelectorAll('.exercise-card:not([style*="opacity: 0.5"])');
+    if (remainingCards.length === 0) {
+        // 所有习题都已提交，显示提示
+        const container = document.getElementById('exercisesContainer');
+        const message = document.createElement('div');
+        message.className = 'alert alert-success text-center mt-3';
+        message.innerHTML = `
+            <i class="bi bi-check-circle"></i> 本批习题已全部审核完成！
+            <div class="mt-2">
+                <a href="{% url 'review_exercises' builder_id=builder.id %}" class="btn btn-primary btn-sm">
+                    <i class="bi bi-arrow-right-circle"></i> 继续审核下一批
+                </a>
+                <a href="{% url 'review_knowledge_points' builder_id=builder.id %}" class="btn btn-info btn-sm">
+                    <i class="bi bi-lightbulb"></i> 开始审核知识点
+                </a>
+            </div>
+        `;
+        container.appendChild(message);
+    }
+}
+
+// 初始化
+document.addEventListener('DOMContentLoaded', function() {
+    // 添加键盘快捷键
+    document.addEventListener('keydown', function(e) {
+        if (e.ctrlKey && e.key === 'Enter') {
+            const activeCard = document.querySelector('.exercise-card:not([style*="opacity: 0.5"])');
+            if (activeCard) {
+                const exerciseId = activeCard.getAttribute('data-id');
+                submitExerciseReview(exerciseId);
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

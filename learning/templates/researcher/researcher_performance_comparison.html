@@ -894,7 +894,11 @@ function drawTrainingCharts(data) {
     }
 
     const colors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
-    const epochs = Array.from({length: 10}, (_, i) => `第${i+1}轮`);
+    const maxEpochs = Math.max(
+        10,
+        ...[...(data.acc || []), ...(data.auc || []), ...(data.rmse || [])].map(series => (series || []).length)
+    );
+    const epochs = Array.from({length: maxEpochs}, (_, i) => `第${i+1}轮`);
 
     // 绘制ACC图表
     drawChart('accChart', 'ACC (%)', data.models, data.acc, colors, epochs, true);

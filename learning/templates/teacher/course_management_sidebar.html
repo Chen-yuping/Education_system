@@ -19,6 +19,13 @@
 
     <ul class="nav flex-column">
         {% if subject %}
+
+        <li class="nav-item">
+            <a class="nav-link {% if request.resolver_match.url_name == 'upload_resource' %}active{% endif %}"
+               href="{% url 'upload_resource' %}?subject_id={{ subject.id }}">
+                <i class="fas fa-cloud-upload-alt"></i> 上传资料
+            </a>
+        </li>
         <li class="nav-item">
             <a class="nav-link {% if request.resolver_match.url_name == 'upload_exercise' %}active{% endif %}" 
                href="{% url 'upload_exercise' %}?subject_id={{ subject.id }}">

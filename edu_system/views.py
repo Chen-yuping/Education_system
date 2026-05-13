@@ -1,4 +1,3 @@
-#我修改了
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
 from learning.models import *
@@ -13,6 +12,8 @@ import json
 from datetime import datetime, timedelta
 
 import csv
+
+# 首页
 def home(request):
     """学堂在线风格主页"""
     # 获取热门科目和课程

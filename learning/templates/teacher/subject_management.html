@@ -121,7 +121,16 @@
 </style>
 
 <div class="course-management-container">
-  
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3 mb-4 border-bottom">
+        <h1 class="h2">
+            <i class="fas fa-chalkboard-teacher me-2"></i>授课管理
+        </h1>
+        <div class="btn-group">
+            <a href="{% url 'quick_build_course' %}" target="_blank" class="btn btn-success">
+                <i class="fas fa-bolt"></i> 快速构建课程
+            </a>
+        </div>
+    </div>
 
     <div class="row">
         <!-- 左侧：可选课程 -->

@@ -57,7 +57,32 @@
             transform: translateY(-5px);
             box-shadow: 0 10px 20px rgba(0,0,0,0.1);
         }
+        .course-img-wrapper {
+            width: 100%;
+            height: 160px;
+            overflow: hidden;
+            background-color: #f0f2f5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
 
+        .course-img-placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #1e88e5 0%, #0d47a1 100%);
+            color: white;
+            font-size: 3rem;
+        }
+
+        .course-card img {
+            width: 100%;
+            height: 160px;
+            object-fit: cover;
+        }
         .course-card img {
             height: 160px;
             object-fit: cover;
@@ -251,13 +276,7 @@
         </div>
     </nav>
 
-    <!-- 页面头部 -->
-    <div class="page-header">
-        <div class="container">
-            <h1>全部课程</h1>
-            <p>浏览平台上的所有课程，选择感兴趣的课程开始学习</p>
-        </div>
-    </div>
+
 
     <!-- 主要内容 -->
     <main class="container py-5">
@@ -299,36 +318,43 @@
             <div class="row">
                 {% for course in page_obj %}
                 <div class="col-md-6 col-lg-4">
-                    <div class="card course-card">
-                        <img src="{% static 'images/subject/' %}{{ course.id }}.jpg" 
-                             class="card-img-top" 
-                             alt="{{ course.name }}"
-                             onerror="this.style.background='linear-gradient(135deg, #1e88e5 0%, #0d47a1 100%)'">
-                        <div class="card-body">
-                            <h5 class="card-title">{{ course.name }}</h5>
-                            <p class="card-text">{{ course.description|default:"暂无课程描述"|truncatewords:20 }}</p>
-                            <div class="course-stats">
-                                <span class="stat-item">
-                                    <i class="fas fa-book"></i>
-                                    <span>{{ course.exercise_set.count }} 道习题</span>
-                                </span>
-                                <span class="stat-item">
-                                    <i class="fas fa-brain"></i>
-                                    <span>{{ course.knowledgepoint_set.count }} 个知识点</span>
-                                </span>
-                            </div>
-                            {% if user.is_authenticated and user.user_type == 'student' %}
-                                <a href="{% url 'student_course_management' %}" class="btn btn-sm btn-primary w-100">
-                                    <i class="fas fa-plus me-1"></i>选择课程
-                                </a>
-                            {% else %}
-                                <a href="{% url 'register' %}" class="btn btn-sm btn-primary w-100">
-                                    <i class="fas fa-sign-in-alt me-1"></i>登录选课
-                                </a>
-                            {% endif %}
-                        </div>
-                    </div>
+    <div class="card course-card">
+        <!-- 图片区域 - 修改这里 -->
+        {% if course.image and course.image.url %}
+            <img src="{{ course.image.url }}" class="card-img-top" alt="{{ course.name }}">
+        {% else %}
+            <div class="course-img-wrapper">
+                <div class="course-img-placeholder">
+                    <i class="fas fa-book-open"></i>
                 </div>
+            </div>
+        {% endif %}
+        <!-- 图片区域结束 -->
+        <div class="card-body">
+            <h5 class="card-title">{{ course.name }}</h5>
+            <p class="card-text">{{ course.description|default:"暂无课程描述"|truncatewords:20 }}</p>
+            <div class="course-stats">
+                <span class="stat-item">
+                    <i class="fas fa-book"></i>
+                    <span>{{ course.exercise_set.count }} 道习题</span>
+                </span>
+                <span class="stat-item">
+                    <i class="fas fa-brain"></i>
+                    <span>{{ course.knowledgepoint_set.count }} 个知识点</span>
+                </span>
+            </div>
+            {% if user.is_authenticated and user.user_type == 'student' %}
+                <a href="{% url 'student_course_management' %}" class="btn btn-sm btn-primary w-100">
+                    <i class="fas fa-plus me-1"></i>选择课程
+                </a>
+            {% else %}
+                <a href="{% url 'register' %}" class="btn btn-sm btn-primary w-100">
+                    <i class="fas fa-sign-in-alt me-1"></i>登录选课
+                </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
                 {% endfor %}
             </div>
 

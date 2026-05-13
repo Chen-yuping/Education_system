@@ -1,0 +1,8 @@
+学生和教师端的诊断模型
+views_diagnosis.py  run_diagnosis里面是控制训练的全过程
+data_export.py  从数据库下载数据保存到data里面
+
+dataloader.py、params.py、main.py是训练相关的训练过程
+
+inference_and_save.py   推理获取诊断数据（不写数据库），直接返回用于前端可视化
+

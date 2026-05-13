@@ -115,9 +115,9 @@ class IRT:
         trainer = torch.optim.Adam(self.irt_net.parameters(), lr)
         best_epoch = 0
         best_auc = 0.
-        acc1 = 0.
+        best_acc = 0.
         best_f1 = 0.
-        rmse1 = 1.
+        best_rmse = 1.
 
         for e in range(epoch):
             losses = []
@@ -143,12 +143,57 @@ class IRT:
                 if auc > best_auc:
                     best_epoch = e
                     best_auc = auc
-                    acc = accuracy
+                    best_acc = accuracy
                     best_f1 = f1
-                    rmse=rmse
-                    # self.save("params/irt.params")
-            print('BEST epoch<%d>, auc: %s, acc: %s, rmse: %.6f, f1: %.6f' % (best_epoch, best_auc, acc1, rmse1, best_f1))
-        return best_epoch, best_auc, acc,rmse
+                    best_rmse=rmse
+                    self.save("params/irt.params")
+            print('BEST epoch<%d>, auc: %s, acc: %s, rmse: %.6f, f1: %.6f' % (best_epoch, best_auc, best_acc, best_rmse, best_f1))
+        return best_epoch, best_auc, best_acc,best_rmse
+
+    def train_with_curves(self, train_data, test_data=None, *, epoch: int, device="cpu", lr=0.001) -> ...:
+        self.irt_net = self.irt_net.to(device)
+        loss_function = nn.BCELoss()
+
+        trainer = torch.optim.Adam(self.irt_net.parameters(), lr)
+        best_epoch = 0
+        best_auc = 0.
+        best_acc = 0.
+        best_f1 = 0.
+        best_rmse = 1.
+        training_curves = {'acc': [], 'auc': [], 'rmse': []}
+
+        for e in range(epoch):
+            self.irt_net.train()
+            losses = []
+            for batch_data in tqdm(train_data, "Epoch %s" % e, file=sys.stdout):
+                user_id, item_id, _, response = batch_data
+                user_id: torch.Tensor = user_id.to(device)
+                item_id: torch.Tensor = item_id.to(device)
+                predicted_response: torch.Tensor = self.irt_net(user_id, item_id)
+                response: torch.Tensor = response.to(device)
+                loss = loss_function(predicted_response, response)
+
+                trainer.zero_grad()
+                loss.backward()
+                trainer.step()
+
+                losses.append(loss.mean().item())
+            print("LogisticLoss: %.6f" % float(np.mean(losses)))
+
+            if test_data is not None:
+                auc, accuracy, rmse, f1 = self.eval(test_data, device=device)
+                training_curves['acc'].append(accuracy)
+                training_curves['auc'].append(auc)
+                training_curves['rmse'].append(rmse)
+                print("[Epoch %d] auc: %.6f, accuracy: %.6f, rmse: %.6f, f1: %.6f" % (e, auc, accuracy, rmse, f1))
+                if auc > best_auc:
+                    best_epoch = e
+                    best_auc = auc
+                    best_acc = accuracy
+                    best_f1 = f1
+                    best_rmse = rmse
+            print('BEST epoch<%d>, auc: %s, acc: %s, rmse: %.6f, f1: %.6f' % (best_epoch, best_auc, best_acc, best_rmse, best_f1))
+        return (best_epoch, best_auc, best_acc, best_rmse), training_curves
 
     def eval(self, test_data, device="cpu") -> tuple:
         self.irt_net = self.irt_net.to(device)

@@ -8,7 +8,7 @@ from django.contrib import messages
 from django.http import JsonResponse
 import re
 from django.contrib.auth.hashers import make_password
-
+from django.contrib.auth.models import User
 def user_login(request):
     """用户登录视图 - 验证账号、密码和身份"""
     if request.method == 'POST':
@@ -40,15 +40,10 @@ def user_login(request):
 
     return render(request, 'accounts/login.html', {'form': form})
 
-
 def user_logout(request):
     """用户登出视图"""
     logout(request)
     return redirect('home')
-
-
-from django.contrib.auth.models import User
-
 
 def register(request):
     """用户注册视图"""

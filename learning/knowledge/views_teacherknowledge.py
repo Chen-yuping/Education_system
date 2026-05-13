@@ -54,7 +54,7 @@ def knowledge_graph(request):
 @user_passes_test(is_teacher)
 @require_GET
 def knowledge_points_api(request, subject_id):
-    """获取知识点关系图数据 - 返回JSON格式"""
+    """获取知识点关系图数据 - 从MySQL获取数据"""
     try:
 
         # 验证科目存在
@@ -66,8 +66,6 @@ def knowledge_points_api(request, subject_id):
         # 构建节点数据
         nodes = []
         for kp in knowledge_points:
-            # 获取每个知识点的习题数量（从QMatrix统计）
-
             # 获取科目对应的习题模型
             exercise_model = None
             if subject.name == '数学':
@@ -79,7 +77,6 @@ def knowledge_points_api(request, subject_id):
 
             exercise_count = 0
             if exercise_model:
-                # 统计与该知识点相关的习题数量
                 exercise_count = QMatrix.objects.filter(
                     content_type__model=exercise_model._meta.model_name,
                     knowledge_point=kp
@@ -95,21 +92,17 @@ def knowledge_points_api(request, subject_id):
         # 获取该科目的所有知识点关系
         relationships = KnowledgeGraph.objects.filter(subject_id=subject_id)
 
-        # 处理关系，合并双向关系
         links = []
         processed_pairs = set()
 
         for rel in relationships:
-            # 创建唯一标识符
             source_id = rel.source_id
             target_id = rel.target_id
             pair_key = frozenset([source_id, target_id])
 
-            # 跳过已处理的关系对
             if pair_key in processed_pairs:
                 continue
 
-            # 检查是否存在反向关系
             reverse_exists = KnowledgeGraph.objects.filter(
                 subject_id=subject_id,
                 source_id=target_id,
@@ -117,7 +110,6 @@ def knowledge_points_api(request, subject_id):
             ).exists()
 
             if reverse_exists:
-                # 双向关系 - 无箭头
                 links.append({
                     'source': min(source_id, target_id),
                     'target': max(source_id, target_id),
@@ -125,7 +117,6 @@ def knowledge_points_api(request, subject_id):
                     'arrow': False
                 })
             else:
-                # 单向关系 - 有箭头
                 links.append({
                     'source': source_id,
                     'target': target_id,
@@ -133,7 +124,6 @@ def knowledge_points_api(request, subject_id):
                     'arrow': True
                 })
 
-            # 标记已处理
             processed_pairs.add(pair_key)
 
         response_data = {
@@ -144,6 +134,7 @@ def knowledge_points_api(request, subject_id):
             'links': links,
             'node_count': len(nodes),
             'link_count': len(links),
+            'data_source': 'mysql',
             'message': f'成功获取{len(nodes)}个知识点和{len(links)}个关系'
         }
         return JsonResponse(response_data)
@@ -157,6 +148,8 @@ def knowledge_points_api(request, subject_id):
         }, status=404)
     except Exception as e:
         print(f"API错误: {e}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({
             'status': 'error',
             'message': f'获取数据失败: {str(e)}',

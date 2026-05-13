@@ -10,12 +10,16 @@ from django.http import JsonResponse, HttpResponse
 from django.db.models import Q, Count, Avg
 from django.core.paginator import Paginator
 import json
+import math
+import re
 from datetime import datetime, timedelta
+from pathlib import Path
 from .models import Exercise, Subject, KnowledgePoint, Choice, QMatrix, AnswerLog, StudentDiagnosis
 from accounts.models import *
 import importlib.util
 from .forms import ExerciseForm
 import torch
+from django.conf import settings
 from django.views.decorators.http import require_POST
 from django.utils import timezone
 
@@ -252,11 +256,245 @@ def researcher_performance_comparison(request):
 # 训练状态存储（实际生产环境应该用数据库或缓存）
 training_tasks = {}
 
+def _cdf_model_log_dir(model_name, dataset_name):
+    return (
+        Path(settings.BASE_DIR)
+        / 'learning'
+        / 'diagnosis'
+        / 'CMD_survey'
+        / 'model'
+        / model_name
+        / 'logs'
+        / dataset_name
+    )
+
+
+def _snapshot_log_dirs(log_dir):
+    if not log_dir.exists():
+        return set()
+    return {path.resolve() for path in log_dir.iterdir() if path.is_dir()}
+
+
+def _find_newest_log_file(log_dir, before_dirs):
+    if not log_dir.exists():
+        return None
+
+    candidates = []
+    for path in log_dir.iterdir():
+        if not path.is_dir():
+            continue
+        resolved = path.resolve()
+        if resolved in before_dirs:
+            continue
+        log_file = path / 'log.txt'
+        if log_file.exists():
+            candidates.append(log_file)
+
+    if not candidates:
+        candidates = [path / 'log.txt' for path in log_dir.iterdir() if path.is_dir() and (path / 'log.txt').exists()]
+
+    if not candidates:
+        return None
+
+    return max(candidates, key=lambda item: item.stat().st_mtime)
+
+
+def _parse_cdf_training_curves(log_file):
+    curves = {'acc': [], 'auc': [], 'rmse': []}
+    if not log_file or not log_file.exists():
+        return curves
+
+    epoch_metrics = {}
+    train_pattern = re.compile(
+        r"epoch\s*=\s*(?P<epoch>\d+).*?train_acc\s*=\s*(?P<acc>[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)"
+        r".*?train_auc\s*=\s*(?P<auc>[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)"
+        r".*?train_r?mse\s*=\s*(?P<rmse>[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)"
+    )
+    valid_acc_pattern = re.compile(r"valid acc\s*=\s*(?P<acc>[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)")
+    valid_auc_pattern = re.compile(r"valid auc\s*=\s*(?P<auc>[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)")
+    valid_mse_pattern = re.compile(r"valid mse\s*=\s*(?P<mse>[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)")
+    epoch_hint_pattern = re.compile(r"epoch\s*=\s*(?P<epoch>\d+)")
+
+    current_epoch = None
+    lines = log_file.read_text(encoding='utf-8', errors='ignore').splitlines()
+    for line in lines:
+        train_match = train_pattern.search(line)
+        if train_match:
+            epoch = int(train_match.group('epoch'))
+            epoch_metrics.setdefault(epoch, {})
+            epoch_metrics[epoch]['acc'] = float(train_match.group('acc'))
+            epoch_metrics[epoch]['auc'] = float(train_match.group('auc'))
+            epoch_metrics[epoch]['rmse'] = float(train_match.group('rmse'))
+            current_epoch = epoch
+            continue
+
+        epoch_hint_match = epoch_hint_pattern.search(line)
+        if epoch_hint_match:
+            current_epoch = int(epoch_hint_match.group('epoch'))
+
+        if current_epoch is None:
+            continue
+
+        valid_acc_match = valid_acc_pattern.search(line)
+        if valid_acc_match:
+            epoch_metrics.setdefault(current_epoch, {})
+            epoch_metrics[current_epoch]['acc'] = float(valid_acc_match.group('acc'))
+            continue
+
+        valid_auc_match = valid_auc_pattern.search(line)
+        if valid_auc_match:
+            epoch_metrics.setdefault(current_epoch, {})
+            epoch_metrics[current_epoch]['auc'] = float(valid_auc_match.group('auc'))
+            continue
+
+        valid_mse_match = valid_mse_pattern.search(line)
+        if valid_mse_match:
+            epoch_metrics.setdefault(current_epoch, {})
+            mse_value = float(valid_mse_match.group('mse'))
+            epoch_metrics[current_epoch]['rmse'] = math.sqrt(mse_value) if mse_value > 0 else 0.0
+
+    for epoch in sorted(epoch_metrics):
+        metrics = epoch_metrics[epoch]
+        curves['acc'].append(metrics.get('acc'))
+        curves['auc'].append(metrics.get('auc'))
+        curves['rmse'].append(metrics.get('rmse'))
+
+    return curves
+
 """后台执行训练任务"""
 def run_training_task(dataset_name, model_name, experiment_id, user_id):
     import os
     try:
         print(f"========== 开始训练任务: {dataset_name}_{model_name} ==========")
+        
+        # CDF 系列模型单独走适配器训练逻辑。
+        # 这里的展示名已经改成 IdpCDF / PCG-CDF，底层适配器目录也已经改成新名称。
+        if model_name in {'IdpCDF', 'HierCDF', 'ConCDF', 'PCG-CDF'}:
+            print(f"检测到 {model_name} 模型，使用专用适配器训练")
+
+            base_path = os.path.join(settings.BASE_DIR, 'learning', 'diagnosis', 'CMD_survey')
+            if model_name == 'IdpCDF':
+                # IdpCDF 使用自己的目录。
+                model_dir_name = 'IdpCDF'
+            elif model_name == 'PCG-CDF':
+                # PCG-CDF 使用自己的目录。
+                model_dir_name = 'PCGCDF'
+            else:
+                model_dir_name = model_name
+
+            model_dir = os.path.join(base_path, 'model', model_dir_name)
+            if model_dir not in sys.path:
+                sys.path.insert(0, model_dir)
+
+            device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+            log_dir = _cdf_model_log_dir(model_dir_name, dataset_name)
+            before_log_dirs = _snapshot_log_dirs(log_dir)
+
+            if model_name == 'ConCDF':
+                # 包含关系模型使用 ConCDF 适配器。
+                from ConCDF_adapter import train_concdm
+                best_epoch, best_auc, best_acc, rmse = train_concdm(dataset_name, device=device)
+            elif model_name == 'HierCDF':
+                # 层次关系模型使用 HierCDF 适配器。
+                from HierCDF_adapter import train_hiercdm
+                best_epoch, best_auc, best_acc, rmse = train_hiercdm(dataset_name, device=device)
+            elif model_name == 'IdpCDF':
+                # IdpCDF 使用新的适配器。
+                from IdpCDF_adapter import train_basecdm
+                best_epoch, best_auc, best_acc, rmse = train_basecdm(dataset_name, device=device)
+            else:
+                # PCG-CDF 使用新的适配器。
+                from PCGCDF_adapter import train_mixcdm
+                best_epoch, best_auc, best_acc, rmse = train_mixcdm(dataset_name, device=device)
+
+            log_file = _find_newest_log_file(log_dir, before_log_dirs)
+            training_curves = _parse_cdf_training_curves(log_file)
+
+            from .models import Experiment, ModelTrainingResult, Dataset, DiagnosisModel
+            from django.contrib.auth import get_user_model
+
+            User = get_user_model()
+            dataset_obj = Dataset.objects.get(name=dataset_name)
+            model_obj = DiagnosisModel.objects.get(name=model_name)
+
+            if experiment_id:
+                experiment = Experiment.objects.get(batch_id=experiment_id)
+                ModelTrainingResult.objects.create(
+                    experiment=experiment,
+                    diagnosis_model=model_obj,
+                    dataset=dataset_obj,
+                    best_round=best_epoch,
+                    acc=best_acc,
+                    auc=best_auc,
+                    rmse=rmse if rmse else 0.0,
+                    best_round_time=0.0,
+                    total_time=0.0,
+                    created_by=User.objects.get(id=user_id)
+                )
+
+            task_key = f"{dataset_name}_{model_name}"
+            training_tasks[task_key] = {
+                'status': 'completed',
+                'result': {
+                    'best_epoch': best_epoch,
+                    'acc': best_acc,
+                    'auc': best_auc,
+                    'rmse': rmse,
+                    'training_curves': training_curves
+                }
+            }
+            print(f"========== 任务 {dataset_name}_{model_name} 完成 ==========")
+            return
+
+
+        from .diagnosis.dual_relation_ncdm import MODEL_NAMES as IRD_NCDM_MODEL_NAMES
+        if model_name in IRD_NCDM_MODEL_NAMES:
+            from .diagnosis.dual_relation_ncdm.platform import train_researcher_dataset
+
+            result_data = train_researcher_dataset(dataset_name, model_name=model_name)
+            best_epoch = result_data['best_epoch']
+            best_auc = result_data['auc']
+            best_acc = result_data['acc']
+            rmse = result_data['rmse']
+            training_curves = result_data.get('training_curves') or {
+                'acc': [best_acc],
+                'auc': [best_auc],
+                'rmse': [rmse],
+            }
+
+            if experiment_id:
+                from .models import Experiment, ModelTrainingResult, Dataset, DiagnosisModel
+                from django.contrib.auth import get_user_model
+                User = get_user_model()
+                experiment = Experiment.objects.get(batch_id=experiment_id)
+                dataset_obj = Dataset.objects.get(name=dataset_name)
+                model_obj = DiagnosisModel.objects.get(name=model_name)
+                ModelTrainingResult.objects.create(
+                    experiment=experiment,
+                    diagnosis_model=model_obj,
+                    dataset=dataset_obj,
+                    best_round=best_epoch,
+                    acc=best_acc,
+                    auc=best_auc,
+                    rmse=rmse,
+                    best_round_time=result_data.get('best_round_time', 0.0),
+                    total_time=result_data.get('total_time', 0.0),
+                    created_by=User.objects.get(id=user_id)
+                )
+
+            task_key = f"{dataset_name}_{model_name}"
+            training_tasks[task_key] = {
+                'status': 'completed',
+                'result': {
+                    'best_epoch': best_epoch,
+                    'acc': best_acc,
+                    'auc': best_auc,
+                    'rmse': rmse,
+                    'training_curves': training_curves
+                }
+            }
+            print(f"========== 任务 {dataset_name}_{model_name} 完成 ==========")
+            return
 
         # 设置环境变量，告诉params.py使用哪个数据集
         os.environ['CD_DATASET'] = dataset_name
@@ -339,7 +577,6 @@ def run_training_task(dataset_name, model_name, experiment_id, user_id):
         print("ID转换完成")
 
         # ========== 新增：修改训练方法，获取每轮数据 ==========
-        import torch
         device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
         print(f"开始训练，使用设备: {device}")
 

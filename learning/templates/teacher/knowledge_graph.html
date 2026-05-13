@@ -14,39 +14,6 @@
         overflow: hidden;
     }
 
-    .node circle {
-        fill: #4e73df;
-        stroke: #2e59d9;
-        stroke-width: 2px;
-        cursor: pointer;
-        transition: all 0.3s ease;
-    }
-
-    .node text {
-        font: 12px sans-serif;
-        fill: white;
-        font-weight: bold;
-        pointer-events: none;
-        text-anchor: middle;
-        dominant-baseline: central;
-    }
-
-    .link {
-        fill: none;
-        stroke: #999;
-        stroke-width: 2px;
-    }
-
-    .link.arrow {
-        marker-end: url(#arrowhead);
-    }
-
-    .node:hover circle {
-        fill: #ff5722;
-        stroke: #e64a19;
-        r: 35;
-    }
-
     .tooltip {
         position: absolute;
         background: rgba(0, 0, 0, 0.8);
@@ -71,11 +38,6 @@
     .tooltip p {
         margin: 2px 0;
         font-size: 13px;
-    }
-
-    .arrow {
-        fill: #999;
-        stroke: #999;
     }
 </style>
 
@@ -244,16 +206,26 @@
 {% endblock %}
 
 {% block extra_js %}
-<!-- 引入D3.js -->
-<script src="https://d3js.org/d3.v7.min.js"></script>
+<!-- 引入 vis-network（Neo4j原生可视化引擎） -->
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+
+<style>
+    #chart {
+        width: 100%;
+        height: 100%;
+    }
+    #chart .vis-network {
+        outline: none;
+    }
+</style>
 
 <script>
 // 全局变量
-let simulation, currentData = {};
+let network, currentData = {};
 
 // 初始化函数
 function initKnowledgeGraph() {
-    console.log('初始化知识点关系图');
+    console.log('初始化知识点关系图（vis-network）');
 
     // 初始化时隐藏统计信息
     const stats = document.getElementById('stats');
@@ -263,12 +235,12 @@ function initKnowledgeGraph() {
 
     // 从URL参数或全局变量获取科目ID
     let subjectId = window.currentSubjectId;
-    
+
     if (!subjectId) {
         const urlParams = new URLSearchParams(window.location.search);
         subjectId = urlParams.get('subject_id');
     }
-    
+
     if (subjectId) {
         console.log('获取科目ID:', subjectId);
         loadKnowledgeGraph(subjectId);
@@ -295,26 +267,23 @@ function loadKnowledgeGraph(subjectId) {
     if (!subjectId) {
         subjectId = window.currentSubjectId;
     }
-    
+
     if (!subjectId) {
         const urlParams = new URLSearchParams(window.location.search);
         subjectId = urlParams.get('subject_id');
     }
-    
+
     if (!subjectId) {
-        // 清空图表
-        d3.select('#chart').html('');
         document.getElementById('stats').style.display = 'none';
         return;
     }
 
     console.log('加载科目ID:', subjectId);
 
-    // 显示加载中，隐藏初始提示
+    // 显示加载中
     const loading = document.getElementById('loading');
     const loadingMessage = document.getElementById('loadingMessage');
 
-    // 安全地设置textContent
     if (loadingMessage) {
         loadingMessage.textContent = `正在加载科目ID: ${subjectId} 的数据...`;
     }
@@ -329,28 +298,24 @@ function loadKnowledgeGraph(subjectId) {
         stats.style.display = 'none';
     }
 
-    // 清空之前的图表
-    d3.select('#chart').html('');
+    // 清空之前的图表容器
+    const chart = document.getElementById('chart');
+    chart.innerHTML = '';
 
-    // 调用API - 注意URL路径需要正确
-    const apiUrl = `/learning/teacher/api/knowledge-points/${subjectId}/`;  // 注意这里，根据您的urls.py配置
+    // 调用API
+    const apiUrl = `/learning/teacher/api/knowledge-points/${subjectId}/`;
     console.log('调用API:', apiUrl);
 
     fetch(apiUrl)
         .then(response => {
             console.log('API响应状态:', response.status);
-            console.log('Content-Type:', response.headers.get('content-type'));
-
-            // 检查是否是JSON响应
             const contentType = response.headers.get('content-type');
             if (!contentType || !contentType.includes('application/json')) {
-                // 如果不是JSON，获取文本看看是什么
                 return response.text().then(text => {
                     console.error('非JSON响应:', text.substring(0, 200));
                     throw new Error(`服务器返回了非JSON响应: ${response.status}`);
                 });
             }
-
             if (!response.ok) {
                 throw new Error(`HTTP错误: ${response.status}`);
             }
@@ -359,7 +324,6 @@ function loadKnowledgeGraph(subjectId) {
         .then(data => {
             console.log('收到数据:', data);
 
-            // 隐藏加载状态
             if (loading) {
                 loading.style.display = 'none';
             }
@@ -384,8 +348,8 @@ function loadKnowledgeGraph(subjectId) {
                     manageBtn.style.display = 'inline-block';
                 }
 
-                // 绘制图表
-                renderInteractiveGraph(data);
+                // 绘制图表（vis-network）
+                renderGraphVis(data);
             } else {
                 throw new Error(data.message || 'API返回失败状态');
             }
@@ -404,7 +368,7 @@ function loadKnowledgeGraph(subjectId) {
         });
 }
 
-// 安全的加载函数，避免DOM错误
+// 安全的加载函数
 function safeLoadGraph() {
     try {
         loadKnowledgeGraph();
@@ -414,191 +378,127 @@ function safeLoadGraph() {
     }
 }
 
-// 绘制交互式关系图
-function renderInteractiveGraph(data) {
-    const container = document.getElementById('graphContainer');
-    const width = container.clientWidth;
-    const height = container.clientHeight;
+// 使用 vis-network 绘制关系图
+function renderGraphVis(data) {
+    const container = document.getElementById('chart');
 
-    // 清空图表
-    d3.select('#chart').html('');
+    // 转换节点格式
+    const nodes = new vis.DataSet(data.nodes.map(n => ({
+        id: n.id,
+        label: n.name,
+        title: `<b>${n.name}</b><br>科目: ${n.subject}<br>习题数量: ${n.exercise_count || 0}`,
+        value: (n.exercise_count || 0) + 10,
+        shape: 'dot',
+        size: Math.max(28, Math.min(55, 28 + (n.exercise_count || 0) * 2)),
+        font: {
+            color: '#1a2332',
+            size: 14,
+            face: 'sans-serif',
+            strokeWidth: 3,
+            strokeColor: '#ffffff',
+            vadjust: 5,
+        },
+        color: {
+            background: '#4e73df',
+            border: '#2e59d9',
+            highlight: { background: '#ff5722', border: '#e64a19' }
+        },
+        borderWidth: 2,
+        margin: { top: 10, bottom: 10 },
+    })));
 
-    // 创建SVG
-    const svg = d3.select('#chart')
-        .append('svg')
-        .attr('width', width)
-        .attr('height', height)
-        .call(d3.zoom()
-            .scaleExtent([0.1, 4])
-            .on('zoom', function(event) {
-                g.attr('transform', event.transform);
-            }));
+    // 转换关系格式
+    const edges = new vis.DataSet(data.links.map(l => ({
+        from: l.source,
+        to: l.target,
+        arrows: l.arrow ? 'to' : undefined,
+        dashes: !l.arrow,           // 双向关系用虚线
+        color: { color: '#999', highlight: '#ff5722' },
+        width: 2,
+        smooth: { type: 'curvedCW', roundness: 0.1 },
+    })));
 
-    const g = svg.append('g');
+    // vis-network 配置
+    const options = {
+        autoResize: true,
+        width: '100%',
+        height: '100%',
+        locale: 'zh-CN',
+        interaction: {
+            hover: true,
+            tooltipDelay: 200,
+            navigationButtons: false,
+            zoomView: true,
+            dragView: true,
+            dragNodes: true,
+        },
+        physics: {
+            solver: 'barnesHut',
+            barnesHut: {
+                gravitationalConstant: -3000,
+                centralGravity: 0.3,
+                springLength: 180,
+                springConstant: 0.04,
+                damping: 0.5,
+            },
+            stabilize: true,
+            stabilizationIterations: 200,
+        },
+        edges: {
+            smooth: { type: 'curvedCW', roundness: 0.1 },
+        },
+        nodes: {
+            borderWidth: 2,
+            shadow: {
+                enabled: true,
+                size: 4,
+                x: 2,
+                y: 2,
+            },
+        },
+    };
 
-    // 添加箭头定义（只用于单向关系）
-    const defs = svg.append('defs');
+    // 创建可视化
+    network = new vis.Network(container, { nodes, edges }, options);
 
-    defs.append('marker')
-        .attr('id', 'arrowhead')
-        .attr('viewBox', '0 -5 10 10')
-        .attr('refX', 25)
-        .attr('refY', 0)
-        .attr('markerWidth', 6)
-        .attr('markerHeight', 6)
-        .attr('orient', 'auto')
-        .append('path')
-        .attr('d', 'M0,-5L10,0L0,5')
-        .attr('fill', '#999')
-        .attr('class', 'arrow');
-
-    // 创建力导向图
-    simulation = d3.forceSimulation(data.nodes)
-        .force('link', d3.forceLink(data.links).id(d => d.id).distance(100))
-        .force('charge', d3.forceManyBody().strength(10))
-        .force('center', d3.forceCenter(width / 2, height / 2))
-        .force('collision', d3.forceCollide().radius(50));
-
-    // 绘制链接
-    const link = g.append('g')
-        .attr('class', 'links')
-        .selectAll('line')
-        .data(data.links)
-        .enter().append('line')
-        .attr('class', d => `link ${d.arrow ? 'arrow' : ''}`)
-        .attr('stroke-width', d => d.arrow ? 2 : 2)
-        .attr('stroke', '#999')
-        .attr('stroke-dasharray', d => d.arrow ? 'none' : '5,5') // 双向关系用虚线
-        .attr('marker-end', d => d.arrow ? 'url(#arrowhead)' : null);
-
-    // 绘制节点
-    const node = g.append('g')
-        .attr('class', 'nodes')
-        .selectAll('g')
-        .data(data.nodes)
-        .enter().append('g')
-        .attr('class', 'node')
-        .call(d3.drag()
-            .on('start', dragstarted)
-            .on('drag', dragged)
-            .on('end', dragended));
-
-    // 节点圆圈（大小基于exercise_count）
-    node.append('circle')
-        .attr('r', d => {
-            const baseSize = 20;
-            const exerciseBonus = Math.min(d.exercise_count || 0, 30);
-            return baseSize + exerciseBonus;
-        })
-        .attr('fill', '#4e73df')
-        .attr('stroke', '#2e59d9')
-        .attr('stroke-width', 2);
-
-    // 节点文字
-    node.append('text')
-        .text(d => d.name)
-        .attr('x', 0)
-        .attr('y', 0)
-        .attr('text-anchor', 'middle')
-        .attr('fill', 'white')
-        .style('font-size', '12px')
-        .style('font-weight', 'bold')
-        .style('pointer-events', 'none');
-
-    // 节点悬停事件
-    node.on('mouseover', function(event, d) {
-        console.log('鼠标悬停在节点:', d.name);
-
-        // 高亮当前节点
-        d3.select(this).select('circle')
-            .attr('fill', '#ff5722')
-            .attr('stroke', '#e64a19')
-            .attr('stroke-width', 3);
-
-        // 高亮相关链接
-        link.style('stroke', function(linkData) {
-            return (linkData.source.id === d.id || linkData.target.id === d.id) ? '#ff5722' : '#999';
-        }).style('stroke-width', function(linkData) {
-            return (linkData.source.id === d.id || linkData.target.id === d.id) ? 3 : 2;
-        });
-
-        // 显示工具提示
-        const tooltip = document.getElementById('tooltip');
-        tooltip.innerHTML = `
-            <h6>${d.name}</h6>
-            <p><strong>科目:</strong> ${d.subject}</p>
-            <p><strong>习题数量:</strong> ${d.exercise_count || 0}</p>
-            <p><strong>知识点ID:</strong> ${d.id}</p>
-            <p class="text-warning small"><i class="fas fa-lightbulb me-1"></i>鼠标移开隐藏</p>
-        `;
-
-        // 定位工具提示
-        const rect = container.getBoundingClientRect();
-        tooltip.style.left = (event.clientX - rect.left + 20) + 'px';
-        tooltip.style.top = (event.clientY - rect.top - 60) + 'px';
-        tooltip.style.display = 'block';
+    // 点击节点事件
+    network.on('click', function(params) {
+        if (params.nodes.length > 0) {
+            const nodeId = params.nodes[0];
+            const nodeData = data.nodes.find(n => n.id === nodeId);
+            if (nodeData) {
+                console.log('点击节点:', nodeData.name);
+            }
+        }
     });
 
-    node.on('mousemove', function(event) {
-        const tooltip = document.getElementById('tooltip');
-        const rect = container.getBoundingClientRect();
-        tooltip.style.left = (event.clientX - rect.left + 20) + 'px';
-        tooltip.style.top = (event.clientY - rect.top - 60) + 'px';
+    // 悬停事件 - 更新tooltip
+    network.on('hoverNode', function(params) {
+        const nodeId = params.node;
+        const nodeData = data.nodes.find(n => n.id === nodeId);
+        if (nodeData) {
+            const tooltip = document.getElementById('tooltip');
+            tooltip.innerHTML = `
+                <h6>${nodeData.name}</h6>
+                <p><strong>科目:</strong> ${nodeData.subject}</p>
+                <p><strong>习题数量:</strong> ${nodeData.exercise_count || 0}</p>
+                <p><strong>知识点ID:</strong> ${nodeData.id}</p>
+                <p class="text-warning small"><i class="fas fa-lightbulb me-1"></i>鼠标移开隐藏</p>
+            `;
+            tooltip.style.display = 'block';
+        }
     });
 
-    node.on('mouseout', function(event, d) {
-        // 恢复节点样式
-        d3.select(this).select('circle')
-            .attr('fill', '#4e73df')
-            .attr('stroke', '#2e59d9')
-            .attr('stroke-width', 2);
-
-        // 恢复链接样式
-        link.style('stroke', '#999')
-            .style('stroke-width', d => d.arrow ? 2 : 2);
-
-        // 隐藏工具提示
+    network.on('blurNode', function() {
         document.getElementById('tooltip').style.display = 'none';
     });
 
-    // 力导向图更新
-    simulation.on('tick', () => {
-        link
-            .attr('x1', d => d.source.x)
-            .attr('y1', d => d.source.y)
-            .attr('x2', d => d.target.x)
-            .attr('y2', d => d.target.y);
-
-        node.attr('transform', d => `translate(${d.x},${d.y})`);
-    });
-
-    console.log('图表绘制完成');
+    console.log('vis-network 图表绘制完成，数据源:', data.data_source || 'unknown');
 }
 
-// 拖拽函数
-function dragstarted(event) {
-    if (!event.active) simulation.alphaTarget(0.3).restart();
-    event.subject.fx = event.subject.x;
-    event.subject.fy = event.subject.y;
-}
-
-function dragged(event) {
-    event.subject.fx = event.x;
-    event.subject.fy = event.y;
-}
-
-function dragended(event) {
-    if (!event.active) simulation.alphaTarget(0);
-    event.subject.fx = null;
-    event.subject.fy = null;
-}
-
-// 窗口大小变化时重绘
+// 窗口大小变化时自适应（vis-network 自动处理 resize，无需手动重绘）
 window.addEventListener('resize', function() {
-    const select = document.getElementById('subjectSelect');
-    if (select && select.value && currentData && currentData.nodes) {
-        renderInteractiveGraph(currentData);
-    }
+    // vis-network 的 autoResize: true 会自动处理
 });
 
 // 打开知识点关系管理模态框
@@ -607,50 +507,43 @@ let allKnowledgePoints = [];
 let allRelationships = [];
 
 function openRelationshipModal() {
-    // 从URL获取科目ID
     const urlParams = new URLSearchParams(window.location.search);
     currentSubjectId = urlParams.get('subject_id') || window.currentSubjectId;
-    
+
     if (!currentSubjectId) {
         alert('无法获取科目ID');
         return;
     }
-    
-    // 加载知识点和关系数据
+
     loadRelationshipData();
-    
-    // 打开模态框
+
     const modal = new bootstrap.Modal(document.getElementById('relationshipModal'));
     modal.show();
 }
 
 // 加载知识点和关系数据
 function loadRelationshipData() {
-    // 获取知识点列表
     fetch(`/learning/teacher/api/knowledge-points/${currentSubjectId}/`)
         .then(response => response.json())
         .then(data => {
             if (data.status === 'success') {
                 allKnowledgePoints = data.nodes;
-                
-                // 填充下拉菜单
+
                 const sourceSelect = document.querySelector('#add-relationship-form-modal [name="source_id"]');
                 const targetSelect = document.querySelector('#add-relationship-form-modal [name="target_id"]');
-                
-                const options = allKnowledgePoints.map(kp => 
+
+                const options = allKnowledgePoints.map(kp =>
                     `<option value="${kp.id}">${kp.name}</option>`
                 ).join('');
-                
+
                 sourceSelect.innerHTML = '<option value="">-- 请选择 --</option>' + options;
                 targetSelect.innerHTML = '<option value="">-- 请选择 --</option>' + options;
-                
-                // 更新统计信息
+
                 document.getElementById('modalKpCount').textContent = allKnowledgePoints.length;
             }
         })
         .catch(error => console.error('加载知识点失败:', error));
-    
-    // 获取关系列表
+
     fetch(`/learning/teacher/api/knowledge-points/${currentSubjectId}/relationships/`)
         .then(response => response.json())
         .then(data => {
@@ -666,15 +559,14 @@ function loadRelationshipData() {
 // 渲染关系列表
 function renderRelationshipsList(searchText = '') {
     const container = document.getElementById('relationshipsList');
-    
-    // 过滤关系
+
     const filteredRelationships = allRelationships.filter(rel => {
         const sourceName = rel.source.name.toLowerCase();
         const targetName = rel.target.name.toLowerCase();
         const search = searchText.toLowerCase();
         return sourceName.includes(search) || targetName.includes(search);
     });
-    
+
     if (filteredRelationships.length === 0) {
         container.innerHTML = `
             <div style="text-align: center; padding: 60px 40px; background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); border-radius: 12px;">
@@ -685,9 +577,9 @@ function renderRelationshipsList(searchText = '') {
         `;
         return;
     }
-    
+
     container.innerHTML = filteredRelationships.map(rel => `
-        <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; border: 2px solid #e0e0e0; border-radius: 8px; margin-bottom: 12px; transition: all 0.3s ease;">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; border: 2px solid #e0e0e0; border-radius: 8px; margin-bottom: 12px;">
             <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
                 <span style="background: #d1fae5; color: #065f46; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 700;">${rel.source.name}</span>
                 <span style="color: #667eea; font-weight: 700; font-size: 16px;">→</span>
@@ -706,20 +598,20 @@ document.addEventListener('DOMContentLoaded', function() {
     if (form) {
         form.addEventListener('submit', function(e) {
             e.preventDefault();
-            
+
             const sourceId = this.querySelector('[name="source_id"]').value;
             const targetId = this.querySelector('[name="target_id"]').value;
-            
+
             if (!sourceId || !targetId) {
                 alert('请选择前置和后续知识点');
                 return;
             }
-            
+
             const formData = new FormData();
             formData.append('source_id', sourceId);
             formData.append('target_id', targetId);
             formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-            
+
             fetch(`/learning/teacher/api/knowledge-point-relationship/add/${currentSubjectId}/`, {
                 method: 'POST',
                 body: formData
@@ -740,8 +632,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
-    
-    // 搜索框事件监听
+
     const searchInput = document.getElementById('relationshipSearchInput');
     if (searchInput) {
         searchInput.addEventListener('input', function() {
@@ -755,10 +646,10 @@ function deleteRelationshipModal(relationshipId) {
     if (!confirm('确定要删除该关系吗？')) {
         return;
     }
-    
+
     const formData = new FormData();
     formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-    
+
     fetch(`/learning/teacher/api/knowledge-point-relationship/delete/${currentSubjectId}/${relationshipId}/`, {
         method: 'POST',
         body: formData

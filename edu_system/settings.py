@@ -4,7 +4,9 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'django-insecure-your-secret-key-here'
-
+NEO4J_URI = os.environ.get('NEO4J_URI', 'neo4j+s://75dd7d76.databases.neo4j.io')
+NEO4J_USER = os.environ.get('NEO4J_USER', '75dd7d76')
+NEO4J_PASSWORD = os.environ.get('NEO4J_PASSWORD', 'ttnI1qTX2JFkKFtc7ioANyPb4AUqRb9kDwrcs6083Dg')
 DEBUG = True
 
 # ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
@@ -135,12 +137,15 @@ LOGOUT_REDIRECT_URL = '/accounts/login/'
 
 # LLM 配置
 LLM_CONFIG = {
-    'provider': 'openai',  # 支持: openai, qwen, claude
+    'provider': 'openai',  # 支持: openai, qwen, claude, deepseek
     'api_key': os.environ.get('LLM_API_KEY', ''),
     'model': 'gpt-3.5-turbo',  # OpenAI: gpt-3.5-turbo, gpt-4; Qwen: qwen-turbo, qwen-plus
     'temperature': 0.3,
     'max_tokens': 500,
     'timeout': 30,
+    # DeepSeek配置（用于知识图谱构建的知识抽取）
+    'deepseek_api_key': os.environ.get('DEEPSEEK_API_KEY', 'sk-8b3f92a0c5804f79a11224427af11cc4'),
+    'deepseek_base_url': os.environ.get('DEEPSEEK_BASE_URL', 'https://api.deepseek.com'),
 }
 
 

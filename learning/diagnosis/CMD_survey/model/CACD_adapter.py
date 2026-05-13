@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 from sklearn.metrics import roc_auc_score, accuracy_score, mean_squared_error
-from model.model_CACD import Net
+from .model_CACD import Net
 import time
 import math
 

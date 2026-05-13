@@ -867,10 +867,34 @@ function renderBarChart(diagnosisData, kpAverages) {
         overallChart.clear();
     }
 
-    const categories = diagnosisData.knowledge_points.map(kp => kp.name);
-    const masteryData = diagnosisData.knowledge_points.map(kp =>
-        parseFloat(kpAverages[kp.id.toString()].toFixed(1))
-    );
+    // 1. 构建知识点数组（保留 id，便于去重）
+    const allKps = diagnosisData.knowledge_points.map(kp => ({
+        id: kp.id,
+        name: kp.name,
+        mastery: parseFloat((kpAverages[kp.id.toString()] || 0).toFixed(1))
+    }));
+
+    // 2. 按掌握度降序排序
+    allKps.sort((a, b) => b.mastery - a.mastery);
+
+    // 3. 分别取最高10个和最低10个
+    const top10 = allKps.slice(0, 10);
+    const bottom10 = allKps.slice(-10);
+
+    // 4. 合并去重：先加入 top10，再加入 bottom10 中不重复的项（以 id 判断）
+    const combinedMap = new Map();
+    top10.forEach(item => combinedMap.set(item.id, item));
+    bottom10.forEach(item => {
+        if (!combinedMap.has(item.id)) {
+            combinedMap.set(item.id, item);
+        }
+    });
+    const combinedList = Array.from(combinedMap.values());  // 保持插入顺序
+
+    // 5. 分离出 X 轴标签和 Y 轴数据
+    const categories = combinedList.map(item => item.name);
+    const masteryData = combinedList.map(item => item.mastery);
+
 
     const option = {
         animation: false,

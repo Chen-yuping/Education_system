@@ -6,7 +6,7 @@ import numpy as np
 from tqdm import tqdm
 from sklearn.metrics import roc_auc_score, accuracy_score, f1_score
 import sys
-from model.KaNCD import KaNCD
+from .KaNCD import KaNCD
 
 class KaNCD_Adapter:
     '''KaNCD适配器 - 使KaNCD模型能够接受与其他模型相同格式的json数据'''
