@@ -5,9 +5,11 @@ from django.utils import timezone
 from django.http import JsonResponse
 
 from learning.utils_ai import smart_handle_upload, quick_build_course_from_textbook
+from learning.knowledge_graph_builder.text_extractor import extract_text_from_file
+from learning.knowledge_graph_builder.pipeline import KnowledgeGraphPipeline
 
 # 引入模型
-from learning.models import Subject, ExerciseFile, ResourceFile, TextbookCourseBuilder, KnowledgePoint, Exercise
+from learning.models import Subject, ExerciseFile, ResourceFile, TextbookCourseBuilder, KnowledgePoint, Exercise, ResourceKnowledgeExtraction, ResourceReviewKnowledgePoint, ResourceReviewRelationship, KnowledgeGraph
 # 引入表单
 from .forms import ExerciseFileForm, ResourceFileForm, TextbookCourseBuilderForm
 
@@ -176,11 +178,86 @@ def upload_resource(request):
                 else:
                     resource_file.file_type = '其他'
 
-                resource_file.status = 'completed'  # 资料上传直接标记为完成
-                resource_file.processed_at = timezone.now()
                 resource_file.save()  # 这一步执行后，文件保存到磁盘
 
+                # --- B. 提取文本内容 ---
+                text_extract_ok = False
+                try:
+                    file_path = resource_file.file.path
+                    extracted = extract_text_from_file(file_path, resource_file.file_type)
+                    resource_file.extracted_text = extracted
+                    resource_file.status = 'completed'
+                    text_extract_ok = bool(extracted and extracted.strip())
+                except Exception as extract_err:
+                    resource_file.extracted_text = ''
+                    resource_file.status = 'completed'
+                    resource_file.error_message = f'文本提取失败: {extract_err}'
+                    print(f"[WARN] 文本提取失败: {extract_err}")
+
+                resource_file.processed_at = timezone.now()
+                resource_file.save(update_fields=['extracted_text', 'status', 'error_message', 'processed_at'])
+
+                # --- C. 教案/课件 → 自动抽取知识三元组 ---
+                extraction = None
+                if resource_file.resource_type in ('教案', '课件'):
+                    if not resource_file.extracted_text:
+                        if not text_extract_ok:
+                            messages.warning(request, f'⚠️ {resource_file.get_resource_type_display()}文本提取失败，无法进行知识点抽取。请检查文件内容是否为空或格式是否正确。')
+                        else:
+                            messages.info(request, f'ℹ️ {resource_file.get_resource_type_display()}文本内容为空，跳过知识抽取。')
+                    else:
+                        try:
+                            pipeline = KnowledgeGraphPipeline()
+                            pipeline_result = pipeline.run(
+                                text=resource_file.extracted_text,
+                                subject=subject,
+                                subject_name=subject.name,
+                                source=resource_file.resource_type
+                            )
+                            if pipeline_result.get("success"):
+                                kp_count = pipeline_result.get('kp_count', 0)
+                                rel_count = pipeline_result.get('rel_count', 0)
+                                if kp_count > 0 and rel_count > 0:
+                                    print(f"[INFO] 知识图谱构建成功: {kp_count} 知识点, {rel_count} 关系")
+                                    # 创建审核记录
+                                    extraction = ResourceKnowledgeExtraction.objects.create(
+                                        resource_file=resource_file,
+                                        teacher=request.user,
+                                        subject=subject,
+                                        status='review_pending',
+                                        kp_count=kp_count,
+                                        rel_count=rel_count,
+                                    )
+                                    for kp in pipeline_result.get('created_kps', []):
+                                        ResourceReviewKnowledgePoint.objects.create(
+                                            extraction=extraction,
+                                            knowledge_point=kp,
+                                            original_name=kp.name,
+                                        )
+                                    for rel in pipeline_result.get('created_rels', []):
+                                        ResourceReviewRelationship.objects.create(
+                                            extraction=extraction,
+                                            from_knowledge_point=rel.source,
+                                            to_knowledge_point=rel.target,
+                                            relationship_type=rel.relationship_type,
+                                        )
+                                    messages.success(request, f'✅ 知识图谱构建成功：{kp_count}个知识点，{rel_count}条关系，请进行审核。')
+                                else:
+                                    messages.warning(request, '⚠️ 知识抽取完成但未提取到有效知识点和关系，请检查资料内容是否包含足够的专业知识点。')
+                            else:
+                                err_msg = pipeline_result.get('error', '未知错误')
+                                print(f"[WARN] 知识图谱构建失败: {err_msg}")
+                                messages.warning(request, f'⚠️ 知识图谱构建失败：{err_msg}')
+                        except Exception as kg_err:
+                            import traceback
+                            print(f"[WARN] 知识图谱构建异常: {kg_err}\n{traceback.format_exc()}")
+                            messages.warning(request, f'⚠️ 知识图谱构建异常：{kg_err}')
+
                 messages.success(request, f'✅ 资料上传成功！标题：{resource_file.title}')
+
+                # 如果有知识提取审核，跳转到审核页面
+                if extraction:
+                    return redirect('resource_extraction_review', extraction_id=extraction.id)
 
             except Exception as e:
                 # 异常处理
@@ -198,10 +275,25 @@ def upload_resource(request):
     else:
         upload_history = []
 
+    # 构建资源文件 → 审核记录ID的映射（含审核状态显示文字）
+    resource_ids = [r.id for r in upload_history]
+    extraction_map = {}
+    if resource_ids:
+        extractions = ResourceKnowledgeExtraction.objects.filter(
+            resource_file_id__in=resource_ids
+        ).values('resource_file_id', 'id', 'status')
+        for ext in extractions:
+            extraction_map[ext['resource_file_id']] = ext['id']
+
+    # 为upload_history中每个资源文件注入extraction_id属性
+    for resource in upload_history:
+        resource.extraction_id = extraction_map.get(resource.id, 0)
+
     return render(request, 'teacher/upload_resource.html', {
         'form': form,
         'subjects': subjects,
         'upload_history': upload_history,
+        'extraction_map': extraction_map,
         'subject': subject,
         # 兼容模板变量名
         'course': subject
@@ -325,7 +417,7 @@ def create_review_records(builder):
                 builder=builder,
                 from_knowledge_point=relationship.source,
                 to_knowledge_point=relationship.target,
-                relationship_type='相关'  # 默认关系类型
+                relationship_type=relationship.relationship_type
             )
 
 
@@ -592,3 +684,179 @@ def complete_review(request, builder_id):
     
     messages.success(request, '✅ 课程审核完成！课程已正式提交到系统。')
     return redirect('course_build_result', builder_id=builder_id)
+
+
+# ==================== 资源文件知识提取审核 ====================
+
+@login_required
+@user_passes_test(is_teacher)
+def resource_extraction_review(request, extraction_id):
+    """资源知识提取审核仪表板"""
+    extraction = get_object_or_404(ResourceKnowledgeExtraction, id=extraction_id, teacher=request.user)
+
+    kp_reviews = ResourceReviewKnowledgePoint.objects.filter(extraction=extraction)
+    rel_reviews = ResourceReviewRelationship.objects.filter(extraction=extraction)
+
+    stats = {
+        'total_kps': kp_reviews.count(),
+        'reviewed_kps': kp_reviews.filter(reviewed_at__isnull=False).count(),
+        'approved_kps': kp_reviews.filter(is_approved=True).count(),
+        'total_rels': rel_reviews.count(),
+        'reviewed_rels': rel_reviews.filter(reviewed_at__isnull=False).count(),
+        'approved_rels': rel_reviews.filter(is_approved=True).count(),
+    }
+
+    return render(request, 'teacher/resource_review_dashboard.html', {
+        'extraction': extraction,
+        'stats': stats,
+    })
+
+
+@login_required
+@user_passes_test(is_teacher)
+def resource_review_knowledge_points(request, extraction_id):
+    """审核知识点"""
+    extraction = get_object_or_404(ResourceKnowledgeExtraction, id=extraction_id, teacher=request.user)
+
+    if extraction.status not in ('review_pending', 'reviewing_knowledge'):
+        if extraction.status == 'reviewing_graph':
+            messages.info(request, '知识点已审核完成，请继续审核知识图谱关系。')
+            return redirect('resource_review_relationships', extraction_id=extraction_id)
+        elif extraction.status == 'completed':
+            messages.info(request, '该提取已完成审核。')
+            return redirect('resource_extraction_review', extraction_id=extraction_id)
+
+    if extraction.status != 'reviewing_knowledge':
+        extraction.status = 'reviewing_knowledge'
+        extraction.save()
+
+    unreviewed = ResourceReviewKnowledgePoint.objects.filter(
+        extraction=extraction,
+        reviewed_at__isnull=True
+    ).order_by('id')[:10]
+
+    return render(request, 'teacher/resource_review_knowledge_points.html', {
+        'extraction': extraction,
+        'knowledge_points': unreviewed,
+    })
+
+
+@login_required
+@user_passes_test(is_teacher)
+def resource_review_relationships(request, extraction_id):
+    """审核知识图谱关系"""
+    extraction = get_object_or_404(ResourceKnowledgeExtraction, id=extraction_id, teacher=request.user)
+
+    if extraction.status == 'review_pending':
+        messages.info(request, '请先完成知识点审核。')
+        return redirect('resource_review_knowledge_points', extraction_id=extraction_id)
+    if extraction.status == 'completed':
+        messages.info(request, '该提取已完成审核。')
+        return redirect('resource_extraction_review', extraction_id=extraction_id)
+
+    if extraction.status != 'reviewing_graph':
+        extraction.status = 'reviewing_graph'
+        extraction.save()
+
+    unreviewed = ResourceReviewRelationship.objects.filter(
+        extraction=extraction,
+        reviewed_at__isnull=True
+    ).order_by('id')[:10]
+
+    return render(request, 'teacher/resource_review_relationships.html', {
+        'extraction': extraction,
+        'relationships': unreviewed,
+    })
+
+
+@login_required
+@user_passes_test(is_teacher)
+def resource_submit_review(request, extraction_id, review_type):
+    """提交单个审核结果（AJAX）"""
+    extraction = get_object_or_404(ResourceKnowledgeExtraction, id=extraction_id, teacher=request.user)
+
+    if request.method == 'POST':
+        if review_type == 'knowledge':
+            kp_id = request.POST.get('knowledge_id')
+            is_approved = request.POST.get('is_approved') == 'true'
+            reviewed_name = request.POST.get('reviewed_name', '')
+            review_notes = request.POST.get('review_notes', '')
+
+            review = ResourceReviewKnowledgePoint.objects.get(
+                extraction=extraction,
+                knowledge_point_id=kp_id,
+            )
+            review.is_approved = is_approved
+            review.reviewed_name = reviewed_name
+            review.review_notes = review_notes
+            review.reviewed_at = timezone.now()
+            review.save()
+
+            if reviewed_name and reviewed_name != review.knowledge_point.name:
+                review.knowledge_point.name = reviewed_name
+                review.knowledge_point.save()
+
+            extraction.kp_reviewed = ResourceReviewKnowledgePoint.objects.filter(
+                extraction=extraction, reviewed_at__isnull=False
+            ).count()
+            extraction.kp_approved = ResourceReviewKnowledgePoint.objects.filter(
+                extraction=extraction, is_approved=True
+            ).count()
+            extraction.save()
+
+            return JsonResponse({'success': True})
+
+        elif review_type == 'relationship':
+            rel_id = request.POST.get('relationship_id')
+            is_approved = request.POST.get('is_approved') == 'true'
+            is_rejected = request.POST.get('is_rejected') == 'true'
+            review_notes = request.POST.get('review_notes', '')
+
+            review = ResourceReviewRelationship.objects.get(
+                extraction=extraction,
+                id=rel_id,
+            )
+            review.is_approved = is_approved
+            review.is_rejected = is_rejected
+            review.review_notes = review_notes
+            review.reviewed_at = timezone.now()
+            review.save()
+
+            extraction.rel_reviewed = ResourceReviewRelationship.objects.filter(
+                extraction=extraction, reviewed_at__isnull=False
+            ).count()
+            extraction.rel_approved = ResourceReviewRelationship.objects.filter(
+                extraction=extraction, is_approved=True
+            ).count()
+            extraction.save()
+
+            return JsonResponse({'success': True})
+
+    return JsonResponse({'success': False, 'error': 'Invalid request'})
+
+
+@login_required
+@user_passes_test(is_teacher)
+def resource_complete_review(request, extraction_id):
+    """完成审核"""
+    extraction = get_object_or_404(ResourceKnowledgeExtraction, id=extraction_id, teacher=request.user)
+
+    total_kps = ResourceReviewKnowledgePoint.objects.filter(extraction=extraction).count()
+    reviewed_kps = ResourceReviewKnowledgePoint.objects.filter(
+        extraction=extraction, reviewed_at__isnull=False
+    ).count()
+    total_rels = ResourceReviewRelationship.objects.filter(extraction=extraction).count()
+    reviewed_rels = ResourceReviewRelationship.objects.filter(
+        extraction=extraction, reviewed_at__isnull=False
+    ).count()
+
+    if reviewed_kps < total_kps or reviewed_rels < total_rels:
+        messages.warning(request, '还有未审核的内容，请完成所有审核后再提交。')
+        return redirect('resource_extraction_review', extraction_id=extraction_id)
+
+    extraction.status = 'completed'
+    extraction.completed_at = timezone.now()
+    extraction.save()
+
+    messages.success(request, '✅ 知识提取审核完成！已提取的知识点已加入到知识图谱中。')
+    return redirect('upload_resource')

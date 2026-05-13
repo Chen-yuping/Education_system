@@ -41,11 +41,13 @@ def _get_neo4j_driver():
     return GraphDatabase.driver(uri, auth=(neo4j_user, neo4j_password))
 
 
-def save_to_django(triples: list, subject: Subject) -> dict:
+def save_to_django(triples: list, subject: Subject, relation_source: str = '教材') -> dict:
     kp_count = 0
     rel_count = 0
 
     entity_map = {}
+    created_kps = []
+    created_rels = []
 
     all_entity_names = set()
     for t in triples:
@@ -65,6 +67,7 @@ def save_to_django(triples: list, subject: Subject) -> dict:
             entity_map[name] = kp
             if created:
                 kp_count += 1
+                created_kps.append(kp)
 
         seen_pairs = set()
         for t in triples:
@@ -83,18 +86,32 @@ def save_to_django(triples: list, subject: Subject) -> dict:
             if not subj_kp or not obj_kp:
                 continue
 
-            _, created = KnowledgeGraph.objects.get_or_create(
+            rel_type = t.get("predicate", "关联")
+            if rel_type not in dict(KnowledgeGraph.RELATION_CHOICES):
+                rel_type = "关联"
+
+            kg, created = KnowledgeGraph.objects.get_or_create(
                 subject=subject,
                 source=subj_kp,
                 target=obj_kp,
+                relation_source=relation_source,
+                defaults={"relationship_type": rel_type},
             )
             if created:
                 rel_count += 1
+                created_rels.append(kg)
+            elif KnowledgeGraph.objects.filter(
+                subject=subject, source=subj_kp, target=obj_kp, relation_source=relation_source
+            ).exclude(relationship_type=rel_type).exists():
+                KnowledgeGraph.objects.filter(
+                    subject=subject, source=subj_kp, target=obj_kp, relation_source=relation_source
+                ).update(relationship_type=rel_type)
 
     print(f"[INFO] 新增 {kp_count} 个知识点，{rel_count} 个关系")
     print(f"[INFO] 科目共 {len(all_entity_names)} 个知识点，{len(seen_pairs)} 个关系")
 
-    return {"kp_count": kp_count, "rel_count": rel_count, "entity_map": entity_map}
+    return {"kp_count": kp_count, "rel_count": rel_count, "entity_map": entity_map,
+            "created_kps": created_kps, "created_rels": created_rels}
 
 
 def save_to_neo4j(triples: list, subject_name: str, entity_map: dict = None):

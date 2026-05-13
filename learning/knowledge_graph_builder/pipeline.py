@@ -29,17 +29,24 @@ class KnowledgeGraphPipeline:
         self.builder = textbook_builder
         self.output_dir = output_dir
 
-    def run(self, pdf_path: str, subject, subject_name: str = "") -> dict:
+    def run(self, pdf_path: str = "", subject=None, subject_name: str = "",
+            text: str = "", source: str = '教材') -> dict:
         result = {"success": False, "kp_count": 0, "rel_count": 0, "error": ""}
 
         try:
-            # ===== Step 1: PDF文本提取 =====
-            print("\n" + "=" * 50)
-            print("Step 1/5: PDF文本提取")
-            print("=" * 50)
-            self._update_status('extracting_text')
-            full_text = extract_text_from_pdf(pdf_path)
-            print(f"[INFO] 提取文本长度: {len(full_text)} 字符")
+            # ===== Step 1: 文本提取（从PDF或直接传入） =====
+            if text:
+                full_text = text
+                print(f"[INFO] 使用传入文本，长度: {len(full_text)} 字符")
+            elif pdf_path:
+                print("\n" + "=" * 50)
+                print("Step 1/5: PDF文本提取")
+                print("=" * 50)
+                self._update_status('extracting_text')
+                full_text = extract_text_from_pdf(pdf_path)
+                print(f"[INFO] 提取文本长度: {len(full_text)} 字符")
+            else:
+                raise ValueError("必须提供 pdf_path 或 text 参数")
 
             if not full_text.strip():
                 raise ValueError("PDF文本提取失败，未能获取到任何文字内容")
@@ -87,7 +94,7 @@ class KnowledgeGraphPipeline:
             print("=" * 50)
             self._update_status('building_graph')
 
-            storage_result = save_to_django(triples, subject)
+            storage_result = save_to_django(triples, subject, relation_source=source)
 
             # Neo4j存储已弃用，图谱数据直接由MySQL提供
 
@@ -100,6 +107,9 @@ class KnowledgeGraphPipeline:
             result["success"] = True
             result["kp_count"] = storage_result["kp_count"]
             result["rel_count"] = storage_result["rel_count"]
+            result["entity_map"] = storage_result.get("entity_map", {})
+            result["created_kps"] = storage_result.get("created_kps", [])
+            result["created_rels"] = storage_result.get("created_rels", [])
 
         except Exception as e:
             import traceback

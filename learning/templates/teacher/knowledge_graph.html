@@ -51,6 +51,32 @@
     </button>
 </div>
 
+<!-- 来源切换标签页 -->
+<div class="mb-3">
+    <ul class="nav nav-tabs" id="sourceTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="tab-all" data-source="" type="button" role="tab" onclick="switchSource('')">
+                <i class="fas fa-layer-group me-1"></i>融合知识图谱
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-教材" data-source="教材" type="button" role="tab" onclick="switchSource('教材')">
+                <i class="fas fa-book me-1"></i>教材知识图谱
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-教案" data-source="教案" type="button" role="tab" onclick="switchSource('教案')">
+                <i class="fas fa-file-alt me-1"></i>教案知识图谱
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-课件" data-source="课件" type="button" role="tab" onclick="switchSource('课件')">
+                <i class="fas fa-file-powerpoint me-1"></i>课件知识图谱
+            </button>
+        </li>
+    </ul>
+</div>
+
 <div class="card">
     <div class="card-body p-0">
         <div id="graphContainer" class="knowledge-graph-container">
@@ -93,22 +119,34 @@
     <div class="col-md-6">
         <div class="card">
             <div class="card-body py-2">
-                <div class="d-flex align-items-center">
-                    <div class="me-3">
+                <div class="d-flex align-items-center" style="flex-wrap: wrap; gap: 12px;">
+                    <div class="d-flex align-items-center me-2">
                         <div style="width: 15px; height: 15px; border-radius: 50%; background: #4e73df; border: 2px solid #2e59d9;"></div>
+                        <small class="text-muted ms-1">节点大小=习题数</small>
                     </div>
-                    <div class="flex-grow-1">
-                        <small class="text-muted">节点大小表示习题数量</small>
-                    </div>
-                    <div class="me-3">
-                        <svg width="40" height="15">
-                            <line x1="0" y1="7.5" x2="30" y2="7.5" stroke="#999" stroke-width="2"></line>
-                            <polygon points="30,7.5 25,4 25,11" fill="#999"></polygon>
+                    <div class="d-flex align-items-center me-2">
+                        <svg width="30" height="15">
+                            <line x1="0" y1="7.5" x2="20" y2="7.5" stroke="#999" stroke-width="2"></line>
+                            <polygon points="20,7.5 16,4 16,11" fill="#999"></polygon>
                         </svg>
+                        <small class="text-muted ms-1">方向</small>
                     </div>
-                    <div>
-                        <small class="text-muted">箭头表示知识点关系方向</small>
-                    </div>
+                    <span class="ms-2" style="display: inline-flex; align-items: center; gap: 8px;">
+                        <span style="background: #4e73df; width: 12px; height: 3px; display: inline-block;"></span>
+                        <small>关联</small>
+                    </span>
+                    <span style="display: inline-flex; align-items: center; gap: 8px;">
+                        <span style="background: #f59e0b; width: 12px; height: 3px; display: inline-block;"></span>
+                        <small>前置</small>
+                    </span>
+                    <span style="display: inline-flex; align-items: center; gap: 8px;">
+                        <span style="background: #8b5cf6; width: 12px; height: 3px; display: inline-block;"></span>
+                        <small>隶属</small>
+                    </span>
+                    <span style="display: inline-flex; align-items: center; gap: 8px;">
+                        <span style="background: #10b981; width: 12px; height: 3px; display: inline-block;"></span>
+                        <small>相似</small>
+                    </span>
                 </div>
             </div>
         </div>
@@ -152,6 +190,16 @@
                                     <select name="target_id" class="form-select" required style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 13px;">
                                         <option value="">-- 请选择 --</option>
                                         <div id="targetOptions"></div>
+                                    </select>
+                                </div>
+
+                                <div style="margin-bottom: 16px;">
+                                    <label style="font-weight: 700; margin-bottom: 8px; color: #1a1a1a; font-size: 13px; display: block;">关系类型</label>
+                                    <select name="relationship_type" class="form-select" style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 13px;">
+                                        <option value="关联">关联</option>
+                                        <option value="前置">前置</option>
+                                        <option value="隶属">隶属</option>
+                                        <option value="相似">相似</option>
                                     </select>
                                 </div>
 
@@ -221,7 +269,48 @@
 
 <script>
 // 全局变量
-let network, currentData = {};
+let network, currentData = {}, currentSource = '';
+let sourceTabMapping = {'': 'tab-all', '教材': 'tab-教材', '教案': 'tab-教案', '课件': 'tab-课件'};
+
+// 切换来源标签页
+function switchSource(source) {
+    currentSource = source;
+    // 更新标签页激活状态
+    document.querySelectorAll('#sourceTabs .nav-link').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    const tabId = sourceTabMapping[source] || 'tab-all';
+    const tabEl = document.getElementById(tabId);
+    if (tabEl) tabEl.classList.add('active');
+
+    const subjectId = window.currentSubjectId || new URLSearchParams(window.location.search).get('subject_id');
+    if (subjectId) {
+        loadKnowledgeGraph(subjectId);
+    }
+}
+
+// 根据可用来源动态显示/隐藏标签页
+function updateSourceTabs(availableSources) {
+    const sourceTabIds = {'教材': 'tab-教材', '教案': 'tab-教案', '课件': 'tab-课件'};
+    for (const [source, tabId] of Object.entries(sourceTabIds)) {
+        const tab = document.getElementById(tabId);
+        if (!tab) continue;
+        const parent = tab.closest('.nav-item');
+        if (!parent) continue;
+        if (availableSources.includes(source)) {
+            parent.style.display = '';
+        } else {
+            parent.style.display = 'none';
+        }
+    }
+    // 如果当前选中的来源已无数据，切回融合视图
+    if (currentSource && !availableSources.includes(currentSource)) {
+        currentSource = '';
+        document.querySelectorAll('#sourceTabs .nav-link').forEach(t => t.classList.remove('active'));
+        const allTab = document.getElementById('tab-all');
+        if (allTab) allTab.classList.add('active');
+    }
+}
 
 // 初始化函数
 function initKnowledgeGraph() {
@@ -285,7 +374,9 @@ function loadKnowledgeGraph(subjectId) {
     const loadingMessage = document.getElementById('loadingMessage');
 
     if (loadingMessage) {
-        loadingMessage.textContent = `正在加载科目ID: ${subjectId} 的数据...`;
+        const sourceLabels = {'教材': '教材', '教案': '教案', '课件': '课件', '': '全部来源'};
+        const label = sourceLabels[currentSource] || '';
+        loadingMessage.textContent = `正在加载${label}知识图谱数据...`;
     }
 
     if (loading) {
@@ -303,7 +394,10 @@ function loadKnowledgeGraph(subjectId) {
     chart.innerHTML = '';
 
     // 调用API
-    const apiUrl = `/learning/teacher/api/knowledge-points/${subjectId}/`;
+    let apiUrl = `/learning/teacher/api/knowledge-points/${subjectId}/`;
+    if (currentSource) {
+        apiUrl += `?source=${encodeURIComponent(currentSource)}`;
+    }
     console.log('调用API:', apiUrl);
 
     fetch(apiUrl)
@@ -339,8 +433,14 @@ function loadKnowledgeGraph(subjectId) {
 
                 if (nodeCountEl) nodeCountEl.textContent = data.node_count;
                 if (linkCountEl) linkCountEl.textContent = data.link_count;
-                if (subjectNameEl) subjectNameEl.textContent = data.subject_name;
+                if (subjectNameEl) {
+                    const srcLabels = {'教材': '教材', '教案': '教案', '课件': '课件', '': '融合图谱'};
+                    subjectNameEl.textContent = `${data.subject_name} - ${srcLabels[currentSource] || '融合图谱'}`;
+                }
                 if (statsEl) statsEl.style.display = 'block';
+
+                // 按 available_sources 动态显示/隐藏标签页
+                updateSourceTabs(data.available_sources || []);
 
                 // 显示管理知识点关系按钮
                 const manageBtn = document.getElementById('manageRelationshipBtn');
@@ -407,14 +507,20 @@ function renderGraphVis(data) {
         margin: { top: 10, bottom: 10 },
     })));
 
+    // 关系类型颜色映射
+    const relTypeColors = {'隶属': '#8b5cf6', '关联': '#4e73df', '前置': '#f59e0b', '相似': '#10b981'};
+
     // 转换关系格式
     const edges = new vis.DataSet(data.links.map(l => ({
         from: l.source,
         to: l.target,
         arrows: l.arrow ? 'to' : undefined,
         dashes: !l.arrow,           // 双向关系用虚线
-        color: { color: '#999', highlight: '#ff5722' },
+        color: { color: relTypeColors[l.relationship_type] || '#999', highlight: '#ff5722' },
         width: 2,
+        title: `<b>${l.relationship_type || '关联'}</b>`,
+        label: l.relationship_type || '',
+        font: { size: 11, color: '#666', strokeWidth: 2, strokeColor: '#fff' },
         smooth: { type: 'curvedCW', roundness: 0.1 },
     })));
 
@@ -578,12 +684,14 @@ function renderRelationshipsList(searchText = '') {
         return;
     }
 
+    const relTypeColors = {'隶属': '#8b5cf6', '关联': '#667eea', '前置': '#f59e0b', '相似': '#10b981'};
     container.innerHTML = filteredRelationships.map(rel => `
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; border: 2px solid #e0e0e0; border-radius: 8px; margin-bottom: 12px;">
-            <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+            <div style="display: flex; align-items: center; gap: 8px; flex: 1; flex-wrap: wrap;">
                 <span style="background: #d1fae5; color: #065f46; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 700;">${rel.source.name}</span>
                 <span style="color: #667eea; font-weight: 700; font-size: 16px;">→</span>
                 <span style="background: #fee2e2; color: #7f1d1d; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 700;">${rel.target.name}</span>
+                <span style="background: ${relTypeColors[rel.relationship_type] || '#666'}; color: white; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;">${rel.relationship_type || '关联'}</span>
             </div>
             <button style="padding: 8px 16px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 12px; display: flex; align-items: center; gap: 6px;" onclick="deleteRelationshipModal(${rel.id})">
                 <i class="fas fa-trash"></i> 删除
@@ -601,20 +709,33 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const sourceId = this.querySelector('[name="source_id"]').value;
             const targetId = this.querySelector('[name="target_id"]').value;
+            const relType = this.querySelector('[name="relationship_type"]').value;
 
             if (!sourceId || !targetId) {
                 alert('请选择前置和后续知识点');
                 return;
             }
 
-            const formData = new FormData();
-            formData.append('source_id', sourceId);
-            formData.append('target_id', targetId);
-            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+            // 获取CSRF token
+            function getCSRFToken() {
+                const meta = document.querySelector('meta[name="csrf-token"]');
+                if (meta) return meta.getAttribute('content');
+                const input = document.querySelector('[name=csrfmiddlewaretoken]');
+                if (input) return input.value;
+                return '';
+            }
 
             fetch(`/learning/teacher/api/knowledge-point-relationship/add/${currentSubjectId}/`, {
                 method: 'POST',
-                body: formData
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCSRFToken(),
+                },
+                body: JSON.stringify({
+                    source_id: sourceId,
+                    target_id: targetId,
+                    relationship_type: relType,
+                })
             })
             .then(response => response.json())
             .then(data => {

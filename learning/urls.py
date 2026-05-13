@@ -60,6 +60,13 @@ urlpatterns = [
     path('teacher/course-review/<int:builder_id>/submit/<str:review_type>/', views_exercisefile.submit_review, name='submit_review'),#提交审核结果
     path('teacher/course-review/<int:builder_id>/complete/', views_exercisefile.complete_review, name='complete_review'),#完成审核
 
+    # 资源知识提取审核URL
+    path('teacher/resource-extraction/<int:extraction_id>/review/', views_exercisefile.resource_extraction_review, name='resource_extraction_review'),
+    path('teacher/resource-extraction/<int:extraction_id>/review/knowledge/', views_exercisefile.resource_review_knowledge_points, name='resource_review_knowledge_points'),
+    path('teacher/resource-extraction/<int:extraction_id>/review/relationships/', views_exercisefile.resource_review_relationships, name='resource_review_relationships'),
+    path('teacher/resource-extraction/<int:extraction_id>/review/submit/<str:review_type>/', views_exercisefile.resource_submit_review, name='resource_submit_review'),
+    path('teacher/resource-extraction/<int:extraction_id>/review/complete/', views_exercisefile.resource_complete_review, name='resource_complete_review'),
+
 
     # 知识点关系图页面,知识点数据接口
     path('teacher/knowledge-graph/',views_teacherknowledge.knowledge_graph,name='teacher_knowledge_graph'),#知识点关系图

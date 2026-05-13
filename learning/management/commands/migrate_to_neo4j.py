@@ -77,12 +77,16 @@ class Command(BaseCommand):
                 for rel in rels:
                     s_uid = f"{subject.name}::{rel.source.name}"
                     o_uid = f"{subject.name}::{rel.target.name}"
+                    rel_type = rel.relationship_type or '关联'
+                    sanitized = rel_type.upper().replace(" ", "_")
+                    import re
+                    sanitized = re.sub(r'[^A-Z0-9_]', '_', sanitized)
                     session.run(
-                        """MATCH (a:Concept {uid: $s_uid})
-                           MATCH (b:Concept {uid: $o_uid})
-                           MERGE (a)-[r:关联]->(b)
-                           SET r.type = '关联'""",
-                        s_uid=s_uid, o_uid=o_uid
+                        f"""MATCH (a:Concept {{uid: $s_uid}})
+                            MATCH (b:Concept {{uid: $o_uid}})
+                            MERGE (a)-[r:{sanitized}]->(b)
+                            SET r.type = $rel_type""",
+                        s_uid=s_uid, o_uid=o_uid, rel_type=rel_type
                     ).consume()
                     rel_count += 1
                 total_rel += rel_count

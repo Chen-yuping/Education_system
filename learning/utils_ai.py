@@ -717,11 +717,12 @@ def build_knowledge_graph(knowledge_points, subject):
             common_words = words1.intersection(words2)
             
             if common_words and len(common_words) / min(len(words1), len(words2)) > 0.3:
-                # 创建关系
+                # 创建关系（基于名称相似度，默认为相似关系）
                 relationship, created = KnowledgeGraph.objects.get_or_create(
                     subject=subject,
                     source=kp1,
-                    target=kp2
+                    target=kp2,
+                    defaults={"relationship_type": "相似"},
                 )
                 relationships.append(relationship)
     

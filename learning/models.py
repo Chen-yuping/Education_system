@@ -64,17 +64,36 @@ class KnowledgePoint(models.Model):
 
 #知识点关系图
 class KnowledgeGraph(models.Model):
+    RELATION_CHOICES = [
+        ('隶属', '隶属'),
+        ('关联', '关联'),
+        ('前置', '前置'),
+        ('相似', '相似'),
+    ]
+
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, verbose_name="所属科目")
     source = models.ForeignKey(KnowledgePoint, on_delete=models.CASCADE, related_name='outgoing')
     target = models.ForeignKey(KnowledgePoint, on_delete=models.CASCADE, related_name='incoming')
+    relationship_type = models.CharField(
+        max_length=10,
+        choices=RELATION_CHOICES,
+        default='关联',
+        verbose_name="关系类型"
+    )
+    relation_source = models.CharField(
+        max_length=20,
+        choices=[('教材', '教材'), ('教案', '教案'), ('课件', '课件')],
+        default='教材',
+        verbose_name="关系来源"
+    )
 
     class Meta:
         verbose_name = "知识点关系"
         verbose_name_plural = "知识点关系"
-        unique_together = ('subject', 'source', 'target')
+        unique_together = ('subject', 'source', 'target', 'relation_source')
 
     def __str__(self):
-        return f"{self.source.name} → {self.target.name}"
+        return f"{self.source.name} → {self.target.name} [{self.relationship_type}]"
 
     def is_bidirectional(self):
         """检查是否是双向关系"""
@@ -435,12 +454,8 @@ def resource_file_upload_path(instance, filename):
 
 class ResourceFile(models.Model):
     RESOURCE_TYPES = [
-        ('课件', '课件/教案'),
-        ('讲义', '讲义/笔记'),
-        ('习题集', '习题集/题库'),
-        ('视频', '视频资料'),
-        ('音频', '音频资料'),
-        ('图片', '图片资料'),
+        ('教案', '教案'),
+        ('课件', '课件'),
         ('其他', '其他资料'),
     ]
 
@@ -484,6 +499,7 @@ class ResourceFile(models.Model):
     file_type = models.CharField(max_length=10, choices=FILE_TYPES, verbose_name="文件类型")
     status = models.CharField(max_length=20, choices=FILE_STATUS, default='pending', verbose_name="处理状态")
     is_public = models.BooleanField(default=True, verbose_name="公开给学生")
+    extracted_text = models.TextField(blank=True, verbose_name="提取的文本内容")
     uploaded_at = models.DateTimeField(auto_now_add=True, verbose_name="上传时间")
     processed_at = models.DateTimeField(null=True, blank=True, verbose_name="处理完成时间")
     error_message = models.TextField(blank=True, verbose_name="错误信息")
@@ -642,3 +658,81 @@ class TextbookReviewRelationship(models.Model):
     
     def __str__(self):
         return f"{self.builder.subject_name} - 关系审核"
+
+
+# ===== 教案/课件知识提取审核 =====
+
+class ResourceKnowledgeExtraction(models.Model):
+    """资源文件知识提取跟踪"""
+    STATUS_CHOICES = [
+        ('pending', '待处理'),
+        ('review_pending', '待审核'),
+        ('reviewing_knowledge', '审核知识点中'),
+        ('reviewing_graph', '审核图谱中'),
+        ('completed', '已完成'),
+        ('error', '处理失败'),
+    ]
+
+    resource_file = models.ForeignKey('ResourceFile', on_delete=models.CASCADE, verbose_name="资源文件")
+    teacher = models.ForeignKey(User, on_delete=models.CASCADE, verbose_name="教师")
+    subject = models.ForeignKey('Subject', on_delete=models.CASCADE, verbose_name="所属科目")
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='pending', verbose_name="处理状态")
+
+    kp_count = models.IntegerField(default=0, verbose_name="提取的知识点数量")
+    rel_count = models.IntegerField(default=0, verbose_name="提取的关系数量")
+
+    kp_reviewed = models.IntegerField(default=0, verbose_name="已审核知识点数量")
+    kp_approved = models.IntegerField(default=0, verbose_name="通过的知识点数量")
+    rel_reviewed = models.IntegerField(default=0, verbose_name="已审核关系数量")
+    rel_approved = models.IntegerField(default=0, verbose_name="通过的关系数量")
+
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
+    completed_at = models.DateTimeField(null=True, blank=True, verbose_name="完成时间")
+
+    class Meta:
+        verbose_name = "资源知识提取"
+        verbose_name_plural = "资源知识提取"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.resource_file.title} 提取"
+
+
+class ResourceReviewKnowledgePoint(models.Model):
+    """资源文件知识提取的知识点审核"""
+    extraction = models.ForeignKey(ResourceKnowledgeExtraction, on_delete=models.CASCADE, verbose_name="提取记录")
+    knowledge_point = models.ForeignKey('KnowledgePoint', on_delete=models.CASCADE, verbose_name="知识点")
+    original_name = models.CharField(max_length=200, verbose_name="原始名称")
+    reviewed_name = models.CharField(max_length=200, blank=True, verbose_name="审核后名称")
+    is_approved = models.BooleanField(default=False, verbose_name="是否通过审核")
+    review_notes = models.TextField(blank=True, verbose_name="审核备注")
+    reviewed_at = models.DateTimeField(null=True, blank=True, verbose_name="审核时间")
+
+    class Meta:
+        verbose_name = "资源知识点审核"
+        verbose_name_plural = "资源知识点审核"
+        unique_together = ("extraction", "knowledge_point")
+
+    def __str__(self):
+        return f"{self.extraction.resource_file.title} - 知识点审核"
+
+
+class ResourceReviewRelationship(models.Model):
+    """资源文件知识提取的关系审核"""
+    extraction = models.ForeignKey(ResourceKnowledgeExtraction, on_delete=models.CASCADE, verbose_name="提取记录")
+    from_knowledge_point = models.ForeignKey('KnowledgePoint', on_delete=models.CASCADE,
+                                             related_name='resource_reviewed_from', verbose_name="源知识点")
+    to_knowledge_point = models.ForeignKey('KnowledgePoint', on_delete=models.CASCADE,
+                                           related_name='resource_reviewed_to', verbose_name="目标知识点")
+    relationship_type = models.CharField(max_length=50, verbose_name="关系类型")
+    is_approved = models.BooleanField(default=False, verbose_name="是否通过审核")
+    is_rejected = models.BooleanField(default=False, verbose_name="是否被拒绝")
+    review_notes = models.TextField(blank=True, verbose_name="审核备注")
+    reviewed_at = models.DateTimeField(null=True, blank=True, verbose_name="审核时间")
+
+    class Meta:
+        verbose_name = "资源关系审核"
+        verbose_name_plural = "资源关系审核"
+
+    def __str__(self):
+        return f"{self.extraction.resource_file.title} - 关系审核"

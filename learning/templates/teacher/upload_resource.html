@@ -20,12 +20,8 @@
             <div class="mb-4">
                 <label for="resourceType" class="form-label fw-semibold">资料类型 <span class="text-danger">*</span></label>
                 <select name="resource_type" id="resourceType" class="form-select border-secondary text-dark">
-                    <option value="课件">📚 课件/教案</option>
-                    <option value="讲义">📝 讲义/笔记</option>
-                    <option value="习题集">📖 习题集/题库</option>
-                    <option value="视频">🎬 视频资料</option>
-                    <option value="音频">🎧 音频资料</option>
-                    <option value="图片">🖼️ 图片资料</option>
+                    <option value="教案">📝 教案</option>
+                    <option value="课件">📚 课件</option>
                     <option value="其他">📄 其他资料</option>
                 </select>
                 <div class="form-text text-muted small mt-1">
@@ -35,16 +31,21 @@
 
             <div class="mb-4">
                 <label for="resourceTitle" class="form-label fw-semibold">资料标题 <span class="text-danger">*</span></label>
-                <input type="text" name="resource_title" id="resourceTitle" class="form-control border-secondary" 
+                <input type="text" name="title" id="resourceTitle" class="form-control border-secondary"
                        placeholder="请输入资料标题，如：高等数学第一章课件" required>
                 <div class="form-text text-muted small mt-1">
                     请为资料起一个清晰的标题，方便学生识别。
                 </div>
+                {% if form.title.errors %}
+                    <div class="text-danger small mt-1">
+                        {% for error in form.title.errors %}<i class="bi bi-exclamation-triangle"></i> {{ error }}<br>{% endfor %}
+                    </div>
+                {% endif %}
             </div>
 
             <div class="mb-4">
                 <label for="resourceDescription" class="form-label fw-semibold">资料描述</label>
-                <textarea name="resource_description" id="resourceDescription" class="form-control border-secondary" 
+                <textarea name="description" id="resourceDescription" class="form-control border-secondary"
                           rows="3" placeholder="请输入资料简要描述，如：本章主要讲解函数极限与连续..."></textarea>
                 <div class="form-text text-muted small mt-1">
                     简要描述资料内容，帮助学生了解资料用途。
@@ -57,7 +58,7 @@
                     {{ form.file }}
                     <i class="bi bi-cloud-upload text-primary fs-3 mb-2"></i>
                     <p class="mb-2">点击区域选择文件，或直接拖拽文件到此处</p>
-                    <p class="text-muted small">支持多文件上传，单个文件不超过20MB</p>
+                    <p class="text-muted small mb-0" id="fileTypeHint"></p>
                     <div id="fileList" class="mt-3 d-flex flex-wrap gap-2"></div>
                 </div>
                 {% if form.file.errors %}
@@ -76,6 +77,14 @@
                     勾选后，学生可以在课程资料页面查看此资料。
                 </div>
             </div>
+
+            {% if form.non_field_errors %}
+                <div class="alert alert-danger py-2 mb-3">
+                    {% for error in form.non_field_errors %}
+                        <i class="bi bi-exclamation-triangle"></i> {{ error }}<br>
+                    {% endfor %}
+                </div>
+            {% endif %}
 
             <div class="d-flex gap-3">
                 <button type="submit" class="btn btn-primary btn-lg flex-grow-1" id="submitBtn">
@@ -131,6 +140,12 @@
                                 </td>
                                <td>
                                 <div class="btn-group btn-group-sm">
+                                    {% if resource.extraction_id %}
+                                        <a href="{% url 'resource_extraction_review' resource.extraction_id %}"
+                                           class="btn btn-outline-warning" title="去审核">
+                                            <i class="bi bi-check-circle"></i>
+                                        </a>
+                                    {% endif %}
                                     {% if resource.status == 'completed' %}
                                         <a href="{{ resource.file.url }}" target="_blank" class="btn btn-outline-success" title="预览文件">
                                             <i class="bi bi-eye"></i>
@@ -185,15 +200,49 @@
     }
 </style>
 <script>
-// 1. 初始化文件输入框样式
+// 资料类型对应的文件扩展名映射
+const typeExtMap = {
+    '教案': ['.doc', '.docx', '.pdf'],
+    '课件': ['.ppt', '.pptx'],
+    '其他': [],
+};
+
+// 根据资料类型更新文件输入框的 accept 和提示
+function updateFileAccept(resourceType) {
+    const fileInput = document.getElementById('{{ form.file.id_for_label }}');
+    const hintEl = document.getElementById('fileTypeHint');
+    const exts = typeExtMap[resourceType] || [];
+
+    if (exts.length > 0) {
+        fileInput.accept = exts.join(',');
+        hintEl.textContent = '仅支持上传 ' + exts.join('、') + ' 格式，单个文件不超过20MB';
+        hintEl.style.color = '#dc3545';
+    } else {
+        fileInput.accept = '';
+        hintEl.textContent = '单个文件不超过20MB';
+        hintEl.style.color = '';
+    }
+
+    // 清空已选文件列表（类型变了，之前的文件可能不合法）
+    const fileList = document.getElementById('fileList');
+    if (fileList) fileList.innerHTML = '';
+    if (fileInput) fileInput.value = '';
+}
+
+// 1. 初始化文件输入框样式和动态逻辑
 document.addEventListener('DOMContentLoaded', function() {
     const fileInput = document.getElementById('{{ form.file.id_for_label }}');
     if(fileInput) fileInput.classList.add('d-none'); // 隐藏原始文件输入框
 
-    // 美化表单控件
+    // 资料类型切换时更新文件限制
     const resourceTypeSelect = document.getElementById('resourceType');
     if (resourceTypeSelect) {
         resourceTypeSelect.classList.add('form-select', 'form-select-lg', 'border-secondary');
+        // 初始触发一次
+        updateFileAccept(resourceTypeSelect.value);
+        resourceTypeSelect.addEventListener('change', function() {
+            updateFileAccept(this.value);
+        });
     }
 });
 
@@ -300,29 +349,18 @@ function removeFile(index) {
 
 // 3. 文件验证（前端基础验证，后端必须再验证）
 function validateFile(file, showAlert = false) {
-    // 允许的文件类型
-    const allowedTypes = [
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // docx
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // xlsx
-        'application/vnd.openxmlformats-officedocument.presentationml.presentation', // pptx
-        'application/pdf', // pdf
-        'text/plain', // txt
-        'image/jpeg', // jpg
-        'image/png', // png
-        'image/gif', // gif
-        'video/mp4', // mp4
-        'audio/mpeg', // mp3
-        'audio/wav' // wav
-    ];
-    const allowedExtensions = ['.docx', '.xlsx', '.pptx', '.pdf', '.txt', '.jpg', '.jpeg', '.png', '.gif', '.mp4', '.mp3', '.wav'];
-    const fileExtension = '.' + file.name.split('.').pop().toLowerCase();
+    const resourceType = document.getElementById('resourceType')?.value || '';
+    const exts = typeExtMap[resourceType] || [];
 
-    // 验证文件类型
-    if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(fileExtension)) {
-        if (showAlert) {
-            alert(`文件 ${file.name} 类型不允许！仅支持 docx、xlsx、pptx、pdf、txt、jpg、png、gif、mp4、mp3、wav 格式`);
+    // 按资料类型校验文件扩展名
+    if (exts.length > 0) {
+        const fileExt = '.' + file.name.split('.').pop().toLowerCase();
+        if (!exts.includes(fileExt)) {
+            if (showAlert) {
+                alert(`资料类型为"${resourceType}"时，仅支持上传 ${exts.join('、')} 格式。文件 "${file.name}" 不符合要求。`);
+            }
+            return false;
         }
-        return false;
     }
 
     // 验证文件大小（20MB）

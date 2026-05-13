@@ -35,12 +35,31 @@ class ResourceFileForm(forms.ModelForm):
             'file': forms.FileInput(attrs={
                 'class': 'd-none',
                 'id': 'fileInput',
-                'accept': '.docx,.xlsx,.pptx,.pdf,.txt,.jpg,.jpeg,.png,.gif,.mp4,.mp3,.wav'
             }),
             'is_public': forms.CheckboxInput(attrs={
                 'class': 'form-check-input'
             })
         }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        resource_type = cleaned_data.get('resource_type')
+        file_obj = cleaned_data.get('file')
+
+        if resource_type and file_obj:
+            ext = '.' + file_obj.name.split('.').pop().lower()
+            type_ext_map = {
+                '教案': ['.doc', '.docx', '.pdf'],
+                '课件': ['.ppt', '.pptx'],
+            }
+            allowed = type_ext_map.get(resource_type)
+            if allowed and ext not in allowed:
+                allowed_str = '、'.join(allowed)
+                raise forms.ValidationError(
+                    f'资料类型为"{dict(ResourceFile.RESOURCE_TYPES).get(resource_type, resource_type)}"时，'
+                    f'仅支持上传 {allowed_str} 格式的文件'
+                )
+        return cleaned_data
 
 
 class TextbookCourseBuilderForm(forms.ModelForm):

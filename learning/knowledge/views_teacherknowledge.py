@@ -60,8 +60,25 @@ def knowledge_points_api(request, subject_id):
         # 验证科目存在
         subject = Subject.objects.get(id=subject_id)
 
-        # 获取该科目的所有知识点
+        # source 过滤参数：教材/教案/课件，为空时返回全部（融合视图）
+        # 支持逗号分隔多个来源，如 ?source=教案,课件
+        source_filter = request.GET.get('source', '').strip()
+        source_list = [s.strip() for s in source_filter.split(',') if s.strip()] if source_filter else []
+
+        # 获取该科目的知识点
         knowledge_points = KnowledgePoint.objects.filter(subject_id=subject_id)
+
+        # 当按来源筛选时，只显示参与了该来源关系的知识点
+        if source_list:
+            involved_ids = KnowledgeGraph.objects.filter(
+                subject_id=subject_id,
+                relation_source__in=source_list
+            ).values_list('source_id', 'target_id').distinct()
+            kp_ids = set()
+            for sid, tid in involved_ids:
+                kp_ids.add(sid)
+                kp_ids.add(tid)
+            knowledge_points = knowledge_points.filter(id__in=kp_ids)
 
         # 构建节点数据
         nodes = []
@@ -89,8 +106,12 @@ def knowledge_points_api(request, subject_id):
                 'exercise_count': exercise_count
             })
 
-        # 获取该科目的所有知识点关系
-        relationships = KnowledgeGraph.objects.filter(subject_id=subject_id)
+        # 构建关系查询
+        rel_filter = {'subject_id': subject_id}
+        if source_list:
+            rel_filter['relation_source__in'] = source_list
+
+        relationships = KnowledgeGraph.objects.filter(**rel_filter)
 
         links = []
         processed_pairs = set()
@@ -103,25 +124,32 @@ def knowledge_points_api(request, subject_id):
             if pair_key in processed_pairs:
                 continue
 
-            reverse_exists = KnowledgeGraph.objects.filter(
-                subject_id=subject_id,
-                source_id=target_id,
-                target_id=source_id
-            ).exists()
+            # 检查反向关系是否存在（同源过滤下检查同源，全量视图则跨源检查）
+            rev_filter = {
+                'subject_id': subject_id,
+                'source_id': target_id,
+                'target_id': source_id,
+            }
+            if source_list:
+                rev_filter['relation_source__in'] = source_list
+
+            reverse_exists = KnowledgeGraph.objects.filter(**rev_filter).exists()
 
             if reverse_exists:
                 links.append({
                     'source': min(source_id, target_id),
                     'target': max(source_id, target_id),
                     'type': 'bidirectional',
-                    'arrow': False
+                    'arrow': False,
+                    'relationship_type': rel.relationship_type,
                 })
             else:
                 links.append({
                     'source': source_id,
                     'target': target_id,
                     'type': 'unidirectional',
-                    'arrow': True
+                    'arrow': True,
+                    'relationship_type': rel.relationship_type,
                 })
 
             processed_pairs.add(pair_key)
@@ -130,6 +158,10 @@ def knowledge_points_api(request, subject_id):
             'status': 'success',
             'subject_id': subject_id,
             'subject_name': subject.name,
+            'source': source_filter or 'all',
+            'available_sources': list(KnowledgeGraph.objects.filter(
+                subject_id=subject_id
+            ).values_list('relation_source', flat=True).distinct()),
             'nodes': nodes,
             'links': links,
             'node_count': len(nodes),

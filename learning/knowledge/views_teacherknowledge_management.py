@@ -295,6 +295,7 @@ def add_knowledge_relationship(request, subject_id):
         
         source_id = request.POST.get('source_id')
         target_id = request.POST.get('target_id')
+        rel_type = request.POST.get('relationship_type', '关联')
         
         source = get_object_or_404(KnowledgePoint, id=source_id, subject=subject)
         target = get_object_or_404(KnowledgePoint, id=target_id, subject=subject)
@@ -321,14 +322,15 @@ def add_knowledge_relationship(request, subject_id):
         KnowledgeGraph.objects.create(
             subject=subject,
             source=source,
-            target=target
+            target=target,
+            relationship_type=rel_type,
         )
-        
+
         return JsonResponse({
             'success': True,
             'message': f'已添加关系：{source.name} → {target.name}'
         })
-    
+
     except Exception as e:
         return JsonResponse({
             'success': False,
@@ -538,8 +540,8 @@ def get_knowledge_point_relationships(request, subject_id):
         # 获取所有关系
         relationships = KnowledgeGraph.objects.filter(subject=subject).select_related(
             'source', 'target'
-        ).values('id', 'source__id', 'source__name', 'target__id', 'target__name')
-        
+        ).values('id', 'source__id', 'source__name', 'target__id', 'target__name', 'relationship_type')
+
         relationships_list = []
         for rel in relationships:
             relationships_list.append({
@@ -551,7 +553,8 @@ def get_knowledge_point_relationships(request, subject_id):
                 'target': {
                     'id': rel['target__id'],
                     'name': rel['target__name']
-                }
+                },
+                'relationship_type': rel['relationship_type'],
             })
         
         return JsonResponse({
@@ -580,6 +583,7 @@ def add_knowledge_point_relationship_api(request, subject_id):
         
         source_id = data.get('source_id')
         target_id = data.get('target_id')
+        rel_type = data.get('relationship_type', '关联')
         
         source = get_object_or_404(KnowledgePoint, id=source_id, subject=subject)
         target = get_object_or_404(KnowledgePoint, id=target_id, subject=subject)
@@ -606,7 +610,8 @@ def add_knowledge_point_relationship_api(request, subject_id):
         KnowledgeGraph.objects.create(
             subject=subject,
             source=source,
-            target=target
+            target=target,
+            relationship_type=rel_type,
         )
         
         return JsonResponse({
