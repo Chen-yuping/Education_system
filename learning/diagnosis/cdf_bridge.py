@@ -1,11 +1,15 @@
+import hashlib
+import importlib.util
 import json
+import random
+import sys
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
-from django.conf import settings
+import torch
 from django.db import transaction
 from django.utils import timezone
 
@@ -27,6 +31,9 @@ CDF_MODEL_NAMES = {"IdpCDF", "HierCDF", "ConCDF", "PCG-CDF"}
 DIAGNOSIS_ROOT = Path(__file__).resolve().parent
 CMD_SURVEY_DATA_ROOT = DIAGNOSIS_ROOT / "CMD_survey" / "data"
 GRAPH_CACHE_ROOT = DIAGNOSIS_ROOT / "corseinfo"
+CHECKPOINT_ROOT = DIAGNOSIS_ROOT / "checkpoints"
+LOG_ROOT = DIAGNOSIS_ROOT / "cdflogs"
+_CMD_SURVEY_MODULE_CACHE: Dict[str, Any] = {}
 
 
 # 统一校验并规范化 CDF 模型名，避免后续分支重复判断。
@@ -1022,8 +1029,732 @@ def _save_cdf_results_to_database_async(subject_id: int, model_id: int, diagnosi
         return 0
 
 
+# 把 Path / numpy / datetime 等对象统一转成 JSON 可序列化的类型。
+def _json_default(value: Any) -> Any:
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, (np.integer, np.int32, np.int64)):
+        return int(value)
+    if isinstance(value, (np.floating, np.float32, np.float64)):
+        return float(value)
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
+
+
+# 为任意可序列化对象生成稳定的哈希，用于区分不同训练任务。
+def _stable_hash(payload: Any) -> str:
+    serialized = json.dumps(payload, sort_keys=True, ensure_ascii=False, default=_json_default)
+    return hashlib.md5(serialized.encode("utf-8")).hexdigest()
+
+
+# 为 DataFrame 生成稳定哈希，数据一旦变化就不再复用旧缓存。
+def _hash_dataframe(dataframe: Optional[pd.DataFrame]) -> str:
+    if dataframe is None:
+        return "none"
+    if dataframe.empty:
+        return "empty"
+    payload = dataframe.to_json(orient="split", index=False)
+    return hashlib.md5(payload.encode("utf-8")).hexdigest()
+
+
+# 为 Q 矩阵生成稳定哈希，便于判断训练输入是否发生变化。
+def _hash_matrix(matrix: np.ndarray) -> str:
+    array = np.asarray(matrix, dtype=np.float32)
+    return hashlib.md5(array.tobytes()).hexdigest()
+
+
+# 固定随机种子，降低不同环境下的训练波动。
+def _set_random_seed(seed: int = 42) -> None:
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
+# 动态加载当前项目内的 CMD_survey 模型模块，不再依赖备份项目。
+def _load_local_cmd_survey_module(model_dir_name: str, module_file_name: str, cache_key: str):
+    if cache_key in _CMD_SURVEY_MODULE_CACHE:
+        return _CMD_SURVEY_MODULE_CACHE[cache_key]
+
+    module_dir = DIAGNOSIS_ROOT / "CMD_survey" / "model" / model_dir_name
+    module_path = module_dir / module_file_name
+    if not module_path.exists():
+        raise FileNotFoundError(f"Cannot find local CMD_survey module: {module_path}")
+
+    helper_module_names = ("dataloader", "itf", "tools")
+    helper_backups = {name: sys.modules.get(name) for name in helper_module_names}
+    for name in helper_module_names:
+        sys.modules.pop(name, None)
+
+    sys.path.insert(0, str(module_dir))
+    try:
+        spec = importlib.util.spec_from_file_location(f"local_cdf_bridge_{cache_key}", module_path)
+        if spec is None or spec.loader is None:
+            raise ImportError(f"Cannot load local module from {module_path}")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    finally:
+        try:
+            sys.path.remove(str(module_dir))
+        except ValueError:
+            pass
+
+        for name in helper_module_names:
+            sys.modules.pop(name, None)
+            backup = helper_backups.get(name)
+            if backup is not None:
+                sys.modules[name] = backup
+
+    _CMD_SURVEY_MODULE_CACHE[cache_key] = module
+    return module
+
+
+# 把图谱缓存包转换成模型训练需要的 from/to DataFrame。
+def _build_cdf_relation_frame(bundle: Optional[Dict[str, Any]]) -> pd.DataFrame:
+    empty_frame = pd.DataFrame(columns=["from", "to"])
+    if not bundle:
+        return empty_frame
+
+    edge_path = bundle.get("edge_path")
+    if edge_path and Path(edge_path).exists():
+        relation_df = pd.read_csv(edge_path)
+        if {"from", "to"}.issubset(relation_df.columns):
+            relation_df = relation_df.loc[:, ["from", "to"]].dropna(subset=["from", "to"]).copy()
+            if relation_df.empty:
+                return empty_frame
+            relation_df["from"] = relation_df["from"].astype(int)
+            relation_df["to"] = relation_df["to"].astype(int)
+            return relation_df.reset_index(drop=True)
+
+    edge_rows = bundle.get("edge_rows", [])
+    if edge_rows:
+        relation_df = pd.DataFrame(edge_rows)
+        if {"from", "to"}.issubset(relation_df.columns):
+            relation_df = relation_df.loc[:, ["from", "to"]].dropna(subset=["from", "to"]).copy()
+            if relation_df.empty:
+                return empty_frame
+            relation_df["from"] = relation_df["from"].astype(int)
+            relation_df["to"] = relation_df["to"].astype(int)
+            return relation_df.reset_index(drop=True)
+
+    return empty_frame
+
+
+# 把学生答题日志整理成 CDF 模型可直接使用的训练/验证表。
+def _build_cdf_training_dataset(
+    students_data: Dict[int, Dict[str, Any]],
+    knowledge_points: List[KnowledgePoint],
+    q_matrix: np.ndarray,
+) -> Dict[str, Any]:
+    q_matrix = np.asarray(q_matrix, dtype=np.float32)
+    student_ids = sorted(int(student_id) for student_id in students_data.keys())
+    student_id_to_index = {student_id: index for index, student_id in enumerate(student_ids)}
+    user_index_to_student_id = {index: student_id for student_id, index in student_id_to_index.items()}
+
+    train_rows: List[Dict[str, int]] = []
+    valid_rows: List[Dict[str, int]] = []
+    log_rows: List[Dict[str, int]] = []
+    practice_counts = defaultdict(lambda: defaultdict(int))
+    correct_counts = defaultdict(lambda: defaultdict(int))
+    answer_counts: Dict[int, int] = {}
+    student_meta: Dict[int, Dict[str, str]] = {}
+
+    for student_id in student_ids:
+        student_data = students_data.get(student_id, {})
+        answer_logs = list(student_data.get("answer_logs") or [])
+        answer_counts[student_id] = len(answer_logs)
+        student_meta[student_id] = {
+            "student_name": str(student_data.get("first_name") or student_data.get("username") or student_id),
+            "username": str(student_data.get("username") or student_id),
+        }
+
+        split_index = int(len(answer_logs) * 0.8)
+        for order_index, log in enumerate(answer_logs):
+            exercise_index = _safe_int(log.get("exercise_idx"), default=-1)
+            if exercise_index < 0 or exercise_index >= q_matrix.shape[0]:
+                continue
+
+            score = 1 if bool(log.get("is_correct")) else 0
+            row = {
+                "user_id": student_id_to_index[student_id],
+                "exercise_id": exercise_index,
+                "score": score,
+            }
+            log_rows.append(dict(row))
+            if order_index < split_index:
+                train_rows.append(dict(row))
+            else:
+                valid_rows.append(dict(row))
+
+            kp_indices = np.where(q_matrix[exercise_index] > 0)[0]
+            for kp_index in kp_indices:
+                kp_id = knowledge_points[int(kp_index)].id
+                practice_counts[student_id][kp_id] += 1
+                if score > 0:
+                    correct_counts[student_id][kp_id] += 1
+
+    train_df = pd.DataFrame(train_rows, columns=["user_id", "exercise_id", "score"])
+    valid_df = pd.DataFrame(valid_rows, columns=["user_id", "exercise_id", "score"])
+    log_df = pd.DataFrame(log_rows, columns=["user_id", "exercise_id", "score"])
+
+    if train_df.empty:
+        raise ValueError("No training logs available for the selected subject")
+    if valid_df.empty:
+        valid_df = None
+
+    return {
+        "train_df": train_df,
+        "valid_df": valid_df,
+        "log_df": log_df,
+        "q_matrix": q_matrix,
+        "n_user": len(student_ids),
+        "n_item": int(q_matrix.shape[0]),
+        "n_know": int(q_matrix.shape[1]),
+        "user_index_to_student_id": user_index_to_student_id,
+        "practice_counts": {student_id: dict(counts) for student_id, counts in practice_counts.items()},
+        "correct_counts": {student_id: dict(counts) for student_id, counts in correct_counts.items()},
+        "answer_counts": answer_counts,
+        "student_meta": student_meta,
+    }
+
+
+# 统一构建本地 CDF 模型训练参数，尽量保持与现有日志结构一致。
+def _build_cdf_hparams(
+    n_user: int,
+    n_item: int,
+    n_know: int,
+    checkpoint_file: Path,
+    log_base_dir: Path,
+) -> Dict[str, Any]:
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    log_base_dir.mkdir(parents=True, exist_ok=True)
+    return {
+        "n_user": n_user,
+        "n_item": n_item,
+        "n_know": n_know,
+        "hidden_dim": 1,
+        "lr": 0.005,
+        "mixed_lr": 0.001,
+        "weight_decay": 1e-5,
+        "epoch": 30,
+        "batch_size": 512,
+        "logger_mode": "file",
+        "loss_factor": 0.001,
+        "device": device,
+        "batch_show": 10,
+        "train_ratio": 0.8,
+        "itf_type": "irt",
+        "max_exercise_id": n_item,
+        "base_log_path": str(log_base_dir),
+        "Con_log_path": str(log_base_dir),
+        "Hier_log_path": str(log_base_dir),
+        "Mixed_log_path": str(log_base_dir),
+        "model_name": str(checkpoint_file),
+    }
+
+
+# 把 state_dict 拷贝到 CPU 后再保存，避免跨设备加载出错。
+def _copy_cdf_state_dict_to_cpu(model: Any) -> Dict[str, Any]:
+    cpu_state = {}
+    for key, value in model.state_dict().items():
+        cpu_state[key] = value.detach().cpu() if torch.is_tensor(value) else value
+    return cpu_state
+
+
+# 统一保存模型 checkpoint。
+def _save_cdf_model_checkpoint(model: Any, checkpoint_file: Path) -> None:
+    checkpoint_file.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(_copy_cdf_state_dict_to_cpu(model), checkpoint_file)
+
+
+# 获取模型 logger 实际落盘的日志目录。
+def _resolve_cdf_model_log_dir(model: Any, fallback_log_dir: Path) -> str:
+    logger = getattr(model, "logger", None)
+    if logger is not None and getattr(logger, "path", None):
+        return str(logger.path)
+    return str(fallback_log_dir)
+
+
+# 把掌握度矩阵组装成前端和数据库共用的诊断结果结构。
+def _build_cdf_student_results(
+    mastery_matrix: np.ndarray,
+    knowledge_points: List[KnowledgePoint],
+    dataset_context: Dict[str, Any],
+) -> Dict[str, Any]:
+    diagnosis_results: Dict[str, Any] = {}
+
+    for user_index, student_id in dataset_context["user_index_to_student_id"].items():
+        mastery_row = mastery_matrix[user_index] if user_index < mastery_matrix.shape[0] else np.zeros(len(knowledge_points))
+        student_meta = dataset_context["student_meta"].get(student_id, {})
+        student_practice = dataset_context["practice_counts"].get(student_id, {})
+        student_correct = dataset_context["correct_counts"].get(student_id, {})
+
+        knowledge_mastery: Dict[str, float] = {}
+        practice_counts: Dict[str, int] = {}
+        correct_counts: Dict[str, int] = {}
+        knowledge_rows: List[Dict[str, Any]] = []
+
+        for kp_index, kp in enumerate(knowledge_points):
+            mastery_value = round(float(mastery_row[kp_index]), 4)
+            kp_key = str(kp.id)
+            practice_count = int(student_practice.get(kp.id, 0))
+            correct_count = int(student_correct.get(kp.id, 0))
+
+            knowledge_mastery[kp_key] = mastery_value
+            practice_counts[kp_key] = practice_count
+            correct_counts[kp_key] = correct_count
+            knowledge_rows.append(
+                {
+                    "id": kp_key,
+                    "name": kp.name,
+                    "mastery": mastery_value,
+                    "practice_count": practice_count,
+                    "correct_count": correct_count,
+                }
+            )
+
+        weak_points = sorted(
+            [row for row in knowledge_rows if row["mastery"] < 0.6],
+            key=lambda item: item["mastery"],
+        )
+        strong_points = sorted(
+            [row for row in knowledge_rows if row["mastery"] >= 0.8],
+            key=lambda item: item["mastery"],
+            reverse=True,
+        )
+
+        diagnosis_results[str(student_id)] = {
+            "student_id": int(student_id),
+            "student_name": student_meta.get("student_name", str(student_id)),
+            "username": student_meta.get("username", str(student_id)),
+            "knowledge_mastery": knowledge_mastery,
+            "practice_counts": practice_counts,
+            "correct_counts": correct_counts,
+            "overall_score": round(float(np.mean(mastery_row)) if len(mastery_row) > 0 else 0.0, 4),
+            "weak_points": weak_points,
+            "strong_points": strong_points,
+            "answer_count": int(dataset_context["answer_counts"].get(student_id, 0)),
+        }
+
+    return diagnosis_results
+
+
+# 本地 CDF 模型统一训练服务基类，负责数据准备、缓存判断、训练和结果落盘。
+class _TrainableCDFDiagnosisService:
+    model_name = ""
+    method_name = ""
+    model_dir_name = ""
+    module_file_name = ""
+    module_cache_key = ""
+    model_class_name = ""
+    metric_key = "mse"
+
+    # 根据不同模型需要，返回参与训练的关系图帧。
+    def _normalize_relations(
+        self,
+        prereq_frame: pd.DataFrame,
+        containment_frame: pd.DataFrame,
+    ) -> Dict[str, pd.DataFrame]:
+        return {}
+
+    # 子类负责实例化具体模型。
+    def _build_model(self, context: Dict[str, Any]):
+        raise NotImplementedError
+
+    # 默认走 validate 获取验证指标，子类可以覆盖。
+    def _evaluate_model(self, model: Any, context: Dict[str, Any]) -> Dict[str, float]:
+        valid_df = context["dataset_context"]["valid_df"]
+        if valid_df is None or valid_df.empty:
+            return {}
+        if hasattr(model, "validate"):
+            try:
+                metrics = model.validate(
+                    valid_df,
+                    context["dataset_context"]["q_matrix"],
+                    context["hparams"]["device"],
+                    context["hparams"]["logger_mode"],
+                )
+                return {key: float(value) for key, value in metrics.items()}
+            except Exception:
+                return {}
+        return {}
+
+    # 统一组装本次训练任务上下文，后续缓存判断和训练都基于它。
+    def _build_context(
+        self,
+        students_data: Dict[int, Dict[str, Any]],
+        knowledge_points: List[KnowledgePoint],
+        q_matrix: np.ndarray,
+        prereq_bundle: Optional[Dict[str, Any]] = None,
+        containment_bundle: Optional[Dict[str, Any]] = None,
+        **_: Any,
+    ) -> Dict[str, Any]:
+        if not knowledge_points:
+            raise ValueError("Knowledge points are required for CDF training")
+
+        dataset_context = _build_cdf_training_dataset(students_data, knowledge_points, q_matrix)
+        subject_id = int(knowledge_points[0].subject_id)
+        prereq_frame = _build_cdf_relation_frame(prereq_bundle)
+        containment_frame = _build_cdf_relation_frame(containment_bundle)
+        relation_frames = self._normalize_relations(prereq_frame, containment_frame)
+        relation_counts = {
+            relation_name: int(frame.shape[0])
+            for relation_name, frame in relation_frames.items()
+            if frame is not None and not frame.empty
+        }
+
+        task_signature = _stable_hash(
+            {
+                "subject_id": subject_id,
+                "model_name": self.model_name,
+                "train_hash": _hash_dataframe(dataset_context["train_df"]),
+                "valid_hash": _hash_dataframe(dataset_context["valid_df"]),
+                "log_hash": _hash_dataframe(dataset_context["log_df"]),
+                "q_hash": _hash_matrix(dataset_context["q_matrix"]),
+                "relation_hashes": {
+                    relation_name: _hash_dataframe(frame)
+                    for relation_name, frame in relation_frames.items()
+                },
+            }
+        )
+
+        checkpoint_dir = CHECKPOINT_ROOT / f"subject_{subject_id}" / self.model_name / task_signature
+        checkpoint_file = checkpoint_dir / "model.pt"
+        result_file = checkpoint_dir / "result.json"
+        meta_file = checkpoint_dir / "meta.json"
+        log_base_dir = LOG_ROOT / f"subject_{subject_id}" / self.model_name / task_signature
+
+        return {
+            "subject_id": subject_id,
+            "task_signature": task_signature,
+            "checkpoint_dir": checkpoint_dir,
+            "checkpoint_file": checkpoint_file,
+            "result_file": result_file,
+            "meta_file": meta_file,
+            "log_base_dir": log_base_dir,
+            "knowledge_points": knowledge_points,
+            "dataset_context": dataset_context,
+            "relation_frames": relation_frames,
+            "relation_counts": relation_counts,
+            "module": _load_local_cmd_survey_module(self.model_dir_name, self.module_file_name, self.module_cache_key),
+            "hparams": _build_cdf_hparams(
+                dataset_context["n_user"],
+                dataset_context["n_item"],
+                dataset_context["n_know"],
+                checkpoint_file,
+                log_base_dir,
+            ),
+        }
+
+    # 先按任务签名尝试复用当前项目内已训练好的结果。
+    def _load_cached_result(self, context: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        result_file = context["result_file"]
+        checkpoint_file = context["checkpoint_file"]
+        if not result_file.exists() or not checkpoint_file.exists():
+            return None
+
+        try:
+            result = json.loads(result_file.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+
+        model_info = result.get("model_info")
+        if not isinstance(model_info, dict):
+            model_info = {}
+            result["model_info"] = model_info
+        model_info["cache_hit"] = True
+        return result
+
+    # 把训练函数返回的 best epoch / auc / acc / mse(rmse) 统一整理。
+    def _build_metrics_payload(
+        self,
+        train_result: Tuple[Any, Any, Any, Any],
+        eval_metrics: Dict[str, float],
+    ) -> Tuple[int, Dict[str, float]]:
+        best_epoch, best_auc, best_acc, best_metric = train_result
+        metrics = {key: float(value) for key, value in eval_metrics.items()}
+
+        if best_acc is not None:
+            metrics.setdefault("acc", float(best_acc))
+        if best_auc is not None:
+            metrics.setdefault("auc", float(best_auc))
+        if best_metric is not None:
+            metrics.setdefault(self.metric_key, float(best_metric))
+        metrics.setdefault("f1", float(metrics.get("acc", 0.0)))
+
+        if self.metric_key == "rmse" and "rmse" not in metrics and "mse" in metrics:
+            metrics["rmse"] = float(np.sqrt(metrics["mse"])) if metrics["mse"] > 0 else 0.0
+        if self.metric_key == "mse" and "mse" not in metrics and "rmse" in metrics:
+            metrics["mse"] = float(metrics["rmse"])
+
+        return _safe_int(best_epoch, default=-1), metrics
+
+    # 统一运行训练，训练完成后同步落盘 checkpoint / result / meta。
+    def _train_and_cache_result(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        dataset_context = context["dataset_context"]
+        hparams = context["hparams"]
+
+        _set_random_seed(42)
+        context["checkpoint_dir"].mkdir(parents=True, exist_ok=True)
+        context["log_base_dir"].mkdir(parents=True, exist_ok=True)
+
+        model = self._build_model(context)
+        train_result = model.train(
+            hparams=hparams,
+            train_data=dataset_context["train_df"],
+            Q_matrix=dataset_context["q_matrix"],
+            valid_data=dataset_context["valid_df"],
+        )
+
+        best_epoch, metrics = self._build_metrics_payload(
+            train_result=train_result,
+            eval_metrics=self._evaluate_model(model, context),
+        )
+
+        _save_cdf_model_checkpoint(model, context["checkpoint_file"])
+
+        # PCG-CDF 自己定义了 eval(test_data, ...) 方法，这里显式调用
+        # PyTorch 基类的 eval() 来切换推理模式，避免和其自定义评估接口冲突。
+        torch.nn.Module.eval(model)
+        if hasattr(model, "_to_device"):
+            model._to_device(hparams["device"])
+        else:
+            model.to(hparams["device"])
+
+        with torch.no_grad():
+            user_tensor = torch.arange(dataset_context["n_user"], dtype=torch.long).to(hparams["device"])
+            mastery_tensor = model.get_posterior(user_tensor, device=hparams["device"])
+            mastery_matrix = mastery_tensor.detach().cpu().numpy()
+
+        diagnosis_results = _build_cdf_student_results(
+            mastery_matrix=np.asarray(mastery_matrix, dtype=np.float32),
+            knowledge_points=context["knowledge_points"],
+            dataset_context=dataset_context,
+        )
+
+        model_info = {
+            "type": self.model_name,
+            "method": self.method_name,
+            "relation_count": int(sum(context["relation_counts"].values())),
+            "cache_hit": False,
+            "task_signature": context["task_signature"],
+            "checkpoint_dir": str(context["checkpoint_dir"]),
+            "checkpoint_file": str(context["checkpoint_file"]),
+            "result_file": str(context["result_file"]),
+            "meta_file": str(context["meta_file"]),
+            "log_dir": _resolve_cdf_model_log_dir(model, context["log_base_dir"]),
+            "best_epoch": best_epoch,
+            "best_metrics": metrics,
+            "train_sample_count": int(len(dataset_context["train_df"])),
+            "valid_sample_count": int(len(dataset_context["valid_df"])) if dataset_context["valid_df"] is not None else 0,
+            "relation_counts": context["relation_counts"],
+        }
+
+        result = {
+            "diagnosis_results": diagnosis_results,
+            "model_info": model_info,
+        }
+
+        meta_payload = {
+            "task_signature": context["task_signature"],
+            "subject_id": context["subject_id"],
+            "model_name": self.model_name,
+            "method_name": self.method_name,
+            "checkpoint_file": str(context["checkpoint_file"]),
+            "result_file": str(context["result_file"]),
+            "meta_file": str(context["meta_file"]),
+            "log_dir": model_info["log_dir"],
+            "best_epoch": best_epoch,
+            "best_metrics": metrics,
+            "relation_count": model_info["relation_count"],
+            "relation_counts": context["relation_counts"],
+            "train_sample_count": model_info["train_sample_count"],
+            "valid_sample_count": model_info["valid_sample_count"],
+        }
+
+        context["result_file"].write_text(
+            json.dumps(result, ensure_ascii=False, indent=2, default=_json_default),
+            encoding="utf-8",
+        )
+        context["meta_file"].write_text(
+            json.dumps(meta_payload, ensure_ascii=False, indent=2, default=_json_default),
+            encoding="utf-8",
+        )
+        return result
+
+    # 对外统一暴露的 CDF 诊断入口，先复用缓存，没有再训练。
+    def run_diagnosis(self, **kwargs: Any) -> Dict[str, Any]:
+        context = self._build_context(**kwargs)
+        cached_result = self._load_cached_result(context)
+        if cached_result is not None:
+            return cached_result
+        return self._train_and_cache_result(context)
+
+
+# IdpCDF 不依赖额外知识图，只使用基础答题数据和 Q 矩阵。
+class IdpCDFDiagnosisService(_TrainableCDFDiagnosisService):
+    model_name = "IdpCDF"
+    method_name = "trained_idpcdf"
+    model_dir_name = "IdpCDF"
+    module_file_name = "IdpCDF.py"
+    module_cache_key = "idpcdf"
+    model_class_name = "IRTCDM"
+    metric_key = "mse"
+
+    def _build_model(self, context: Dict[str, Any]):
+        module = context["module"]
+        dataset_context = context["dataset_context"]
+        return getattr(module, self.model_class_name)(
+            n_user=dataset_context["n_user"],
+            n_item=dataset_context["n_item"],
+            n_know=dataset_context["n_know"],
+            hidden_dim=context["hparams"]["hidden_dim"],
+            itf_type=context["hparams"]["itf_type"],
+            log_path=str(context["log_base_dir"]),
+        )
+
+
+# HierCDF 需要先修图，用来建模知识点层次依赖。
+class HierCDFDiagnosisService(_TrainableCDFDiagnosisService):
+    model_name = "HierCDF"
+    method_name = "trained_hierarchical_mastery"
+    model_dir_name = "HierCDF"
+    module_file_name = "HierCDF.py"
+    module_cache_key = "hiercdf"
+    model_class_name = "HierCDF"
+    metric_key = "mse"
+
+    def _normalize_relations(self, prereq_frame: pd.DataFrame, containment_frame: pd.DataFrame) -> Dict[str, pd.DataFrame]:
+        return {"prereq": prereq_frame}
+
+    def _build_model(self, context: Dict[str, Any]):
+        module = context["module"]
+        dataset_context = context["dataset_context"]
+        prereq_frame = context["relation_frames"].get("prereq", pd.DataFrame(columns=["from", "to"]))
+        return getattr(module, self.model_class_name)(
+            n_user=dataset_context["n_user"],
+            n_item=dataset_context["n_item"],
+            n_know=dataset_context["n_know"],
+            hidden_dim=context["hparams"]["hidden_dim"],
+            know_graph=prereq_frame,
+            itf_type=context["hparams"]["itf_type"],
+            log_path=str(context["log_base_dir"]),
+        )
+
+
+# ConCDF 需要包含图，并基于日志初始化关系强度和知识难度。
+class ConCDFDiagnosisService(_TrainableCDFDiagnosisService):
+    model_name = "ConCDF"
+    method_name = "trained_containment_mastery"
+    model_dir_name = "ConCDF"
+    module_file_name = "ConCDF.py"
+    module_cache_key = "concdf"
+    model_class_name = "ConCDF"
+    metric_key = "mse"
+
+    def _normalize_relations(self, prereq_frame: pd.DataFrame, containment_frame: pd.DataFrame) -> Dict[str, pd.DataFrame]:
+        return {"containment": containment_frame}
+
+    def _build_model(self, context: Dict[str, Any]):
+        module = context["module"]
+        dataset_context = context["dataset_context"]
+        containment_frame = context["relation_frames"].get("containment", pd.DataFrame(columns=["from", "to"]))
+        if containment_frame.empty:
+            init_relation = np.zeros(0, dtype=np.float32)
+        else:
+            init_relation = module.compute_relation_init(
+                dataset_context["train_df"],
+                dataset_context["q_matrix"],
+                containment_frame,
+            )
+        init_diff = module.compute_know_diff_from_logs(
+            dataset_context["log_df"],
+            dataset_context["q_matrix"],
+            method="inverse_accuracy",
+        )
+        return getattr(module, self.model_class_name)(
+            n_user=dataset_context["n_user"],
+            n_item=dataset_context["n_item"],
+            n_know=dataset_context["n_know"],
+            hidden_dim=context["hparams"]["hidden_dim"],
+            know_graph=containment_frame,
+            itf_type=context["hparams"]["itf_type"],
+            log_path=str(context["log_base_dir"]),
+            init_R=init_relation,
+            init_diff=init_diff,
+        )
+
+
+# PCG-CDF 同时融合先修图和包含图，因此需要两套关系信息共同训练。
+class PCGCDFDiagnosisService(_TrainableCDFDiagnosisService):
+    model_name = "PCG-CDF"
+    method_name = "trained_pcg_cdf"
+    model_dir_name = "PCGCDF"
+    module_file_name = "PCGCDF.py"
+    module_cache_key = "pcgcdf"
+    model_class_name = "MixedModel"
+    metric_key = "rmse"
+
+    def _normalize_relations(self, prereq_frame: pd.DataFrame, containment_frame: pd.DataFrame) -> Dict[str, pd.DataFrame]:
+        return {
+            "prereq": prereq_frame,
+            "containment": containment_frame,
+        }
+
+    def _evaluate_model(self, model: Any, context: Dict[str, Any]) -> Dict[str, float]:
+        valid_df = context["dataset_context"]["valid_df"]
+        if valid_df is None or valid_df.empty:
+            return {}
+        try:
+            metrics = model.eval(
+                valid_df,
+                context["dataset_context"]["q_matrix"],
+                context["hparams"]["batch_size"],
+                context["hparams"]["device"],
+            )
+            return {key: float(value) for key, value in metrics.items()}
+        except Exception:
+            return {}
+
+    def _build_model(self, context: Dict[str, Any]):
+        module = context["module"]
+        dataset_context = context["dataset_context"]
+        prereq_frame = context["relation_frames"].get("prereq", pd.DataFrame(columns=["from", "to"]))
+        containment_frame = context["relation_frames"].get("containment", pd.DataFrame(columns=["from", "to"]))
+        if containment_frame.empty:
+            init_relation = np.zeros(0, dtype=np.float32)
+        else:
+            init_relation = module.compute_relation_init(
+                dataset_context["train_df"],
+                dataset_context["q_matrix"],
+                containment_frame,
+            )
+        init_diff = module.compute_know_diff_from_logs(
+            dataset_context["log_df"],
+            dataset_context["q_matrix"],
+            method="inverse_accuracy",
+        )
+        return getattr(module, self.model_class_name)(
+            n_user=dataset_context["n_user"],
+            n_item=dataset_context["n_item"],
+            n_know=dataset_context["n_know"],
+            hidden_dim=context["hparams"]["hidden_dim"],
+            hier_graph=prereq_frame,
+            con_graph=containment_frame,
+            itf_type=context["hparams"]["itf_type"],
+            log_path=str(context["log_base_dir"]),
+            init_R=init_relation,
+            init_diff=init_diff,
+        )
+
+
 # 动态加载 BP 项目里的 CDF 诊断服务实现，并切换到当前项目路径。
 def _load_cdf_services():
+    raise RuntimeError("BP-backed CDF services are disabled; use local bridge services instead.")
     bp_path = (
         Path(settings.BASE_DIR).resolve().parent.parent
         / "Education_system_bp"
@@ -1082,10 +1813,10 @@ def _find_cached_cdf_result(subject_id: int, model_name: str) -> Optional[Dict[s
         "IdpCDF": "IdpCDF",
         "HierCDF": "HierCDF",
         "ConCDF": "ConCDF",
-        "PCG-CDF": "PCGCDF",
+        "PCG-CDF": "PCG-CDF",
     }
     model_dir_name = model_dir_map.get(model_name, model_name)
-    checkpoint_root = DIAGNOSIS_ROOT / "checkpoints" / f"subject_{subject_id}" / model_dir_name
+    checkpoint_root = CHECKPOINT_ROOT / f"subject_{subject_id}" / model_dir_name
     if not checkpoint_root.exists():
         return None
 
@@ -1115,15 +1846,15 @@ def _find_cached_cdf_result(subject_id: int, model_name: str) -> Optional[Dict[s
 def _select_cdf_service(model_name: str):
     # 根据模型名选择对应的 BP 诊断服务类。
     # 这里仍然复用底层实现类名，只是入口改成新模型名。
-    module = _load_cdf_services()
+    # 改为直接使用当前项目中的本地实现，不再从备份工程动态加载。
     if model_name == "IdpCDF":
-        return module.IdpCDFDiagnosisService()
+        return IdpCDFDiagnosisService()
     if model_name == "HierCDF":
-        return module.HierCDFDiagnosisService()
+        return HierCDFDiagnosisService()
     if model_name == "ConCDF":
-        return module.ConCDFDiagnosisService()
+        return ConCDFDiagnosisService()
     if model_name == "PCG-CDF":
-        return module.PCGCDFDiagnosisService()
+        return PCGCDFDiagnosisService()
     raise ValueError(f"Unsupported CDF model: {model_name}")
 
 
