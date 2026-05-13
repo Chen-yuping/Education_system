@@ -1,0 +1,23 @@
+{
+  "task_signature": "0f308a0d143219a944093a390cdb2263",
+  "subject_id": 697821,
+  "model_name": "ConCDF",
+  "method_name": "trained_containment_mastery",
+  "checkpoint_file": "D:\\github_projects\\1_graduatePaper related_CDM\\GitHub\\Education_system\\learning\\diagnosis\\checkpoints\\subject_697821\\ConCDF\\0f308a0d143219a944093a390cdb2263\\model.pt",
+  "result_file": "D:\\github_projects\\1_graduatePaper related_CDM\\GitHub\\Education_system\\learning\\diagnosis\\checkpoints\\subject_697821\\ConCDF\\0f308a0d143219a944093a390cdb2263\\result.json",
+  "meta_file": "D:\\github_projects\\1_graduatePaper related_CDM\\GitHub\\Education_system\\learning\\diagnosis\\checkpoints\\subject_697821\\ConCDF\\0f308a0d143219a944093a390cdb2263\\meta.json",
+  "log_dir": "D:\\github_projects\\1_graduatePaper related_CDM\\GitHub\\Education_system\\learning\\diagnosis\\cdflogs\\subject_697821\\ConCDF\\0f308a0d143219a944093a390cdb2263\\2026-05-13-12_31_29/",
+  "best_epoch": 30,
+  "best_metrics": {
+    "acc": 0.4662576687116564,
+    "f1": 0.2018348623853211,
+    "auc": 0.6543172075933864,
+    "mse": 0.2490242431755208
+  },
+  "relation_count": 142,
+  "relation_counts": {
+    "containment": 142
+  },
+  "train_sample_count": 600,
+  "valid_sample_count": 163
+}

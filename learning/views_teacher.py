@@ -50,9 +50,7 @@ def teacher_dashboard(request):
     ).distinct().count()
 
     # 4. 授课活跃学生数（最近30天有答题记录的学生）
-    from datetime import datetime, timedelta
-
-    thirty_days_ago = datetime.now() - timedelta(days=30)
+    thirty_days_ago = timezone.now() - timedelta(days=30)
 
     active_students = User.objects.filter(
         enrolled_subjects__subject__in=teaching_subjects
@@ -74,8 +72,6 @@ def teacher_dashboard(request):
     total_exercises_created = Exercise.objects.filter(creator=teacher).count()
 
     # 8. 学生活跃度分布（按周几统计最近30天的活跃学生）
-    from django.db.models import Count
-    from datetime import datetime, timedelta
     
     activity_by_day = [0] * 7  # 周一到周日
     for i in range(7):

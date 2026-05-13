@@ -1,0 +1,21 @@
+{
+  "task_signature": "8b5a74170a112f00570ec30a13e5af19",
+  "subject_id": 697821,
+  "model_name": "IdpCDF",
+  "method_name": "trained_idpcdf",
+  "checkpoint_file": "D:\\github_projects\\1_graduatePaper related_CDM\\GitHub\\Education_system\\learning\\diagnosis\\checkpoints\\subject_697821\\IdpCDF\\8b5a74170a112f00570ec30a13e5af19\\model.pt",
+  "result_file": "D:\\github_projects\\1_graduatePaper related_CDM\\GitHub\\Education_system\\learning\\diagnosis\\checkpoints\\subject_697821\\IdpCDF\\8b5a74170a112f00570ec30a13e5af19\\result.json",
+  "meta_file": "D:\\github_projects\\1_graduatePaper related_CDM\\GitHub\\Education_system\\learning\\diagnosis\\checkpoints\\subject_697821\\IdpCDF\\8b5a74170a112f00570ec30a13e5af19\\meta.json",
+  "log_dir": "D:\\github_projects\\1_graduatePaper related_CDM\\GitHub\\Education_system\\learning\\diagnosis\\cdflogs\\subject_697821\\IdpCDF\\8b5a74170a112f00570ec30a13e5af19\\2026-05-13-11_08_34/",
+  "best_epoch": 30,
+  "best_metrics": {
+    "acc": 0.588957055214724,
+    "f1": 0.588957055214724,
+    "auc": 0.6711573790569505,
+    "mse": 0.24384944010004223
+  },
+  "relation_count": 0,
+  "relation_counts": {},
+  "train_sample_count": 600,
+  "valid_sample_count": 163
+}

@@ -144,48 +144,7 @@
                 </select>
             </div>
 
-            <!-- 参数配置 -->
-            <div class="col-md-4 mb-3">
-                <label class="form-label fw-bold">模型参数</label>
-                <div class="d-flex gap-2">
-                    <div class="flex-grow-1">
-                        <select class="form-select" id="paramSelect">
-                            <option value="default">默认参数</option>
-                            <option value="custom">自定义参数</option>
-                        </select>
-                    </div>
-                    <button class="btn btn-outline-secondary" id="paramConfigBtn">
-                        <i class="fas fa-sliders-h"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- 模型配置选项 -->
-        <div class="row" id="customParams" style="display: none;">
-            <div class="col-12">
-                <div class="border rounded p-3 bg-light">
-                    <h6><i class="fas fa-tools me-2"></i>自定义模型参数</h6>
-                    <div class="row">
-                        <div class="col-md-3">
-                            <label class="form-label">学习率</label>
-                            <input type="number" class="form-control" id="learningRate" value="0.001" step="0.0001">
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">迭代次数</label>
-                            <input type="number" class="form-control" id="epochs" value="100" min="10" max="1000">
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">隐藏层维度</label>
-                            <input type="number" class="form-control" id="hiddenDim" value="64" min="16" max="256">
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">正则化系数</label>
-                            <input type="number" class="form-control" id="regLambda" value="0.01" step="0.001">
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <div class="col-md-4 mb-3"></div>
         </div>
 
         <!-- 操作按钮 -->
@@ -243,9 +202,8 @@
                     <div id="knowledgeGraphChart" style="width: 100%; height: 100%;"></div>
                     <!-- 图例 -->
                     <div style="position: absolute; top: 10px; right: 10px; background: white; padding: 10px; border-radius: 5px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); font-size: 12px; z-index: 10;">
-                        <div><span style="display: inline-block; width: 12px; height: 12px; background: #52c41a; border-radius: 50%; margin-right: 5px;"></span>优秀 (≥80%)</div>
-                        <div><span style="display: inline-block; width: 12px; height: 12px; background: #faad14; border-radius: 50%; margin-right: 5px;"></span>良好 (60-80%)</div>
-                        <div><span style="display: inline-block; width: 12px; height: 12px; background: #f5222d; border-radius: 50%; margin-right: 5px;"></span>需加强 (<60%)</div>
+                        <div><span style="display: inline-block; width: 12px; height: 12px; background: #52c41a; border-radius: 50%; margin-right: 5px;"></span>已掌握 (≥50%)</div>
+                        <div><span style="display: inline-block; width: 12px; height: 12px; background: #f5222d; border-radius: 50%; margin-right: 5px;"></span>未掌握 (&lt;50%)</div>
                         <div class="mt-2 text-muted"><i class="fas fa-info-circle me-1"></i>拖拽节点可移动</div>
                     </div>
                     <!-- 工具提示 -->
@@ -292,9 +250,8 @@
                 <label class="form-label">筛选学生</label>
                 <select class="form-select" id="studentFilter">
                     <option value="all">所有学生</option>
-                    <option value="weak">需要加强 (掌握度 < 50%)</option>
-                    <option value="average">一般掌握 (50%-80%)</option>
-                    <option value="good">良好掌握 (> 80%)</option>
+                    <option value="weak">未掌握 (&lt;50%)</option>
+                    <option value="good">已掌握 (≥50%)</option>
                 </select>
             </div>
             <div class="col-md-8">
@@ -481,17 +438,6 @@ function setupEventListeners() {
         });
     }
 
-    // 参数选择
-    const paramSelect = document.getElementById('paramSelect');
-    if (paramSelect) {
-        paramSelect.addEventListener('change', function() {
-            const customParams = document.getElementById('customParams');
-            if (customParams) {
-                customParams.style.display = this.value === 'custom' ? 'block' : 'none';
-            }
-        });
-    }
-
     // 开始诊断
     const startBtn = document.getElementById('startDiagnosisBtn');
     if (startBtn) {
@@ -546,11 +492,8 @@ function filterStudents() {
             case 'weak':
                 showRow = mastery < 50;
                 break;
-            case 'average':
-                showRow = mastery >= 50 && mastery <= 80;
-                break;
             case 'good':
-                showRow = mastery > 80;
+                showRow = mastery >= 50;
                 break;
             default:
                 showRow = true;
@@ -651,8 +594,7 @@ function renderOverallChartFromSummary(summary) {
             itemStyle: {
                 color: function(params) {
                     const value = params.value;
-                    if (value >= 80) return '#52c41a';
-                    if (value >= 60) return '#faad14';
+                    if (value >= 50) return '#52c41a';
                     return '#f5222d';
                 }
             },
@@ -748,7 +690,7 @@ function updateStatsSummaryFromDiagnosis(data) {
     const summary = data.diagnosis_summary;
     const diagnosisData = data.diagnosis_data;
     
-    // 计算薄弱知识点数量
+    // 计算未掌握知识点数量
     let weakCount = 0;
     let strongCount = 0;
     
@@ -769,8 +711,8 @@ function updateStatsSummaryFromDiagnosis(data) {
             });
             
             const avgMastery = count > 0 ? (totalMastery / count) * 100 : 0;
-            if (avgMastery < 60) weakCount++;
-            if (avgMastery >= 80) strongCount++;
+            if (avgMastery < 50) weakCount++;
+            if (avgMastery >= 50) strongCount++;
         });
     }
 
@@ -811,8 +753,8 @@ function updateStatsSummaryFromDiagnosis(data) {
                 <div class="progress-circle mb-2" style="background: linear-gradient(135deg, #e74a3b 0%, #be2617 100%);">
                     ${weakCount}
                 </div>
-                <div class="fw-bold">薄弱知识点</div>
-                <small class="text-muted">需加强的知识点</small>
+                <div class="fw-bold">未掌握知识点</div>
+                <small class="text-muted">掌握度不超过50%</small>
             </div>
         </div>
         <div class="mt-3 p-3 bg-light rounded">
@@ -820,7 +762,7 @@ function updateStatsSummaryFromDiagnosis(data) {
                 <i class="fas fa-info-circle me-1"></i>
                 科目: ${summary.subject_name}<br>
                 使用模型: ${summary.model_used}<br>
-                优势知识点: ${strongCount}个
+                已掌握知识点: ${strongCount}个
             </small>
         </div>
     `;
@@ -867,10 +809,34 @@ function renderBarChart(diagnosisData, kpAverages) {
         overallChart.clear();
     }
 
-    const categories = diagnosisData.knowledge_points.map(kp => kp.name);
-    const masteryData = diagnosisData.knowledge_points.map(kp =>
-        parseFloat(kpAverages[kp.id.toString()].toFixed(1))
-    );
+    // 1. 构建知识点数组（保留 id，便于去重）
+    const allKps = diagnosisData.knowledge_points.map(kp => ({
+        id: kp.id,
+        name: kp.name,
+        mastery: parseFloat((kpAverages[kp.id.toString()] || 0).toFixed(1))
+    }));
+
+    // 2. 按掌握度降序排序
+    allKps.sort((a, b) => b.mastery - a.mastery);
+
+    // 3. 分别取最高10个和最低10个
+    const top10 = allKps.slice(0, 10);
+    const bottom10 = allKps.slice(-10);
+
+    // 4. 合并去重：先加入 top10，再加入 bottom10 中不重复的项（以 id 判断）
+    const combinedMap = new Map();
+    top10.forEach(item => combinedMap.set(item.id, item));
+    bottom10.forEach(item => {
+        if (!combinedMap.has(item.id)) {
+            combinedMap.set(item.id, item);
+        }
+    });
+    const combinedList = Array.from(combinedMap.values());  // 保持插入顺序
+
+    // 5. 分离出 X 轴标签和 Y 轴数据
+    const categories = combinedList.map(item => item.name);
+    const masteryData = combinedList.map(item => item.mastery);
+
 
     const option = {
         animation: false,
@@ -911,8 +877,7 @@ function renderBarChart(diagnosisData, kpAverages) {
             itemStyle: {
                 color: function(params) {
                     const value = params.value;
-                    if (value >= 80) return '#52c41a';
-                    if (value >= 60) return '#faad14';
+                    if (value >= 50) return '#52c41a';
                     return '#f5222d';
                 }
             },
@@ -1114,8 +1079,8 @@ function renderKnowledgeGraph(diagnosisData, kpAverages) {
         
         // 显示工具提示
         const tooltip = document.getElementById('graphTooltip');
-        const statusText = d.mastery >= 80 ? '优秀' : (d.mastery >= 60 ? '良好' : '需加强');
-        const statusColor = d.mastery >= 80 ? '#52c41a' : (d.mastery >= 60 ? '#faad14' : '#f5222d');
+        const statusText = d.mastery >= 50 ? '已掌握' : '未掌握';
+        const statusColor = d.mastery >= 50 ? '#52c41a' : '#f5222d';
         
         tooltip.innerHTML = `
             <div style="font-weight: bold; margin-bottom: 8px; color: ${statusColor};">${d.name}</div>
@@ -1224,15 +1189,15 @@ function updateStatsSummary(summary) {
                 <div class="progress-circle mb-2" style="background: linear-gradient(135deg, #e74a3b 0%, #be2617 100%);">
                     ${weakCount}
                 </div>
-                <div class="fw-bold">薄弱知识点</div>
-                <small class="text-muted">需加强的知识点</small>
+                <div class="fw-bold">未掌握知识点</div>
+                <small class="text-muted">掌握度不超过50%</small>
             </div>
         </div>
         <div class="mt-3 p-3 bg-light rounded">
             <small class="text-muted">
                 <i class="fas fa-info-circle me-1"></i>
                 科目: ${summary.subject_name}<br>
-                优势知识点: ${strongCount}个
+                已掌握知识点: ${strongCount}个
             </small>
         </div>
     `;
@@ -1285,14 +1250,14 @@ function renderStudentPage(diagnosisData) {
         const sortedMastery = masteryEntries.sort((a, b) => b[1] - a[1]);
 
         const strengths = sortedMastery.slice(0, 2)
-            .filter(([_, mastery]) => mastery >= 0.8)
+            .filter(([_, mastery]) => mastery >= 0.5)
             .map(([kpId, _]) => {
                 const kp = diagnosisData.knowledge_points.find(k => k.id.toString() === kpId);
                 return kp ? kp.name : '未知知识点';
             });
 
         const weaknesses = sortedMastery.slice(-2)
-            .filter(([_, mastery]) => mastery < 0.6)
+            .filter(([_, mastery]) => mastery < 0.5)
             .map(([kpId, _]) => {
                 const kp = diagnosisData.knowledge_points.find(k => k.id.toString() === kpId);
                 return kp ? kp.name : '未知知识点';
@@ -1557,34 +1522,34 @@ function showStudentDetailModal(data) {
                             </div>
                         </div>
 
-                        <!-- 右侧：优势与薄弱知识点 -->
+                        <!-- 右侧：已掌握与未掌握知识点 -->
                         <div class="col-md-7">
                             <div class="row h-100">
                                 <div class="col-12 mb-3">
                                     <div class="card border-success h-100">
                                         <div class="card-header bg-success text-white">
-                                            <h6 class="mb-0"><i class="fas fa-star me-2"></i>优势知识点 (${data.strong_points.length}个)</h6>
+                                            <h6 class="mb-0"><i class="fas fa-star me-2"></i>已掌握知识点 (${data.strong_points.length}个)</h6>
                                         </div>
                                         <div class="card-body">
                                             ${data.strong_points.length > 0 ? data.strong_points.map(kp => `
                                                 <span class="badge bg-success me-1 mb-1 p-2">
                                                     ${kp.name} <small>(${kp.mastery}%)</small>
                                                 </span>
-                                            `).join('') : '<span class="text-muted">暂无优势知识点</span>'}
+                                            `).join('') : '<span class="text-muted">暂无已掌握知识点</span>'}
                                         </div>
                                     </div>
                                 </div>
                                 <div class="col-12">
                                     <div class="card border-danger h-100">
                                         <div class="card-header bg-danger text-white">
-                                            <h6 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>薄弱知识点 (${data.weak_points.length}个)</h6>
+                                            <h6 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>未掌握知识点 (${data.weak_points.length}个)</h6>
                                         </div>
                                         <div class="card-body">
                                             ${data.weak_points.length > 0 ? data.weak_points.map(kp => `
                                                 <span class="badge bg-danger me-1 mb-1 p-2">
                                                     ${kp.name} <small>(${kp.mastery}%)</small>
                                                 </span>
-                                            `).join('') : '<span class="text-muted">暂无薄弱知识点，继续保持！</span>'}
+                                            `).join('') : '<span class="text-muted">暂无未掌握知识点，继续保持！</span>'}
                                         </div>
                                     </div>
                                 </div>
@@ -1752,7 +1717,7 @@ function initKnowledgePointTable(knowledgeData) {
                 <td>${kp.practice_count}</td>
                 <td>${kp.correct_rate}%</td>
                 <td>
-                    <span class="badge ${kp.status === '优秀' ? 'bg-success' : kp.status === '良好' ? 'bg-warning' : 'bg-danger'}">
+                    <span class="badge ${kp.status === '已掌握' ? 'bg-success' : 'bg-danger'}">
                         ${kp.status}
                     </span>
                 </td>
@@ -1838,8 +1803,7 @@ function initKnowledgePointTable(knowledgeData) {
 // 工具函数
 function getMasteryColor(mastery) {
     const value = parseFloat(mastery);
-    if (value >= 80) return '#52c41a';
-    if (value >= 60) return '#faad14';
+    if (value >= 50) return '#52c41a';
     return '#f5222d';
 }
 

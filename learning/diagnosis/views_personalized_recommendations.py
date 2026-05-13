@@ -133,9 +133,187 @@ def get_10_recommended_exercises(student, subject):
     return exercises[:10]
 
 
+def get_student_learned_chapters(student, subject):
+    """
+    获取学生已学过的最高章节号
+    
+    通过分析学生的答题记录，推断学生已学过的章节范围
+    假设：学生做过的题目所属的最高章节，就是学生已学过的最高章节
+    
+    参数：
+        student: 学生对象
+        subject: 科目对象
+    
+    返回：
+        最高章节号（整数），如果没有答题记录则返回0
+    """
+    # 获取学生在该科目的所有答题记录
+    answer_logs = AnswerLog.objects.filter(
+        student=student,
+        subject=subject
+    ).select_related('exercise')
+    
+    if not answer_logs.exists():
+        return 0
+    
+    # 从答题记录中提取章节号
+    max_chapter = 0
+    for log in answer_logs:
+        exercise = log.exercise
+        # 尝试从 problemsets 字段中提取章节号
+        # 假设 problemsets 格式为 "chapter_1", "chapter_2" 等
+        if exercise.problemsets:
+            try:
+                # 尝试提取数字
+                chapter_str = exercise.problemsets.replace('chapter_', '').replace('Chapter_', '')
+                chapter_num = int(''.join(filter(str.isdigit, chapter_str)))
+                max_chapter = max(max_chapter, chapter_num)
+            except (ValueError, AttributeError):
+                pass
+    
+    return max_chapter
+
+
+def get_knowledge_point_chapter(knowledge_point, subject):
+    """
+    获取知识点所属的章节号
+    
+    通过分析该知识点相关的题目，推断知识点所属的章节
+    
+    参数：
+        knowledge_point: 知识点对象
+        subject: 科目对象
+    
+    返回：
+        章节号（整数），如果无法确定则返回 0
+    """
+    # 获取该知识点相关的所有题目
+    exercises = Exercise.objects.filter(
+        subject=subject,
+        qmatrix__knowledge_point=knowledge_point
+    ).distinct()
+    
+    if not exercises.exists():
+        return 0
+    
+    # 从题目中提取章节号
+    chapters = []
+    for exercise in exercises:
+        if exercise.problemsets:
+            try:
+                chapter_str = exercise.problemsets.replace('chapter_', '').replace('Chapter_', '')
+                chapter_num = int(''.join(filter(str.isdigit, chapter_str)))
+                chapters.append(chapter_num)
+            except (ValueError, AttributeError):
+                pass
+    
+    # 返回最常见的章节号（众数）
+    if chapters:
+        from collections import Counter
+        chapter_counter = Counter(chapters)
+        return chapter_counter.most_common(1)[0][0]
+    
+    return 0
+
+
+def get_prerequisite_knowledge_points(knowledge_point, subject):
+    """
+    获取某个知识点的所有前置知识点（递归）
+    
+    参数：
+        knowledge_point: 知识点对象
+        subject: 科目对象
+    
+    返回：
+        前置知识点ID的集合
+    """
+    prerequisites = set()
+    visited = set()
+    
+    def dfs(kp):
+        """深度优先搜索获取所有前置知识点"""
+        if kp.id in visited:
+            return
+        visited.add(kp.id)
+        
+        # 获取该知识点的所有前置知识点（source → target 关系中，source是前置）
+        incoming_edges = KnowledgeGraph.objects.filter(
+            subject=subject,
+            target=kp
+        )
+        
+        for edge in incoming_edges:
+            prerequisites.add(edge.source.id)
+            dfs(edge.source)
+    
+    dfs(knowledge_point)
+    return prerequisites
+
+
+def check_prerequisite_mastery(student, knowledge_point, subject, mastery_threshold=0.6):
+    """
+    检查学生是否掌握了某个知识点的所有前置知识
+    
+    参数：
+        student: 学生对象
+        knowledge_point: 知识点对象
+        subject: 科目对象
+        mastery_threshold: 掌握程度阈值（默认0.6）
+    
+    返回：
+        {
+            'all_prerequisites_mastered': bool,  # 是否掌握了所有前置知识
+            'unmastered_prerequisites': [kp_id],  # 未掌握的前置知识点ID列表
+            'prerequisite_mastery': {kp_id: mastery_level}  # 前置知识点的掌握程度
+        }
+    """
+    prerequisite_ids = get_prerequisite_knowledge_points(knowledge_point, subject)
+    
+    if not prerequisite_ids:
+        # 没有前置知识点
+        return {
+            'all_prerequisites_mastered': True,
+            'unmastered_prerequisites': [],
+            'prerequisite_mastery': {}
+        }
+    
+    prerequisite_mastery = {}
+    unmastered_prerequisites = []
+    
+    # 获取学生对所有前置知识点的掌握程度
+    for prereq_id in prerequisite_ids:
+        diagnosis = StudentDiagnosis.objects.filter(
+            student=student,
+            knowledge_point_id=prereq_id,
+            diagnosis_model_id=3
+        ).first()
+        
+        mastery_level = diagnosis.mastery_level if diagnosis else 0.0
+        prerequisite_mastery[prereq_id] = mastery_level
+        
+        if mastery_level < mastery_threshold:
+            unmastered_prerequisites.append(prereq_id)
+    
+    return {
+        'all_prerequisites_mastered': len(unmastered_prerequisites) == 0,
+        'unmastered_prerequisites': unmastered_prerequisites,
+        'prerequisite_mastery': prerequisite_mastery
+    }
+
+
 def get_weak_knowledge_exercises(student, subject, answered_exercise_ids, limit=5):
     """
     获取薄弱知识点相关题目（掌握程度 < 60%，与图谱中的红色节点一致）
+    
+    改进：
+    1. 考虑知识点的前置关系
+    2. 优先推荐学生已学过章节的知识点
+    
+    推荐优先级：
+    1. 已学过章节 + 前置知识不足的薄弱知识点的前置知识题目
+    2. 已学过章节 + 前置知识充分的薄弱知识点的题目
+    3. 未学过章节 + 前置知识不足的薄弱知识点的前置知识题目
+    4. 未学过章节 + 前置知识充分的薄弱知识点的题目
     """
     # 1. 获取学生的薄弱知识点ID（掌握程度<60%，只获取 diagnosis_model=3 的数据）
     weak_knowledge_ids = StudentDiagnosis.objects.filter(
@@ -148,39 +326,200 @@ def get_weak_knowledge_exercises(student, subject, answered_exercise_ids, limit=
     if not weak_knowledge_ids:
         return []
 
-    # 2. 获取这些薄弱知识点相关的习题
-    exercises = Exercise.objects.filter(
-        subject=subject,
-        qmatrix__knowledge_point_id__in=weak_knowledge_ids
-    ).exclude(
-        id__in=answered_exercise_ids
-    ).distinct()
+    # 2. 获取学生已学过的最高章节
+    max_learned_chapter = get_student_learned_chapters(student, subject)
 
-    if not exercises.exists():
-        return []
-
-    # 3. 优先选择关联薄弱知识点多的题目
-    # 计算每个题目关联的薄弱知识点数量
-    exercise_weak_count = {}
-    for exercise in exercises:
-        weak_count = exercise.qmatrix_set.filter(
-            knowledge_point_id__in=weak_knowledge_ids
-        ).count()
-        exercise_weak_count[exercise.id] = weak_count
-
-    # 4. 按薄弱知识点数量排序，取前limit个
-    sorted_exercise_ids = sorted(
-        exercise_weak_count.keys(),
-        key=lambda x: exercise_weak_count[x],
-        reverse=True
-    )[:limit]
-
-    # 5. 保持排序查询
-    id_order = {exercise_id: i for i, exercise_id in enumerate(sorted_exercise_ids)}
-    exercises_list = list(Exercise.objects.filter(id__in=sorted_exercise_ids))
-    exercises_list.sort(key=lambda x: id_order.get(x.id, 999))
-
-    return exercises_list
+    # 3. 分类薄弱知识点：前置知识不足 vs 前置知识充分
+    weak_kps_with_unmet_prerequisites = []  # 前置知识不足的薄弱知识点
+    weak_kps_with_met_prerequisites = []    # 前置知识充分的薄弱知识点
+    
+    for weak_kp_id in weak_knowledge_ids:
+        weak_kp = KnowledgePoint.objects.get(id=weak_kp_id)
+        prerequisite_check = check_prerequisite_mastery(student, weak_kp, subject)
+        
+        if prerequisite_check['all_prerequisites_mastered']:
+            weak_kps_with_met_prerequisites.append(weak_kp_id)
+        else:
+            weak_kps_with_unmet_prerequisites.append({
+                'kp_id': weak_kp_id,
+                'unmastered_prerequisites': prerequisite_check['unmastered_prerequisites']
+            })
+    
+    # 4. 进一步分类：已学过章节 vs 未学过章节
+    learned_chapter_unmet = []  # 已学过章节 + 前置知识不足
+    unlearned_chapter_unmet = []  # 未学过章节 + 前置知识不足
+    learned_chapter_met = []  # 已学过章节 + 前置知识充分
+    unlearned_chapter_met = []  # 未学过章节 + 前置知识充分
+    
+    for weak_kp_info in weak_kps_with_unmet_prerequisites:
+        weak_kp_id = weak_kp_info['kp_id']
+        weak_kp = KnowledgePoint.objects.get(id=weak_kp_id)
+        kp_chapter = get_knowledge_point_chapter(weak_kp, subject)
+        
+        if kp_chapter <= max_learned_chapter:
+            learned_chapter_unmet.append(weak_kp_info)
+        else:
+            unlearned_chapter_unmet.append(weak_kp_info)
+    
+    for weak_kp_id in weak_kps_with_met_prerequisites:
+        weak_kp = KnowledgePoint.objects.get(id=weak_kp_id)
+        kp_chapter = get_knowledge_point_chapter(weak_kp, subject)
+        
+        if kp_chapter <= max_learned_chapter:
+            learned_chapter_met.append(weak_kp_id)
+        else:
+            unlearned_chapter_met.append(weak_kp_id)
+    
+    # 5. 按优先级推荐题目
+    exercises = []
+    
+    # 优先级1：已学过章节 + 前置知识不足
+    if learned_chapter_unmet and len(exercises) < limit:
+        for weak_kp_info in learned_chapter_unmet:
+            if len(exercises) >= limit:
+                break
+            
+            unmastered_prereq_ids = weak_kp_info['unmastered_prerequisites']
+            
+            # 获取这些未掌握前置知识相关的题目
+            prereq_exercises = Exercise.objects.filter(
+                subject=subject,
+                qmatrix__knowledge_point_id__in=unmastered_prereq_ids
+            ).exclude(
+                id__in=answered_exercise_ids
+            ).exclude(
+                id__in=[e.id for e in exercises]
+            ).distinct()
+            
+            if prereq_exercises.exists():
+                # 计算每个题目关联的未掌握前置知识数量
+                exercise_prereq_count = {}
+                for exercise in prereq_exercises:
+                    prereq_count = exercise.qmatrix_set.filter(
+                        knowledge_point_id__in=unmastered_prereq_ids
+                    ).count()
+                    exercise_prereq_count[exercise.id] = prereq_count
+                
+                # 按未掌握前置知识数量排序，取前limit个
+                sorted_exercise_ids = sorted(
+                    exercise_prereq_count.keys(),
+                    key=lambda x: exercise_prereq_count[x],
+                    reverse=True
+                )[:limit - len(exercises)]
+                
+                # 保持排序查询
+                id_order = {exercise_id: i for i, exercise_id in enumerate(sorted_exercise_ids)}
+                exercises_list = list(Exercise.objects.filter(id__in=sorted_exercise_ids))
+                exercises_list.sort(key=lambda x: id_order.get(x.id, 999))
+                exercises.extend(exercises_list)
+    
+    # 优先级2：已学过章节 + 前置知识充分
+    if len(exercises) < limit and learned_chapter_met:
+        remaining_exercises = Exercise.objects.filter(
+            subject=subject,
+            qmatrix__knowledge_point_id__in=learned_chapter_met
+        ).exclude(
+            id__in=answered_exercise_ids
+        ).exclude(
+            id__in=[e.id for e in exercises]
+        ).distinct()
+        
+        if remaining_exercises.exists():
+            # 计算每个题目关联的薄弱知识点数量
+            exercise_weak_count = {}
+            for exercise in remaining_exercises:
+                weak_count = exercise.qmatrix_set.filter(
+                    knowledge_point_id__in=learned_chapter_met
+                ).count()
+                exercise_weak_count[exercise.id] = weak_count
+            
+            # 按薄弱知识点数量排序，取前limit个
+            sorted_exercise_ids = sorted(
+                exercise_weak_count.keys(),
+                key=lambda x: exercise_weak_count[x],
+                reverse=True
+            )[:limit - len(exercises)]
+            
+            # 保持排序查询
+            id_order = {exercise_id: i for i, exercise_id in enumerate(sorted_exercise_ids)}
+            exercises_list = list(Exercise.objects.filter(id__in=sorted_exercise_ids))
+            exercises_list.sort(key=lambda x: id_order.get(x.id, 999))
+            exercises.extend(exercises_list)
+    
+    # 优先级3：未学过章节 + 前置知识不足
+    if len(exercises) < limit and unlearned_chapter_unmet:
+        for weak_kp_info in unlearned_chapter_unmet:
+            if len(exercises) >= limit:
+                break
+            
+            unmastered_prereq_ids = weak_kp_info['unmastered_prerequisites']
+            
+            # 获取这些未掌握前置知识相关的题目
+            prereq_exercises = Exercise.objects.filter(
+                subject=subject,
+                qmatrix__knowledge_point_id__in=unmastered_prereq_ids
+            ).exclude(
+                id__in=answered_exercise_ids
+            ).exclude(
+                id__in=[e.id for e in exercises]
+            ).distinct()
+            
+            if prereq_exercises.exists():
+                # 计算每个题目关联的未掌握前置知识数量
+                exercise_prereq_count = {}
+                for exercise in prereq_exercises:
+                    prereq_count = exercise.qmatrix_set.filter(
+                        knowledge_point_id__in=unmastered_prereq_ids
+                    ).count()
+                    exercise_prereq_count[exercise.id] = prereq_count
+                
+                # 按未掌握前置知识数量排序，取前limit个
+                sorted_exercise_ids = sorted(
+                    exercise_prereq_count.keys(),
+                    key=lambda x: exercise_prereq_count[x],
+                    reverse=True
+                )[:limit - len(exercises)]
+                
+                # 保持排序查询
+                id_order = {exercise_id: i for i, exercise_id in enumerate(sorted_exercise_ids)}
+                exercises_list = list(Exercise.objects.filter(id__in=sorted_exercise_ids))
+                exercises_list.sort(key=lambda x: id_order.get(x.id, 999))
+                exercises.extend(exercises_list)
+    
+    # 优先级4：未学过章节 + 前置知识充分
+    if len(exercises) < limit and unlearned_chapter_met:
+        remaining_exercises = Exercise.objects.filter(
+            subject=subject,
+            qmatrix__knowledge_point_id__in=unlearned_chapter_met
+        ).exclude(
+            id__in=answered_exercise_ids
+        ).exclude(
+            id__in=[e.id for e in exercises]
+        ).distinct()
+        
+        if remaining_exercises.exists():
+            # 计算每个题目关联的薄弱知识点数量
+            exercise_weak_count = {}
+            for exercise in remaining_exercises:
+                weak_count = exercise.qmatrix_set.filter(
+                    knowledge_point_id__in=unlearned_chapter_met
+                ).count()
+                exercise_weak_count[exercise.id] = weak_count
+            
+            # 按薄弱知识点数量排序，取前limit个
+            sorted_exercise_ids = sorted(
+                exercise_weak_count.keys(),
+                key=lambda x: exercise_weak_count[x],
+                reverse=True
+            )[:limit - len(exercises)]
+            
+            # 保持排序查询
+            id_order = {exercise_id: i for i, exercise_id in enumerate(sorted_exercise_ids)}
+            exercises_list = list(Exercise.objects.filter(id__in=sorted_exercise_ids))
+            exercises_list.sort(key=lambda x: id_order.get(x.id, 999))
+            exercises.extend(exercises_list)
+    
+    return exercises[:limit]
 
 
 def get_new_exercises(subject, answered_exercise_ids, exclude_ids=None, limit=5):
