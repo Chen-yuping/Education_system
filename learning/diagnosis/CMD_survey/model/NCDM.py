@@ -194,7 +194,7 @@ class NCDM:
                     best_f1 = f1
                     best_rmse = rmse
             print('BEST epoch<%d>, auc: %s, acc: %s, rmse: %.6f, f1: %.6f' % (best_epoch, best_auc, best_acc, best_rmse, best_f1))
-        return (best_epoch, best_auc, best_acc, best_rmse), training_curves
+        return (best_epoch + 1, best_auc, best_acc, best_rmse), training_curves
 
     def eval(self, test_data, device="cpu"):
         self.ncdm_net = self.ncdm_net.to(device)

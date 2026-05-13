@@ -407,11 +407,14 @@ def train_from_context(context, model_name="GDNCDM"):
         "rmse": [float(row.get("val_rmse") or 0.0) for row in history],
     }
     best_metrics = train_result.get("best_metrics") or {}
+    result_auc = best_metrics.get("val_auc", metrics["auc"])
+    result_acc = best_metrics.get("val_acc", metrics["accuracy"])
+    result_rmse = best_metrics.get("val_rmse", metrics.get("rmse", 0.0))
     result = {
         "best_epoch": int(best_metrics.get("epoch") or EPOCHS),
-        "auc": float(metrics["auc"]),
-        "acc": float(metrics["accuracy"]),
-        "rmse": float(metrics.get("rmse") or 0.0),
+        "auc": float(result_auc),
+        "acc": float(result_acc),
+        "rmse": float(result_rmse or 0.0),
         "training_curves": training_curves,
         "history": history,
         "total_time": float(total_time),
