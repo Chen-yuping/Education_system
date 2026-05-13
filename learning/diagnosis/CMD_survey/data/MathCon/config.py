@@ -13,7 +13,7 @@ hparams = {
     'lr':5e-3,
     'mixed_lr':1e-3,
     'weight_decay': 1e-5,
-    'epoch': 30,
+    'epoch': 1,#原为30，展示时不易训练过久，因此改为1轮
     'batch_size': 512,
     'logger_mode': 'both', # 'file'/'both'/'console'
     'loss_factor': 0.001,

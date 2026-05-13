@@ -9,3 +9,4 @@ scikit-learn
 torch
 tqdm
 educdm==1.0.1
+dashscope
