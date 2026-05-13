@@ -34,7 +34,7 @@ def _run_cdf_bridge_model(model_name):
     # 这样 teacher 端只需要传模型名，不需要关心底层训练细节。
     # 这里返回可用可不用，可以用来看信息
     try:
-        from cdf_bridge import train_cdf_model
+        from learning.diagnosis.cdf_bridge import train_cdf_model
     except ImportError as exc:
         raise RuntimeError(
             'CDF bridge is missing. Restore learning/diagnosis/cdf_bridge.py '

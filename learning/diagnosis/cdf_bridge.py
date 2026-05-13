@@ -1,4 +1,5 @@
 import hashlib
+import importlib
 import importlib.util
 import json
 import random
@@ -1080,34 +1081,13 @@ def _load_local_cmd_survey_module(model_dir_name: str, module_file_name: str, ca
     if cache_key in _CMD_SURVEY_MODULE_CACHE:
         return _CMD_SURVEY_MODULE_CACHE[cache_key]
 
-    module_dir = DIAGNOSIS_ROOT / "CMD_survey" / "model" / model_dir_name
-    module_path = module_dir / module_file_name
+    module_path = DIAGNOSIS_ROOT / "CMD_survey" / "model" / model_dir_name / module_file_name
     if not module_path.exists():
         raise FileNotFoundError(f"Cannot find local CMD_survey module: {module_path}")
 
-    helper_module_names = ("dataloader", "itf", "tools")
-    helper_backups = {name: sys.modules.get(name) for name in helper_module_names}
-    for name in helper_module_names:
-        sys.modules.pop(name, None)
-
-    sys.path.insert(0, str(module_dir))
-    try:
-        spec = importlib.util.spec_from_file_location(f"local_cdf_bridge_{cache_key}", module_path)
-        if spec is None or spec.loader is None:
-            raise ImportError(f"Cannot load local module from {module_path}")
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-    finally:
-        try:
-            sys.path.remove(str(module_dir))
-        except ValueError:
-            pass
-
-        for name in helper_module_names:
-            sys.modules.pop(name, None)
-            backup = helper_backups.get(name)
-            if backup is not None:
-                sys.modules[name] = backup
+    module_name = module_file_name[:-3]
+    qualified_name = f"learning.diagnosis.CMD_survey.model.{model_dir_name}.{module_name}"
+    module = importlib.import_module(qualified_name)
 
     _CMD_SURVEY_MODULE_CACHE[cache_key] = module
     return module

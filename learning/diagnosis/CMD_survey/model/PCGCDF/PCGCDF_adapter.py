@@ -1,18 +1,16 @@
 import os
-import sys
 import importlib.util
 import pandas as pd
 import numpy as np
 import torch
 from django.conf import settings
 
-# 将 ConCDF 模型目录加入 sys.path（以便导入其内部模块）
-hiercdm_dir = os.path.join(settings.BASE_DIR, 'learning', 'CMD_survey', 'model', 'PCGCDF')
-if hiercdm_dir not in sys.path:
-    sys.path.insert(0, hiercdm_dir)
-
-# 导入 ConCDF 模型及相关函数
-from PCGCDF import MixedModel, compute_relation_init, compute_know_diff_from_logs
+# 导入 PCGCDF 模型及相关函数
+from learning.diagnosis.CMD_survey.model.PCGCDF.PCGCDF import (
+    MixedModel,
+    compute_relation_init,
+    compute_know_diff_from_logs,
+)
 
 
 def _load_dataset_config(base_path):

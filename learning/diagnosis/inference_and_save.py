@@ -16,7 +16,7 @@ from CMD_survey.model import NCDM
 # The guarded import lets the non-CDF path keep working even if the local
 # bridge file has been cleaned up from the workspace.
 try:
-    from cdf_bridge import is_cdf_model, run_cdf_diagnosis_pipeline
+    from learning.diagnosis.cdf_bridge import is_cdf_model, run_cdf_diagnosis_pipeline
     CDF_BRIDGE_AVAILABLE = True
 except ImportError:
     CDF_BRIDGE_AVAILABLE = False

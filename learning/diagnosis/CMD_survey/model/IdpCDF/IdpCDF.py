@@ -8,9 +8,9 @@ import torch
 import torch.nn as nn
 from sklearn.metrics import accuracy_score, f1_score, mean_squared_error, roc_auc_score
 
-from dataloader import TrainDataLoader
-from itf import itf_dict
-from tools import Logger, format_hparams, labelize, to_numpy
+from .dataloader import TrainDataLoader
+from .itf import itf_dict
+from .tools import Logger, format_hparams, labelize, to_numpy
 
 warnings.filterwarnings("ignore")
 torch.set_default_tensor_type(torch.DoubleTensor)

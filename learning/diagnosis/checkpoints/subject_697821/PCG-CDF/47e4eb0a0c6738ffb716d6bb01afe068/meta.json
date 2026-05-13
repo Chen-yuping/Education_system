@@ -1,0 +1,24 @@
+{
+  "task_signature": "47e4eb0a0c6738ffb716d6bb01afe068",
+  "subject_id": 697821,
+  "model_name": "PCG-CDF",
+  "method_name": "trained_pcg_cdf",
+  "checkpoint_file": "D:\\github_projects\\1_graduatePaper related_CDM\\GitHub\\Education_system\\learning\\diagnosis\\checkpoints\\subject_697821\\PCG-CDF\\47e4eb0a0c6738ffb716d6bb01afe068\\model.pt",
+  "result_file": "D:\\github_projects\\1_graduatePaper related_CDM\\GitHub\\Education_system\\learning\\diagnosis\\checkpoints\\subject_697821\\PCG-CDF\\47e4eb0a0c6738ffb716d6bb01afe068\\result.json",
+  "meta_file": "D:\\github_projects\\1_graduatePaper related_CDM\\GitHub\\Education_system\\learning\\diagnosis\\checkpoints\\subject_697821\\PCG-CDF\\47e4eb0a0c6738ffb716d6bb01afe068\\meta.json",
+  "log_dir": "D:\\github_projects\\1_graduatePaper related_CDM\\GitHub\\Education_system\\learning\\diagnosis\\cdflogs\\subject_697821\\PCG-CDF\\47e4eb0a0c6738ffb716d6bb01afe068\\2026-05-13-11_29_07/",
+  "best_epoch": 30,
+  "best_metrics": {
+    "acc": 0.43558282208588955,
+    "f1": 0.0,
+    "auc": 0.5239589712186161,
+    "rmse": 0.5143538417374095
+  },
+  "relation_count": 284,
+  "relation_counts": {
+    "prereq": 142,
+    "containment": 142
+  },
+  "train_sample_count": 600,
+  "valid_sample_count": 163
+}

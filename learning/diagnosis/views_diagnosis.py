@@ -86,7 +86,7 @@ def run_diagnosis(request):
         if is_ird_ncdm_model:
             from .dual_relation_ncdm.platform import infer_and_get_diagnosis_data
         else:
-            from inference_and_save import infer_and_get_diagnosis_data
+            from .inference_and_save import infer_and_get_diagnosis_data
         diagnosis_data = infer_and_get_diagnosis_data(subject_id, model_id, model_name)
 
         if diagnosis_data is None:
@@ -161,7 +161,7 @@ def run_training(subject_id, model_name):
         # 设置环境变量
         os.environ['CD_DATASET'] = str(subject_id)
 
-        from main import model_functions
+        from .main import model_functions
 
         # 模型名称需要与 main.py 中的键匹配（大写）
         # 数据库存储的是 "IRT"、"NCDM" 等，直接使用

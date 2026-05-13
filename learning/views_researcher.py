@@ -372,39 +372,31 @@ def run_training_task(dataset_name, model_name, experiment_id, user_id):
         if model_name in {'IdpCDF', 'HierCDF', 'ConCDF', 'PCG-CDF'}:
             print(f"检测到 {model_name} 模型，使用专用适配器训练")
 
-            base_path = os.path.join(settings.BASE_DIR, 'learning', 'diagnosis', 'CMD_survey')
+            device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
             if model_name == 'IdpCDF':
-                # IdpCDF 使用自己的目录。
                 model_dir_name = 'IdpCDF'
             elif model_name == 'PCG-CDF':
-                # PCG-CDF 使用自己的目录。
                 model_dir_name = 'PCGCDF'
             else:
                 model_dir_name = model_name
-
-            model_dir = os.path.join(base_path, 'model', model_dir_name)
-            if model_dir not in sys.path:
-                sys.path.insert(0, model_dir)
-
-            device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
             log_dir = _cdf_model_log_dir(model_dir_name, dataset_name)
             before_log_dirs = _snapshot_log_dirs(log_dir)
 
             if model_name == 'ConCDF':
                 # 包含关系模型使用 ConCDF 适配器。
-                from ConCDF_adapter import train_concdm
+                from learning.diagnosis.CMD_survey.model.ConCDF.ConCDF_adapter import train_concdm
                 best_epoch, best_auc, best_acc, rmse = train_concdm(dataset_name, device=device)
             elif model_name == 'HierCDF':
                 # 层次关系模型使用 HierCDF 适配器。
-                from HierCDF_adapter import train_hiercdm
+                from learning.diagnosis.CMD_survey.model.HierCDF.HierCDF_adapter import train_hiercdm
                 best_epoch, best_auc, best_acc, rmse = train_hiercdm(dataset_name, device=device)
             elif model_name == 'IdpCDF':
                 # IdpCDF 使用新的适配器。
-                from IdpCDF_adapter import train_basecdm
+                from learning.diagnosis.CMD_survey.model.IdpCDF.IdpCDF_adapter import train_basecdm
                 best_epoch, best_auc, best_acc, rmse = train_basecdm(dataset_name, device=device)
             else:
                 # PCG-CDF 使用新的适配器。
-                from PCGCDF_adapter import train_mixcdm
+                from learning.diagnosis.CMD_survey.model.PCGCDF.PCGCDF_adapter import train_mixcdm
                 best_epoch, best_auc, best_acc, rmse = train_mixcdm(dataset_name, device=device)
 
             log_file = _find_newest_log_file(log_dir, before_log_dirs)

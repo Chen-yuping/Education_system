@@ -11,9 +11,9 @@ import torch
 import torch.nn as nn
 import warnings
 
-from dataloader import TrainDataLoader
-from itf import mirt2pl, sigmoid_dot, dot, itf_dict
-from tools import Logger, df_preview, format_hparams, labelize, to_numpy
+from .dataloader import TrainDataLoader
+from .itf import mirt2pl, sigmoid_dot, dot, itf_dict
+from .tools import Logger, df_preview, format_hparams, labelize, to_numpy
 
 warnings.filterwarnings('ignore')
 torch.set_default_tensor_type(torch.DoubleTensor)

@@ -1,0 +1,23 @@
+{
+  "task_signature": "cb71c243f24a9ae47af7a2e80b63bd68",
+  "subject_id": 697821,
+  "model_name": "HierCDF",
+  "method_name": "trained_hierarchical_mastery",
+  "checkpoint_file": "D:\\github_projects\\1_graduatePaper related_CDM\\GitHub\\Education_system\\learning\\diagnosis\\checkpoints\\subject_697821\\HierCDF\\cb71c243f24a9ae47af7a2e80b63bd68\\model.pt",
+  "result_file": "D:\\github_projects\\1_graduatePaper related_CDM\\GitHub\\Education_system\\learning\\diagnosis\\checkpoints\\subject_697821\\HierCDF\\cb71c243f24a9ae47af7a2e80b63bd68\\result.json",
+  "meta_file": "D:\\github_projects\\1_graduatePaper related_CDM\\GitHub\\Education_system\\learning\\diagnosis\\checkpoints\\subject_697821\\HierCDF\\cb71c243f24a9ae47af7a2e80b63bd68\\meta.json",
+  "log_dir": "D:\\github_projects\\1_graduatePaper related_CDM\\GitHub\\Education_system\\learning\\diagnosis\\cdflogs\\subject_697821\\HierCDF\\cb71c243f24a9ae47af7a2e80b63bd68\\2026-05-13-12_20_30/",
+  "best_epoch": 27,
+  "best_metrics": {
+    "acc": 0.5214723926380368,
+    "f1": 0.390625,
+    "auc": 0.684246785058175,
+    "mse": 0.2456294726284134
+  },
+  "relation_count": 142,
+  "relation_counts": {
+    "prereq": 142
+  },
+  "train_sample_count": 600,
+  "valid_sample_count": 163
+}
