@@ -1517,9 +1517,13 @@ class _TrainableCDFDiagnosisService:
 
         _save_cdf_model_checkpoint(model, context["checkpoint_file"])
 
-        # PCG-CDF 自己定义了 eval(test_data, ...) 方法，这里显式调用
-        # PyTorch 基类的 eval() 来切换推理模式，避免和其自定义评估接口冲突。
-        torch.nn.Module.eval(model)
+        # HierCDF / ConCDF / PCG-CDF 都重写了 nn.Module.train(...) 的签名，
+        # 不能直接调用 model.eval() / Module.eval(model)。
+        # 因为 PyTorch 的 eval() 内部会执行 train(False)，这会误触发这些模型
+        # 自定义的 train(hparams, train_data, Q_matrix, ...) 并导致参数缺失报错。
+        # 这里仅递归关闭子模块的训练态，避免调用到模型本身重写的 train 方法。
+        for child_module in model.children():
+            child_module.train(False)
         if hasattr(model, "_to_device"):
             model._to_device(hparams["device"])
         else:
@@ -1751,60 +1755,6 @@ class PCGCDFDiagnosisService(_TrainableCDFDiagnosisService):
             init_diff=init_diff,
         )
 
-
-# 动态加载 BP 项目里的 CDF 诊断服务实现，并切换到当前项目路径。
-def _load_cdf_services():
-    raise RuntimeError("BP-backed CDF services are disabled; use local bridge services instead.")
-    bp_path = (
-        Path(settings.BASE_DIR).resolve().parent.parent
-        / "Education_system_bp"
-        / "learning"
-        / "diagnosis"
-        / "models"
-        / "cdf_diagnosis.py"
-    )
-    if not bp_path.exists():
-        raise FileNotFoundError(f"Cannot find BP cdf_diagnosis.py: {bp_path}")
-
-    import importlib.util
-
-    module_name = "bp_cdf_diagnosis_bridge"
-    spec = importlib.util.spec_from_file_location(module_name, bp_path)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Cannot load module from {bp_path}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-
-    # 外部 BP 代码里仍然使用旧的目录名和文件名，这里统一重定向到当前仓库的新命名。
-    original_loader = module._load_cmd_survey_module
-
-    def _load_cmd_survey_module(model_dir_name: str, module_file_name: str, cache_key: str):
-        if model_dir_name == "BaseModel":
-            model_dir_name = "IdpCDF"
-            module_file_name = "IdpCDF.py"
-        elif model_dir_name == "MixCDF":
-            model_dir_name = "PCGCDF"
-            module_file_name = "PCGCDF.py"
-        return original_loader(model_dir_name, module_file_name, cache_key)
-
-    module._load_cmd_survey_module = _load_cmd_survey_module
-    module.BaseModelDiagnosisService.model_name = "IdpCDF"
-    module.BaseModelDiagnosisService.method_name = "trained_idpcdf"
-    module.MixCDFDiagnosisService.model_name = "PCG-CDF"
-    module.MixCDFDiagnosisService.method_name = "trained_pcg_cdf"
-    module.IdpCDFDiagnosisService = module.BaseModelDiagnosisService
-    module.PCGCDFDiagnosisService = module.MixCDFDiagnosisService
-
-    # Force the imported BP implementation to use the current repository's
-    # diagnosis assets and writable cache directories instead of writing back
-    # into the BP reference project.
-    module._DIAGNOSIS_ROOT = DIAGNOSIS_ROOT
-    module._CMD_SURVEY_MODEL_ROOT = DIAGNOSIS_ROOT / "CMD_survey" / "model"
-    module._CHECKPOINT_ROOT = DIAGNOSIS_ROOT / "checkpoints"
-    module._LOG_ROOT = DIAGNOSIS_ROOT / "cdflogs"
-    module._CHECKPOINT_ROOT.mkdir(parents=True, exist_ok=True)
-    module._LOG_ROOT.mkdir(parents=True, exist_ok=True)
-    return module
 
 
 # 查找指定课程和模型最近一次可复用的训练结果。
