@@ -263,7 +263,7 @@ def get_student_diagnosis_detail(request, student_id, subject_id):
                 'id': kp.id,
                 'name': kp.name,
                 'mastery': round(mastery * 100, 2),
-                'status': '优秀' if mastery >= 0.8 else '良好' if mastery >= 0.6 else '需加强',
+                'status': '已掌握' if mastery >= 0.5 else '未掌握',
                 'practice_count': practice_count,
                 'correct_rate': correct_rate
             })
@@ -310,8 +310,8 @@ def get_student_diagnosis_detail(request, student_id, subject_id):
             'overall_score': overall_score,
             'model_used': model_name,
             'knowledge_data': knowledge_data,
-            'weak_points': [kp for kp in knowledge_data if kp['mastery'] < 60],
-            'strong_points': [kp for kp in knowledge_data if kp['mastery'] >= 80],
+            'weak_points': [kp for kp in knowledge_data if kp['mastery'] < 50],
+            'strong_points': [kp for kp in knowledge_data if kp['mastery'] >= 50],
             'diagnosis_history': [
                 {
                     'knowledge_point': diagnosis.knowledge_point.name,
@@ -423,7 +423,7 @@ def get_diagnosis_summary(request, subject_id):
                 'id': kp.id,
                 'name': kp.name,
                 'avg_mastery': avg_mastery_pct,
-                'status': '优秀' if avg_mastery_pct >= 80 else '良好' if avg_mastery_pct >= 60 else '需加强',
+                'status': '已掌握' if avg_mastery_pct >= 50 else '未掌握',
                 'diagnosed_students': kp_diagnoses.values('student').distinct().count(),
                 'total_students': student_count
             })
@@ -432,9 +432,9 @@ def get_diagnosis_summary(request, subject_id):
         last_diagnosis = student_diagnoses.order_by('-last_practiced').first()
         last_diagnosis_time = last_diagnosis.last_practiced.strftime('%Y-%m-%d %H:%M') if last_diagnosis else '暂无'
 
-        # 找出薄弱和优势知识点
-        weak_knowledge_points = [kp for kp in kp_stats if kp['avg_mastery'] < 60]
-        strong_knowledge_points = [kp for kp in kp_stats if kp['avg_mastery'] >= 80]
+        # 找出未掌握和已掌握知识点
+        weak_knowledge_points = [kp for kp in kp_stats if kp['avg_mastery'] < 50]
+        strong_knowledge_points = [kp for kp in kp_stats if kp['avg_mastery'] >= 50]
 
         summary = {
             'subject_id': subject.id,
