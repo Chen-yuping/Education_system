@@ -585,7 +585,7 @@ def run_training_task(dataset_name, model_name, experiment_id, user_id):
             result, training_curves = cdm.train_with_curves(
                 train_data=src, test_data=tgt, epoch=10, device=device, lr=params.lr
             )
-        else:
+        elif hasattr(cdm, 'train_one_epoch'):
             # 否则手动记录每轮数据
             best_epoch = 0
             best_acc = 0
@@ -600,26 +600,8 @@ def run_training_task(dataset_name, model_name, experiment_id, user_id):
 
                 # 训练一轮（需要根据你的模型接口调整）
                 # 这里假设模型有 train_one_epoch 方法
-                if hasattr(cdm, 'train_one_epoch'):
-                    # 训练一轮
-                    cdm.train_one_epoch(train_data=src, device=device, lr=params.lr)
-
-                    # 验证
-                    epoch_acc, epoch_auc, epoch_rmse = evaluate_model(cdm, tgt, device)
-                else:
-                    # 如果模型不支持逐轮训练，使用原有的train方法，然后模拟曲线
-                    # 这种情况下，我们只能模拟数据
-                    import random
-                    progress = (epoch + 1) / num_epochs
-                    epoch_acc = 0.5 + progress * 0.3 + random.uniform(-0.05, 0.05)
-                    epoch_auc = 0.5 + progress * 0.3 + random.uniform(-0.05, 0.05)
-                    epoch_rmse = 0.7 - progress * 0.3 + random.uniform(-0.03, 0.03)
-
-                    # 限制范围
-                    epoch_acc = min(0.95, max(0.4, epoch_acc))
-                    epoch_auc = min(0.95, max(0.4, epoch_auc))
-                    epoch_rmse = min(0.8, max(0.1, epoch_rmse))
-
+                cdm.train_one_epoch(train_data=src, device=device, lr=params.lr)
+                epoch_acc, epoch_auc, epoch_rmse = evaluate_model(cdm, tgt, device)
                 # 记录数据
                 training_curves['acc'].append(epoch_acc)
                 training_curves['auc'].append(epoch_auc)
@@ -633,6 +615,8 @@ def run_training_task(dataset_name, model_name, experiment_id, user_id):
                     best_epoch = epoch + 1
 
             result = (best_epoch, best_auc, best_acc, best_rmse)
+        else:
+            raise AttributeError(f"{model_name} does not provide train_with_curves or train_one_epoch.")
 
         print(f"训练完成，原始结果: {result}")
         print(f"训练曲线数据: {training_curves}")
