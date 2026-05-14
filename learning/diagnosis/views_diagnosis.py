@@ -80,7 +80,10 @@ def run_diagnosis(request):
             return JsonResponse({'status': 'error', 'message': f'数据导出失败: {str(e)}'}, status=500)
 
         if export_result['success']:
-            run_training(subject_id, model_name)
+            try:
+                run_training(subject_id, model_name)
+            except Exception as e:
+                return JsonResponse({'status': 'error', 'message': f'训练失败: {str(e)}'}, status=500)
 
         # 3. 推理获取诊断数据
         if is_ird_ncdm_model:
@@ -167,15 +170,17 @@ def run_training(subject_id, model_name):
         # 数据库存储的是 "IRT"、"NCDM" 等，直接使用
         if model_name in model_functions:
             print(f"开始训练 {model_name} 模型...")
-            model_functions[model_name]()
+            return model_functions[model_name]()
         else:
             print(f"未知模型: {model_name}")
             print(f"可用模型: {list(model_functions.keys())}")
+            raise ValueError(f'未知模型: {model_name}')
 
     except Exception as e:
         import traceback
         traceback.print_exc()
         print(f"训练失败: {str(e)}")
+        raise
 
 @login_required
 @user_passes_test(is_teacher)

@@ -24,7 +24,7 @@ os.makedirs('result', exist_ok=True)
 
 
 src, tgt = dataloader.CD_DL()
-device = 'cuda:0'
+device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
 args = None
 
