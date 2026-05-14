@@ -68,36 +68,18 @@ def knowledge_points_api(request, subject_id):
         # 获取该科目的知识点
         knowledge_points = KnowledgePoint.objects.filter(subject_id=subject_id)
 
-        # 当按来源筛选时，只显示参与了该来源关系的知识点
+        # 按来源筛选：使用 KnowledgePoint 的 sources 字段（删除关系后仍然保留）
         if source_list:
-            involved_ids = KnowledgeGraph.objects.filter(
-                subject_id=subject_id,
-                relation_source__in=source_list
-            ).values_list('source_id', 'target_id').distinct()
-            kp_ids = set()
-            for sid, tid in involved_ids:
-                kp_ids.add(sid)
-                kp_ids.add(tid)
-            knowledge_points = knowledge_points.filter(id__in=kp_ids)
+            from django.db.models import Q
+            q_filter = Q()
+            for s in source_list:
+                q_filter |= Q(sources__contains=s)
+            knowledge_points = knowledge_points.filter(q_filter)
 
         # 构建节点数据
         nodes = []
         for kp in knowledge_points:
-            # 获取科目对应的习题模型
-            exercise_model = None
-            if subject.name == '数学':
-                exercise_model = MathExercise
-            elif subject.name == '语文':
-                exercise_model = ChineseExercise
-            elif subject.name == '英语':
-                exercise_model = EnglishExercise
-
-            exercise_count = 0
-            if exercise_model:
-                exercise_count = QMatrix.objects.filter(
-                    content_type__model=exercise_model._meta.model_name,
-                    knowledge_point=kp
-                ).count()
+            exercise_count = QMatrix.objects.filter(knowledge_point=kp).count()
 
             nodes.append({
                 'id': kp.id,
@@ -159,9 +141,17 @@ def knowledge_points_api(request, subject_id):
             'subject_id': subject_id,
             'subject_name': subject.name,
             'source': source_filter or 'all',
-            'available_sources': list(KnowledgeGraph.objects.filter(
-                subject_id=subject_id
-            ).values_list('relation_source', flat=True).distinct()),
+            'available_sources': list(set(
+                list(KnowledgeGraph.objects.filter(
+                    subject_id=subject_id
+                ).values_list('relation_source', flat=True).distinct())
+                + [
+                    s.strip() for kp in KnowledgePoint.objects.filter(
+                        subject_id=subject_id
+                    ).exclude(sources='').values_list('sources', flat=True)
+                    for s in kp.split(',') if s.strip()
+                ]
+            )),
             'nodes': nodes,
             'links': links,
             'node_count': len(nodes),

@@ -456,12 +456,219 @@ def handle_material_generation(file_record):
 
 
 # ==========================================
-# 6. 🎯 终极管家接口 (根据情况自动分配)
+# 6. 🎯 LLM 提取习题：从文档文本中智能识别每道题 (新增)
+# ==========================================
+def llm_extract_exercises_from_text(extracted_text, subject, teacher):
+    """
+    调用 DeepSeek 从非结构化文本中提取习题。
+    识别题型、生成参考答案+解析，并关联到已有知识点。
+    """
+    print(">>> 开始调用 DeepSeek 进行 LLM 习题提取...")
+
+    # 1. 获取该科目已有关联知识点
+    existing_kps = KnowledgePoint.objects.filter(subject=subject)
+    kp_list = [kp.name for kp in existing_kps]
+    kp_str = "、".join(kp_list) if kp_list else "（暂无已有知识点）"
+
+    if not kp_list:
+        print("[WARN] 该科目没有已有知识点，LLM将无法关联知识点")
+
+    # 2. 截取文本（防止 token 超限）
+    text_content = extracted_text[:8000]
+
+    client = get_deepseek_client()
+    if not client:
+        print("[WARN] 未配置 DeepSeek API密钥")
+        return 0
+
+    prompt = f"""
+你是一个专业的习题提取助手。请从以下文本中提取所有习题。
+
+要求：
+1. 识别每道题的完整内容
+2. 判断题型：single(单选题) / multiple(多选题) / fill(填空题) / subjective(主观题/简答题) / judgment(判断题)
+3. 提取选项（如果有）
+4. 给出参考答案
+5. 给出答案解析
+6. 从已有知识点列表中选择最匹配的知识点关联（如果列表为空或没有匹配的，可为空数组）
+
+已有知识点列表：
+{kp_str}
+
+文本内容：
+{text_content}
+
+必须严格按照以下 JSON 格式返回，不要包含任何前缀、后缀或 Markdown 代码块标记：
+{{
+    "exercises": [
+        {{
+            "title": "题目标题（简短）",
+            "content": "完整的题目内容",
+            "question_type": "single 或 multiple 或 fill 或 subjective 或 judgment",
+            "options": {{"A": "选项A", "B": "选项B", "C": "选项C", "D": "选项D"}},
+            "answer": "参考答案",
+            "solution": "详细答案解析",
+            "knowledge_points": ["已有知识点名称1", "已有知识点名称2"]
+        }}
+    ]
+}}
+
+格式说明：
+- 单选题、多选题必须有 options 字段
+- 判断题 options 固定为 {{"A": "正确", "B": "错误"}}
+- 填空题、主观题不需要 options 字段
+- answer：单选题填选项字母如"A"，多选题填字母组合如"AB"，判断题填"A"或"B"，填空题/主观题填参考答案文本
+- 没有明确答案时 answer 填"略"
+- knowledge_points 必须从已有知识点列表中选择，完全匹配名称，不要新创建知识点
+    """
+
+    try:
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            temperature=0.1,
+        )
+
+        result_text = response.choices[0].message.content.strip()
+        clean_json = result_text.replace('```json', '').replace('```', '').strip()
+        data = json.loads(clean_json)
+
+        exercises_data = data.get('exercises', [])
+        if not exercises_data:
+            print("--- LLM 未提取到有效习题 ---")
+            return 0
+
+        print(f"--- LLM 成功提取了 {len(exercises_data)} 道题 ---")
+
+        count = 0
+        with transaction.atomic():
+            for item in exercises_data:
+                try:
+                    q_type = item.get('question_type', 'single')
+                    opt_dict = item.get('options', {}) or {}
+                    full_option_text = repr(opt_dict) if opt_dict else ""
+
+                    exercise = Exercise.objects.create(
+                        subject=subject,
+                        title=item.get('content', '')[:200],
+                        content=item.get('content', ''),
+                        question_type=q_type,
+                        creator=teacher,
+                        option_text=full_option_text,
+                        answer=item.get('answer', '略'),
+                        solution=item.get('solution', ''),
+                        problemsets="LLM提取导入",
+                        created_at=timezone.now()
+                    )
+
+                    # 创建选项
+                    for idx, (label, content) in enumerate(opt_dict.items()):
+                        is_correct = False
+                        if q_type == 'judgment':
+                            is_correct = (label == 'A' and item.get('answer', '') == 'A') or \
+                                         (label == 'B' and item.get('answer', '') == 'B')
+                        else:
+                            is_correct = label in item.get('answer', '')
+                        Choice.objects.create(
+                            exercise=exercise,
+                            content=f"{label}. {content}",
+                            is_correct=is_correct,
+                            order=idx + 1
+                        )
+
+                    # 关联已有知识点（不存在则跳过）
+                    for kp_name in item.get('knowledge_points', []):
+                        if kp_name.strip():
+                            try:
+                                kp = KnowledgePoint.objects.get(subject=subject, name=kp_name.strip())
+                                QMatrix.objects.get_or_create(exercise=exercise, knowledge_point=kp, defaults={'weight': 1.0})
+                            except KnowledgePoint.DoesNotExist:
+                                print(f"  跳过不存在知识点: {kp_name}")
+
+                    count += 1
+                except Exception as e:
+                    print(f"保存 LLM 提取习题出错: {e}")
+                    continue
+
+        return count
+
+    except Exception as e:
+        print(f"LLM 提取习题 API 调用失败: {e}")
+        traceback.print_exc()
+        return 0
+
+
+def handle_document_file_llm(file_record):
+    """
+    LLM 版文档处理入口：提取文本 → LLM 识别习题 → 存入题库
+    替换原来的正则解析 handle_document_file
+    """
+    print(">>> 进入 LLM 文档提取: handle_document_file_llm")
+    subject = file_record.subject
+    teacher = file_record.teacher
+    filename = file_record.original_filename.lower()
+    full_text = ""
+
+    try:
+        try:
+            with file_record.file.open('rb') as f:
+                file_content = f.read()
+        except Exception:
+            with open(file_record.file.path, 'rb') as f:
+                file_content = f.read()
+
+        if not file_content:
+            return 0
+
+        if filename.endswith('.pdf'):
+            try:
+                with pdfplumber.open(io.BytesIO(file_content)) as pdf:
+                    full_text = "\n".join([page.extract_text() or '' for page in pdf.pages])
+            except Exception as e:
+                print(f"PDF 解析失败: {e}")
+                return 0
+        elif filename.endswith('.docx'):
+            try:
+                docx_file = io.BytesIO(file_content)
+                doc = docx.Document(docx_file)
+                full_text = "\n".join([para.text.strip() for para in doc.paragraphs if para.text.strip()])
+            except Exception as e:
+                print(f"Word 解析异常: {e}")
+                return 0
+        else:
+            try:
+                full_text = file_content.decode('utf-8')
+            except:
+                try:
+                    full_text = file_content.decode('gbk', errors='ignore')
+                except:
+                    return 0
+
+        if not full_text.strip():
+            return 0
+
+        # 调用 LLM 提取
+        return llm_extract_exercises_from_text(full_text, subject, teacher)
+
+    except Exception as e:
+        print(f"【LLM文档处理报错】: {e}")
+        traceback.print_exc()
+        return 0
+    finally:
+        try:
+            file_record.file.close()
+        except:
+            pass
+
+
+# ==========================================
+# 7. 🎯 终极管家接口 (根据情况自动分配)
 # ==========================================
 def smart_handle_upload(file_record, mode='ai'):
     """
     自动判断是直接提取还是让AI出题。
-    如果想要强制用AI出题，mode保持 'ai' 即可。
+    传统模式（direct）现在使用 LLM 智能提取习题。
     """
     filename = file_record.original_filename.lower()
 
@@ -471,12 +678,12 @@ def smart_handle_upload(file_record, mode='ai'):
         if filename.endswith(('.xls', '.xlsx', '.csv')):
             return handle_data_file(file_record)
         else:
-            return handle_document_file(file_record)
+            return handle_document_file_llm(file_record)
 
 
 
 # ==========================================
-# 7. PDF课本完整分析功能
+# 8. PDF课本完整分析功能
 # ==========================================
 def analyze_textbook_pdf(textbook_builder):
     """
@@ -878,7 +1085,7 @@ def generate_exercises_from_textbook(text, subject, teacher):
 
 
 # ==========================================
-# 8. 课本快速构建接口
+# 9. 课本快速构建接口
 # ==========================================
 def quick_build_course_from_textbook(textbook_builder):
     """

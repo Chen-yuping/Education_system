@@ -1,8 +1,10 @@
 from django.shortcuts import render, get_object_or_404, redirect
+from django.urls import reverse
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.utils import timezone
 from django.http import JsonResponse
+from django.conf import settings
 
 from learning.utils_ai import smart_handle_upload, quick_build_course_from_textbook
 from learning.knowledge_graph_builder.text_extractor import extract_text_from_file
@@ -325,8 +327,14 @@ def quick_build_course(request):
                 textbook_builder = form.save(commit=False)
                 textbook_builder.teacher = request.user
                 textbook_builder.original_filename = request.FILES['textbook_file'].name
+
+                # 确保上传目录存在（解决Windows [Errno 22]问题）
+                import os
+                upload_dir = os.path.join(settings.MEDIA_ROOT, 'textbooks', str(request.user.id))
+                os.makedirs(upload_dir, exist_ok=True)
+
                 textbook_builder.save()
-                
+
                 # 异步处理PDF（这里简化处理，实际应该用Celery等异步任务）
                 # 这里我们先同步处理，实际项目中应该使用异步任务队列
                 from learning.utils_ai import quick_build_course_from_textbook
@@ -859,4 +867,4 @@ def resource_complete_review(request, extraction_id):
     extraction.save()
 
     messages.success(request, '✅ 知识提取审核完成！已提取的知识点已加入到知识图谱中。')
-    return redirect('upload_resource')
+    return redirect(reverse('upload_resource') + f'?subject_id={extraction.subject.id}')

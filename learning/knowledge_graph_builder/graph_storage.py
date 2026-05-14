@@ -64,6 +64,10 @@ def save_to_django(triples: list, subject: Subject, relation_source: str = '教�
                 subject=subject,
                 name=name,
             )
+            # 更新来源字段，使按来源过滤（教材/教案/课件）能正确匹配
+            if relation_source not in kp.sources.split(','):
+                kp.sources = (kp.sources + ',' + relation_source) if kp.sources else relation_source
+                kp.save(update_fields=['sources'])
             entity_map[name] = kp
             if created:
                 kp_count += 1

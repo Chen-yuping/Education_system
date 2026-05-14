@@ -157,6 +157,17 @@ def teacher_subject_management(request):
 
 @login_required
 @user_passes_test(is_teacher)
+@require_POST
+def subject_delete(request, subject_id):
+    """删除课程（Subject）及其所有相关数据"""
+    subject = get_object_or_404(Subject, id=subject_id)
+    subject_name = subject.name
+    subject.delete()
+    messages.success(request, f'课程《{subject_name}》已成功删除')
+    return redirect('teacher_subject_management')
+
+@login_required
+@user_passes_test(is_teacher)
 def teacher_course_management(request):
     """教师课程管理页面"""
     # 获取教师授课的科目
@@ -521,7 +532,7 @@ def exercise_management(request):
     else:
         knowledge_points = KnowledgePoint.objects.none()
 
-    # 获取在当前筛选科目下创建习题的教师
+    # 获取当前科目下创建习题的教师
     if current_subject_id:
         creator_ids = Exercise.objects.filter(
             subject_id=current_subject_id
@@ -532,6 +543,11 @@ def exercise_management(request):
         )
     else:
         creators = User.objects.none()
+
+    # 获取教师所有授课科目的知识点（供添加/编辑习题使用）
+    all_knowledge_points = list(KnowledgePoint.objects.filter(
+        subject_id__in=teacher_subject_ids
+    ).values('id', 'name', 'subject_id'))
 
     # 排序和分页
     exercises = exercises.order_by('id')  # 按ID降序，最新的在前面
@@ -550,6 +566,7 @@ def exercise_management(request):
         'no_subjects': False,
         'default_subject_id': default_subject.id if default_subject else None,
         'subject': Subject.objects.get(id=current_subject_id) if current_subject_id else None,
+        'all_knowledge_points': all_knowledge_points,
         'filters': {
             'subject': subject_id,
             'question_type': question_type,
@@ -788,28 +805,53 @@ def exercise_add_json(request):
             return JsonResponse({'success': False, 'message': '您无权在此科目下添加习题'})
 
         with transaction.atomic():
+            # 构建 option_text
+            try:
+                choices_data = json.loads(choices_json)
+                opt_dict = {}
+                for idx, choice_item in enumerate(choices_data):
+                    label = chr(65 + idx)  # A, B, C, D...
+                    choice_content = choice_item.get('content', '').strip()
+                    if choice_content:
+                        opt_dict[label] = choice_content
+                full_option_text = repr(opt_dict) if opt_dict else ""
+            except json.JSONDecodeError:
+                choices_data = []
+                full_option_text = ""
+
             # 创建习题
             exercise = Exercise.objects.create(
                 subject_id=int(subject_id),
                 title=title,
                 content=content,
                 question_type=question_type,
+                option_text=full_option_text,
                 answer=answer,
                 solution=solution,
                 creator=request.user
             )
 
             # 处理选项
+            for choice_item in choices_data:
+                choice_content = choice_item.get('content', '').strip()
+                if choice_content:
+                    Choice.objects.create(
+                        exercise=exercise,
+                        content=choice_content,
+                        is_correct=choice_item.get('is_correct', False),
+                        order=choice_item.get('order', 0)
+                    )
+
+            # 关联知识点
+            knowledge_points_json = request.POST.get('knowledge_points', '[]')
             try:
-                choices_data = json.loads(choices_json)
-                for choice_item in choices_data:
-                    choice_content = choice_item.get('content', '').strip()
-                    if choice_content:
-                        Choice.objects.create(
+                kp_ids = json.loads(knowledge_points_json)
+                for kp_id in kp_ids:
+                    if kp_id:
+                        QMatrix.objects.get_or_create(
                             exercise=exercise,
-                            content=choice_content,
-                            is_correct=choice_item.get('is_correct', False),
-                            order=choice_item.get('order', 0)
+                            knowledge_point_id=int(kp_id),
+                            defaults={'weight': 1.0}
                         )
             except json.JSONDecodeError:
                 pass

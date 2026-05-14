@@ -42,13 +42,23 @@
 </style>
 
 <!-- 知识点关系图容器 -->
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
     <h4 style="margin: 0;">
         <i class="fas fa-project-diagram me-2"></i>知识点关系图
     </h4>
-    <button type="button" class="btn btn-primary" style="display: none;" id="manageRelationshipBtn" onclick="openRelationshipModal()">
-        <i class="fas fa-edit me-2"></i> 管理知识点关系
-    </button>
+    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+        <!-- 节点查询 -->
+        <div style="display: flex; align-items: center; gap: 4px; position: relative;">
+            <input type="text" id="nodeSearchInput" class="form-control form-control-sm" style="width: 200px;" placeholder="搜索节点..." onkeyup="onNodeSearchKeyup(event)">
+            <button type="button" class="btn btn-sm btn-outline-primary" onclick="searchAndHighlightNode()" title="定位到节点">
+                <i class="fas fa-search"></i>
+            </button>
+            <div id="nodeSearchDropdown" style="display:none; position:absolute; top:100%; left:0; width:200px; max-height:200px; overflow-y:auto; background:white; border:1px solid #ddd; border-radius:4px; z-index:999; box-shadow:0 4px 12px rgba(0,0,0,0.1);"></div>
+        </div>
+        <button type="button" class="btn btn-primary" style="display: none;" id="manageRelationshipBtn" onclick="openRelationshipModal()">
+            <i class="fas fa-edit me-2"></i> 管理知识点关系
+        </button>
+    </div>
 </div>
 
 <!-- 来源切换标签页 -->
@@ -92,7 +102,17 @@
             <!-- 工具提示 -->
             <div id="tooltip" class="tooltip"></div>
 
-            <!-- D3.js图表区域 -->
+            <!-- 右键菜单 -->
+            <div id="contextMenu" style="display:none; position:absolute; background:white; border:1px solid #ddd; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15); z-index:1000; min-width:160px; overflow:hidden;">
+                <div style="padding:10px 16px; background:#f8f9fa; border-bottom:1px solid #eee; font-size:13px; font-weight:600; color:#333;" id="contextMenuTitle"></div>
+                <div style="padding:8px 0;">
+                    <button onclick="deleteNodeFromGraph()" style="width:100%; padding:8px 16px; border:none; background:none; text-align:left; cursor:pointer; font-size:13px; color:#dc3545; display:flex; align-items:center; gap:8px;" onmouseover="this.style.background='#fff5f5'" onmouseout="this.style.background='none'">
+                        <i class="fas fa-trash"></i> 删除知识点
+                    </button>
+                </div>
+            </div>
+
+            <!-- 图表区域 -->
             <div id="chart"></div>
         </div>
     </div>
@@ -203,6 +223,11 @@
                                     </select>
                                 </div>
 
+                                <div style="margin-bottom: 16px;">
+                                    <label style="font-weight: 700; margin-bottom: 8px; color: #1a1a1a; font-size: 13px; display: block;">关系来源</label>
+                                    <select name="relation_source" class="form-select" style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 13px;" id="relationSourceSelect"></select>
+                                </div>
+
                                 <button type="submit" style="width: 100%; padding: 12px 16px; background: #667eea; color: white; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
                                     <i class="fas fa-plus"></i> 添加关系
                                 </button>
@@ -229,7 +254,7 @@
                     <!-- 右侧：关系列表 -->
                     <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); border: 1px solid #f0f0f0;">
                         <div style="font-size: 16px; font-weight: 700; margin-bottom: 20px; color: #1a1a1a; display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-list"></i> 先决关系
+                            <i class="fas fa-list"></i> 关系列表
                         </div>
 
                         <input type="text" id="relationshipSearchInput" placeholder="搜索知识点..." style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 13px; margin-bottom: 16px;">
@@ -485,18 +510,18 @@ function renderGraphVis(data) {
     // 转换节点格式
     const nodes = new vis.DataSet(data.nodes.map(n => ({
         id: n.id,
-        label: n.name,
+        label: n.name + '\n相关习题数：' + (n.exercise_count || 0),
         title: `<b>${n.name}</b><br>科目: ${n.subject}<br>习题数量: ${n.exercise_count || 0}`,
-        value: (n.exercise_count || 0) + 10,
         shape: 'dot',
-        size: Math.max(28, Math.min(55, 28 + (n.exercise_count || 0) * 2)),
+        size: (n.exercise_count || 0) === 0 ? 20 : 25 + Math.min(Math.floor(((n.exercise_count || 0) - 1) / 10), 10) * 5,
         font: {
             color: '#1a2332',
-            size: 14,
+            size: 12,
             face: 'sans-serif',
             strokeWidth: 3,
             strokeColor: '#ffffff',
-            vadjust: 5,
+            vadjust: 0,
+            align: 'center',
         },
         color: {
             background: '#4e73df',
@@ -569,11 +594,32 @@ function renderGraphVis(data) {
 
     // 点击节点事件
     network.on('click', function(params) {
+        // 隐藏右键菜单
+        document.getElementById('contextMenu').style.display = 'none';
         if (params.nodes.length > 0) {
             const nodeId = params.nodes[0];
             const nodeData = data.nodes.find(n => n.id === nodeId);
             if (nodeData) {
                 console.log('点击节点:', nodeData.name);
+            }
+        }
+    });
+
+    // 右键菜单事件
+    network.on('oncontext', function(params) {
+        params.event.preventDefault();
+        document.getElementById('contextMenu').style.display = 'none';
+
+        if (params.nodes.length > 0) {
+            const nodeId = params.nodes[0];
+            const nodeData = data.nodes.find(n => n.id === nodeId);
+            if (nodeData) {
+                window._contextNodeId = nodeId;
+                document.getElementById('contextMenuTitle').textContent = nodeData.name;
+                const menu = document.getElementById('contextMenu');
+                menu.style.left = (params.event.clientX - 20) + 'px';
+                menu.style.top = (params.event.clientY - 20) + 'px';
+                menu.style.display = 'block';
             }
         }
     });
@@ -602,9 +648,177 @@ function renderGraphVis(data) {
     console.log('vis-network 图表绘制完成，数据源:', data.data_source || 'unknown');
 }
 
+// 点击页面其他位置隐藏右键菜单
+document.addEventListener('click', function(e) {
+    const menu = document.getElementById('contextMenu');
+    if (menu && !menu.contains(e.target)) {
+        menu.style.display = 'none';
+    }
+});
+
+// 删除知识点节点
+function deleteNodeFromGraph() {
+    const nodeId = window._contextNodeId;
+    if (!nodeId) return;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const subjectId = urlParams.get('subject_id') || window.currentSubjectId;
+
+    if (!confirm('确定要删除该知识点吗？\n\n将同时删除所有与该知识点相连的关系边。')) {
+        return;
+    }
+
+    document.getElementById('contextMenu').style.display = 'none';
+
+    fetch(`/learning/teacher/api/knowledge-point/${subjectId}/${nodeId}/delete-with-relations/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            loadKnowledgeGraph(subjectId);
+        } else {
+            alert('删除失败: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('操作失败，请重试');
+    });
+}
+
 // 窗口大小变化时自适应（vis-network 自动处理 resize，无需手动重绘）
 window.addEventListener('resize', function() {
     // vis-network 的 autoResize: true 会自动处理
+});
+
+// ==== 节点查询功能 ====
+
+// 获取当前图谱中所有节点名称列表
+function getGraphNodeNames() {
+    if (!currentData || !currentData.nodes) return [];
+    return currentData.nodes.map(function(n) { return { id: n.id, name: n.name }; });
+}
+
+// 搜索输入框按键事件
+function onNodeSearchKeyup(event) {
+    var input = document.getElementById('nodeSearchInput');
+    var dropdown = document.getElementById('nodeSearchDropdown');
+    var query = input.value.trim();
+
+    if (event.key === 'Enter') {
+        dropdown.style.display = 'none';
+        searchAndHighlightNode();
+        return;
+    }
+
+    if (query.length === 0) {
+        dropdown.style.display = 'none';
+        return;
+    }
+
+    // 匹配节点名称
+    var nodes = getGraphNodeNames();
+    var matches = nodes.filter(function(n) { return n.name.indexOf(query) !== -1; });
+
+    // 清空并重建下拉列表（使用DOM API防止特殊字符问题）
+    dropdown.innerHTML = '';
+    if (matches.length === 0) {
+        dropdown.style.display = 'none';
+        return;
+    }
+
+    matches.forEach(function(m) {
+        var item = document.createElement('div');
+        item.style.cssText = 'padding:8px 12px; cursor:pointer; border-bottom:1px solid #eee; font-size:13px;';
+        item.textContent = m.name;
+        item.addEventListener('mouseover', function() { item.style.background = '#f0f4ff'; });
+        item.addEventListener('mouseout', function() { item.style.background = ''; });
+        item.addEventListener('click', function() {
+            selectNodeFromDropdown(m.id, m.name);
+        });
+        dropdown.appendChild(item);
+    });
+
+    dropdown.style.display = 'block';
+}
+
+// 从下拉列表选择节点
+function selectNodeFromDropdown(nodeId, nodeName) {
+    document.getElementById('nodeSearchInput').value = nodeName;
+    document.getElementById('nodeSearchDropdown').style.display = 'none';
+    focusAndHighlightNode(nodeId);
+}
+
+// 搜索并高亮节点（点击搜索按钮触发）
+function searchAndHighlightNode() {
+    var input = document.getElementById('nodeSearchInput');
+    var query = input.value.trim();
+
+    if (!query) return;
+
+    var nodes = getGraphNodeNames();
+
+    // 先精确匹配，再模糊匹配
+    var match = nodes.find(function(n) { return n.name === query; });
+    if (!match) {
+        match = nodes.find(function(n) { return n.name.indexOf(query) !== -1; });
+    }
+    if (!match) {
+        alert('未找到匹配的知识点节点');
+        return;
+    }
+
+    input.value = match.name;
+    focusAndHighlightNode(match.id);
+}
+
+// 聚焦并高亮节点（与鼠标点击节点效果一致）
+function focusAndHighlightNode(nodeId) {
+    if (!network) return;
+
+    // 聚焦到节点位置（带动画缩放）
+    network.focus(nodeId, {
+        scale: 1.5,
+        animation: {
+            duration: 500,
+            easingFunction: 'easeInOutQuad'
+        }
+    });
+
+    // 选中节点（触发高亮效果）
+    network.selectNodes([nodeId]);
+
+    // 显示定位成功的工具提示
+    var nodeData = currentData.nodes.find(function(n) { return n.id === nodeId; });
+    if (nodeData) {
+        var tooltip = document.getElementById('tooltip');
+        tooltip.innerHTML =
+            '<h6>' + nodeData.name + '</h6>' +
+            '<p><strong>科目:</strong> ' + (nodeData.subject || '') + '</p>' +
+            '<p><strong>习题数量:</strong> ' + (nodeData.exercise_count || 0) + '</p>' +
+            '<p><strong>知识点ID:</strong> ' + nodeData.id + '</p>' +
+            '<p class="text-warning small"><i class="fas fa-check-circle me-1"></i>已定位到该节点</p>';
+        tooltip.style.display = 'block';
+
+        // 3秒后自动隐藏工具提示
+        setTimeout(function() {
+            tooltip.style.display = 'none';
+        }, 3000);
+    }
+}
+
+// 点击页面其他位置隐藏搜索下拉框
+document.addEventListener('click', function(e) {
+    var dropdown = document.getElementById('nodeSearchDropdown');
+    var input = document.getElementById('nodeSearchInput');
+    if (dropdown && input && !input.contains(e.target) && !dropdown.contains(e.target)) {
+        dropdown.style.display = 'none';
+    }
 });
 
 // 打开知识点关系管理模态框
@@ -644,6 +858,15 @@ function loadRelationshipData() {
 
                 sourceSelect.innerHTML = '<option value="">-- 请选择 --</option>' + options;
                 targetSelect.innerHTML = '<option value="">-- 请选择 --</option>' + options;
+
+                // 初始化关系来源下拉，根据当前标签页预选
+                const relSourceSelect = document.querySelector('#add-relationship-form-modal [name="relation_source"]');
+                if (relSourceSelect) {
+                    const sources = ['教材', '教案', '课件'];
+                    relSourceSelect.innerHTML = sources.map(s =>
+                        `<option value="${s}" ${s === currentSource ? 'selected' : ''}>${s}</option>`
+                    ).join('');
+                }
 
                 document.getElementById('modalKpCount').textContent = allKnowledgePoints.length;
             }
@@ -710,6 +933,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const sourceId = this.querySelector('[name="source_id"]').value;
             const targetId = this.querySelector('[name="target_id"]').value;
             const relType = this.querySelector('[name="relationship_type"]').value;
+            const relSource = this.querySelector('[name="relation_source"]').value;
 
             if (!sourceId || !targetId) {
                 alert('请选择前置和后续知识点');
@@ -735,6 +959,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     source_id: sourceId,
                     target_id: targetId,
                     relationship_type: relType,
+                    relation_source: relSource,
                 })
             })
             .then(response => response.json())

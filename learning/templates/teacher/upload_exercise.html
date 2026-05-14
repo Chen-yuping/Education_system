@@ -20,11 +20,11 @@
             <div class="mb-4">
                 <label for="uploadMode" class="form-label fw-semibold">题库处理模式 <span class="text-danger">*</span></label>
                 <select name="upload_mode" id="uploadMode" class="form-select border-secondary text-dark">
-                    <option value="direct">➡️ 传统模式：直接导入已有题库（支持带选项的 Word/Excel）</option>
-                    <option value="ai">✨ AI 模式：根据纯知识点课件自动出题（调用通义千问大模型）</option>
+                    <option value="direct">传统模式：后台识别提取习题</option>
+                    <option value="ai">AI 模式：根据上传文件自动出题（调用DeepSeek大模型）</option>
                 </select>
-                <div class="form-text text-muted small mt-1">
-                    提示：如果您上传的是排版好的成套习题，请选“传统模式”。如果您上传的是纯复习资料，请选“AI模式”。
+                <div class=”form-text text-muted small mt-1”>
+                    提示：如果您上传的是已有排版的习题文档，选”传统模式”由后台识别提取。如果您上传的是纯教学资料想自动出题，请选”AI模式”。
                 </div>
             </div>
 
