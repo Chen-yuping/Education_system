@@ -217,11 +217,10 @@
             <!-- 题目内容 -->
             <div class="mb-4">
                 <h5 class="mb-0 opacity-75">
-                    {% if exercise.question_type == '1' %}单选题
-                    {% elif exercise.question_type == '2' %}多选题
-                    {% elif exercise.question_type == '3' %}投票题
-                    {% elif exercise.question_type == '4' %}填空题
-                    {% elif exercise.question_type == '5' %}主观题
+                    {% if exercise.question_type == '1' or exercise.question_type == 'single' %}单选题
+                    {% elif exercise.question_type == '2' or exercise.question_type == 'multiple' %}多选题
+                    {% elif exercise.question_type == '3' or exercise.question_type == 'fill' %}填空题
+                    {% elif exercise.question_type == '4' or exercise.question_type == 'subjective' %}主观题
                     {% else %}判断题{% endif %}
                 </h5>
                 <div class="question-content p-3 bg-light rounded" style="font-size: 1.5rem; line-height: 1.6;">
@@ -236,7 +235,7 @@
 
                 <h6 class="text-muted mb-3">请作答：</h6>
 
-                {% if exercise.question_type == '1' %}
+                {% if exercise.question_type == '1' or exercise.question_type == 'single' %}
                 <!-- 单选题 -->
                 <div class="choices-container">
                     {% for choice in exercise.choices.all %}
@@ -255,7 +254,7 @@
                     {% endfor %}
                 </div>
 
-                {% elif exercise.question_type == '2' %}
+                {% elif exercise.question_type == '2' or exercise.question_type == 'multiple' %}
                 <!-- 多选题 -->
                 <div class="choices-container">
                     {% for choice in exercise.choices.all %}
@@ -274,38 +273,19 @@
                     {% endfor %}
                 </div>
 
-                {% elif exercise.question_type == '3' %}
-                <!-- 投票 -->
-                <div class="choices-container">
-                    {% for choice in exercise.choices.all %}
-                    <div class="choice-item" onclick="toggleMultipleChoice({{ choice.id }})">
-                        <div class="form-check">
-                            <input class="form-check-input choice-input"
-                                   type="checkbox"
-                                   name="choices"
-                                   id="choice_{{ choice.id }}"
-                                   value="{{ choice.id }}">
-                            <label class="form-check-label w-100" for="choice_{{ choice.id }}">
-                                {{ choice.content }}
-                            </label>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-
-                {% elif exercise.question_type == '4' %}
+                {% elif exercise.question_type == '3' or exercise.question_type == 'fill' %}
                 <!-- 填空题 -->
                 <div class="fib-container">
                     <div id="blanks-input-area" class="blanks-input-area"></div>
                 </div>
 
-                {% elif exercise.question_type == '5' %}
+                {% elif exercise.question_type == '4' or exercise.question_type == 'subjective' %}
                 <!-- 主观题，简答题 -->
                 <div class="form-group">
                     <textarea class="form-control" name="text_answer" rows="6"
                               placeholder="请输入您的答案..."></textarea>
                 </div>
-                {% elif exercise.question_type == '6' %}
+                {% elif exercise.question_type == '5' or exercise.question_type == 'judgment' %}
                 <!-- 判断题 -->
                 <div class="choices-container">
                     {% for choice in exercise.choices.all %}
