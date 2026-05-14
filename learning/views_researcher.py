@@ -506,11 +506,14 @@ def run_training_task(dataset_name, model_name, experiment_id, user_id):
         print(f"数据集信息: 学生数={un}, 习题数={en}, 知识点数={kn}")
 
         # 切换到 CMD_survey 目录
+        sys.path = [p for p in sys.path if os.path.abspath(p) != os.path.abspath(base_path)]
         sys.path.insert(0, base_path)
         os.chdir(base_path)
         print(f"当前工作目录: {os.getcwd()}")
 
         # 导入params（现在它会读取环境变量）
+        sys.modules.pop('params', None)
+        sys.modules.pop('dataloader', None)
         import params
         print("已导入params模块")
 
@@ -546,7 +549,6 @@ def run_training_task(dataset_name, model_name, experiment_id, user_id):
         # 加载数据
         print("加载数据...")
         import dataloader
-        importlib.reload(dataloader)
         src, tgt = dataloader.CD_DL()
         print("数据加载完成")
 
