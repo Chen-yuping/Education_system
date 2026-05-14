@@ -17,7 +17,7 @@ try:
 except ImportError:
     print("【提示】缺少 pdfplumber，请运行: pip install pdfplumber")
 
-from openai import OpenAI
+# from openai import OpenAI
 from django.conf import settings
 from django.utils import timezone
 from django.db import transaction
