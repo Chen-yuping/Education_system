@@ -1,293 +1,10 @@
 [
   {
     "user_id": 1,
-    "exer_id": 7,
+    "exer_id": 5,
     "score": 1,
     "knowledge_code": [
-      150,
       167
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 3,
-    "score": 1,
-    "knowledge_code": [
-      150,
-      167
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 4,
-    "score": 1,
-    "knowledge_code": [
-      67,
-      167
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 7,
-    "score": 1,
-    "knowledge_code": [
-      150,
-      167
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 8,
-    "score": 0,
-    "knowledge_code": [
-      15,
-      167
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 127,
-    "score": 0,
-    "knowledge_code": [
-      34,
-      124,
-      162
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 13,
-    "score": 1,
-    "knowledge_code": [
-      84,
-      124,
-      167
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 65,
-    "score": 0,
-    "knowledge_code": [
-      40,
-      61,
-      104
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 60,
-    "score": 0,
-    "knowledge_code": [
-      16,
-      40,
-      61
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 25,
-    "score": 1,
-    "knowledge_code": [
-      123,
-      142
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 26,
-    "score": 0,
-    "knowledge_code": [
-      30,
-      46,
-      141
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 72,
-    "score": 0,
-    "knowledge_code": [
-      55
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 73,
-    "score": 0,
-    "knowledge_code": [
-      79,
-      164
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 74,
-    "score": 0,
-    "knowledge_code": [
-      79,
-      160,
-      167
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 81,
-    "score": 0,
-    "knowledge_code": [
-      20,
-      86,
-      113
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 82,
-    "score": 0,
-    "knowledge_code": [
-      44,
-      125,
-      126
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 83,
-    "score": 0,
-    "knowledge_code": [
-      23
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 84,
-    "score": 1,
-    "knowledge_code": [
-      69,
-      143
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 85,
-    "score": 0,
-    "knowledge_code": [
-      9,
-      80,
-      116
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 86,
-    "score": 0,
-    "knowledge_code": [
-      63,
-      114
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 102,
-    "score": 0,
-    "knowledge_code": [
-      140
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 103,
-    "score": 1,
-    "knowledge_code": [
-      2,
-      29,
-      127
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 104,
-    "score": 1,
-    "knowledge_code": [
-      2,
-      65,
-      127
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 105,
-    "score": 1,
-    "knowledge_code": [
-      131
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 88,
-    "score": 0,
-    "knowledge_code": [
-      140,
-      146,
-      167
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 89,
-    "score": 1,
-    "knowledge_code": [
-      133,
-      148
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 90,
-    "score": 1,
-    "knowledge_code": [
-      101,
-      120
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 91,
-    "score": 0,
-    "knowledge_code": [
-      92,
-      138
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 92,
-    "score": 0,
-    "knowledge_code": [
-      21,
-      87,
-      154
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 22,
-    "score": 0,
-    "knowledge_code": [
-      30,
-      40,
-      102,
-      111
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 38,
-    "score": 0,
-    "knowledge_code": [
-      1,
-      103,
-      168
     ]
   },
   {
@@ -297,6 +14,24 @@
     "knowledge_code": [
       167
     ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 129,
+    "score": 1,
+    "knowledge_code": []
+  },
+  {
+    "user_id": 1,
+    "exer_id": 129,
+    "score": 1,
+    "knowledge_code": []
+  },
+  {
+    "user_id": 1,
+    "exer_id": 129,
+    "score": 1,
+    "knowledge_code": []
   },
   {
     "user_id": 2,
