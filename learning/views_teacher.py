@@ -471,7 +471,15 @@ def exercise_management(request):
             exercises = exercises.filter(subject_id=int(subject_id))
 
     if question_type:
-        exercises = exercises.filter(question_type=question_type)
+        type_mapping = {
+            '1': ['1', 'single'],
+            '2': ['2', 'multiple'],
+            '3': ['3', 'fill'],
+            '4': ['4', 'subjective'],
+            '5': ['5', 'judgment'],
+        }
+        type_filter = type_mapping.get(question_type, [question_type])
+        exercises = exercises.filter(question_type__in=type_filter)
 
     if knowledge_point_id and knowledge_point_id.isdigit():
         exercises = exercises.filter(
@@ -595,16 +603,14 @@ def exercise_detail_json(request, exercise_id):
         question_type_mapping = {
             'single': '单选题',
             'multiple': '多选题',
-            'vote': '投票题',
             'fill': '填空题',
             'subjective': '主观题',
             'judgment': '判断题',
             '1': '单选题',
             '2': '多选题',
-            '3': '投票题',
-            '4': '填空题',
-            '5': '主观题',
-            '6': '判断题',
+            '3': '填空题',
+            '4': '主观题',
+            '5': '判断题',
         }
 
         # 获取题型显示名称
@@ -1036,7 +1042,15 @@ def export_exercises(request):
         exercises = exercises.filter(subject_id=int(subject_id))
 
     if question_type:
-        exercises = exercises.filter(question_type=question_type)
+        type_mapping = {
+            '1': ['1', 'single'],
+            '2': ['2', 'multiple'],
+            '3': ['3', 'fill'],
+            '4': ['4', 'subjective'],
+            '5': ['5', 'judgment'],
+        }
+        type_filter = type_mapping.get(question_type, [question_type])
+        exercises = exercises.filter(question_type__in=type_filter)
 
     if knowledge_point_id and knowledge_point_id.isdigit():
         exercises = exercises.filter(qmatrix__knowledge_point_id=int(knowledge_point_id)).distinct()
@@ -1148,10 +1162,10 @@ def grade_subjective(request):
         # 如果指定的科目不在授课范围内，使用第一个
         subject_id = teacher_subject_ids[0] if teacher_subject_ids else None
     
-    # 基础查询：主观题的答题记录 (question_type = '5' 或 'subjective')
+    # 基础查询：主观题的答题记录 (question_type = '4' 或 'subjective')
     answer_logs = AnswerLog.objects.filter(
         exercise__subject_id__in=teacher_subject_ids,
-        exercise__question_type__in=['5', 'subjective']
+        exercise__question_type__in=['4', 'subjective']
     ).select_related('student', 'exercise', 'exercise__subject').order_by('-submitted_at')
     
     # 按科目筛选
@@ -1171,20 +1185,20 @@ def grade_subjective(request):
     # 统计数量
     pending_count = AnswerLog.objects.filter(
         exercise__subject_id__in=teacher_subject_ids,
-        exercise__question_type__in=['5', 'subjective'],
+        exercise__question_type__in=['4', 'subjective'],
         is_correct__isnull=True
     ).count()
     
     graded_count = AnswerLog.objects.filter(
         exercise__subject_id__in=teacher_subject_ids,
-        exercise__question_type__in=['5', 'subjective'],
+        exercise__question_type__in=['4', 'subjective'],
         is_correct__isnull=False
     ).count()
     
     # 获取当前科目的所有主观题
     exercises = Exercise.objects.filter(
         subject_id=subject_id,
-        question_type__in=['5', 'subjective']
+        question_type__in=['4', 'subjective']
     ).order_by('title')
     
     # 分页

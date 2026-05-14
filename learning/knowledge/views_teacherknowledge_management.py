@@ -453,6 +453,14 @@ def get_knowledge_point_exercises(request, kp_id):
             'fill': '填空题',
             'short': '简答题',
             'essay': '论述题',
+            'subjective': '主观题',
+            'judgment': '判断题',
+            '1': '单选题',
+            '2': '多选题',
+            '3': '填空题',
+            '4': '主观题',
+            '5': '判断题',
+            '6': '判断题',
         }
         
         exercises_list = []

@@ -17,18 +17,21 @@ try:
 except ImportError:
     print("【提示】缺少 pdfplumber，请运行: pip install pdfplumber")
 
-try:
-    import dashscope
-    from dashscope import Generation
-
-    # TODO: 请务必在这里填入您在阿里云申请的 API-KEY (千万不要发到网上)
-    dashscope.api_key = "sk-0ddb7aa22f694638ab3c9e4386e7f1b3"
-except ImportError:
-    print("【提示】缺少 dashscope，请运行: pip install dashscope")
-
+from openai import OpenAI
+from django.conf import settings
 from django.utils import timezone
 from django.db import transaction
 from learning.models import Subject, TeacherSubject, Exercise, Choice, KnowledgePoint, QMatrix
+
+
+def get_deepseek_client():
+    """获取 DeepSeek OpenAI 兼容客户端"""
+    config = getattr(settings, 'LLM_CONFIG', {})
+    api_key = os.environ.get('DEEPSEEK_API_KEY') or config.get('deepseek_api_key', '') or config.get('api_key', '')
+    base_url = os.environ.get('DEEPSEEK_BASE_URL') or config.get('deepseek_base_url', 'https://api.deepseek.com')
+    if not api_key:
+        return None
+    return OpenAI(api_key=api_key, base_url=base_url)
 
 
 # ==========================================
@@ -278,12 +281,17 @@ def handle_data_file(file_record):
 # ==========================================
 def auto_generate_exercises_from_text(text):
     """
-    调用通义千问，让它阅读资料并自动出题
+    调用 DeepSeek，让它阅读资料并自动出题
     """
-    print(">>> 开始调用通义千问基于资料自动生成习题...")
+    print(">>> 开始调用 DeepSeek 基于资料自动生成习题...")
 
     # 截取前 4000 字（大模型阅读材料的范围，防止 Token 超限）
     content = text[:4000]
+
+    client = get_deepseek_client()
+    if not client:
+        print("[WARN] 未配置 DeepSeek API密钥")
+        return []
 
     # 专门针对计算机科学类的出题 Prompt
     prompt = f"""
@@ -314,25 +322,29 @@ def auto_generate_exercises_from_text(text):
     """
 
     try:
-        response = Generation.call(
-            model="qwen-turbo",
-            prompt=prompt,
-            result_format='message'
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            temperature=0.3,
         )
 
-        if response.status_code == 200:
-            result_text = response.output.choices[0].message.content.strip()
+        result_text = response.choices[0].message.content.strip()
 
-            # 清洗并解析 JSON
-            clean_json = result_text.replace('```json', '').replace('```', '').strip()
-            exercise_list = json.loads(clean_json)
+        # 清洗并解析 JSON
+        clean_json = result_text.replace('```json', '').replace('```', '').strip()
+        parsed = json.loads(clean_json)
 
-            return exercise_list if isinstance(exercise_list, list) else []
-        else:
-            print(f"大模型调用失败: {response.code} - {response.message}")
+        # DeepSeek 可能返回 {"exercises": [...]} 或直接返回 [...]
+        if isinstance(parsed, dict):
+            for key in ('exercises', 'questions', 'data'):
+                if key in parsed and isinstance(parsed[key], list):
+                    return parsed[key]
             return []
+        return parsed if isinstance(parsed, list) else []
     except Exception as e:
         print(f"AI 生成习题解析异常: {e}")
+        traceback.print_exc()
         return []
 
 
@@ -628,50 +640,57 @@ def extract_knowledge_points_from_text(text, subject):
     """
     
     try:
-        response = Generation.call(
-            model="qwen-turbo",
-            prompt=prompt,
-            result_format='message'
+        client = get_deepseek_client()
+        if not client:
+            raise Exception("未配置 DeepSeek API密钥")
+
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            temperature=0.1,
         )
-        
-        if response.status_code == 200:
-            result_text = response.output.choices[0].message.content.strip()
-            clean_json = result_text.replace('```json', '').replace('```', '').strip()
-            data = json.loads(clean_json)
-            
-            knowledge_points = []
-            kp_map = {}  # 名称到对象的映射
-            
-            for kp_data in data.get('knowledge_points', []):
-                # 创建知识点
-                parent = None
-                if kp_data.get('parent'):
-                    # 先检查父知识点是否已创建
-                    if kp_data['parent'] in kp_map:
-                        parent = kp_map[kp_data['parent']]
-                    else:
-                        # 如果父知识点不存在，先创建它
-                        parent_kp, _ = KnowledgePoint.objects.get_or_create(
-                            subject=subject,
-                            name=kp_data['parent'],
-                            defaults={'parent': None}
-                        )
-                        kp_map[kp_data['parent']] = parent_kp
-                        parent = parent_kp
-                
-                kp, created = KnowledgePoint.objects.get_or_create(
-                    subject=subject,
-                    name=kp_data['name'],
-                    defaults={
-                        'parent': parent,
-                        'description': kp_data.get('description', '')
-                    }
-                )
-                
-                kp_map[kp_data['name']] = kp
-                knowledge_points.append(kp)
-            
-            return knowledge_points
+
+        result_text = response.choices[0].message.content.strip()
+        clean_json = result_text.replace('```json', '').replace('```', '').strip()
+        data = json.loads(clean_json)
+
+        if "knowledge_points" not in data:
+            return extract_keywords_as_knowledge_points(text, subject)
+
+        knowledge_points = []
+        kp_map = {}  # 名称到对象的映射
+
+        for kp_data in data.get('knowledge_points', []):
+            # 创建知识点
+            parent = None
+            if kp_data.get('parent'):
+                # 先检查父知识点是否已创建
+                if kp_data['parent'] in kp_map:
+                    parent = kp_map[kp_data['parent']]
+                else:
+                    # 如果父知识点不存在，先创建它
+                    parent_kp, _ = KnowledgePoint.objects.get_or_create(
+                        subject=subject,
+                        name=kp_data['parent'],
+                        defaults={'parent': None}
+                    )
+                    kp_map[kp_data['parent']] = parent_kp
+                    parent = parent_kp
+
+            kp, created = KnowledgePoint.objects.get_or_create(
+                subject=subject,
+                name=kp_data['name'],
+                defaults={
+                    'parent': parent,
+                    'description': kp_data.get('description', '')
+                }
+            )
+
+            kp_map[kp_data['name']] = kp
+            knowledge_points.append(kp)
+
+        return knowledge_points
             
     except Exception as e:
         print(f"知识点提取失败: {e}")
@@ -769,82 +788,89 @@ def generate_exercises_from_textbook(text, subject, teacher):
     """
     
     try:
-        response = Generation.call(
-            model="qwen-turbo",
-            prompt=prompt,
-            result_format='message'
+        client = get_deepseek_client()
+        if not client:
+            raise Exception("未配置 DeepSeek API密钥")
+
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            temperature=0.3,
         )
-        
-        if response.status_code == 200:
-            result_text = response.output.choices[0].message.content.strip()
-            clean_json = result_text.replace('```json', '').replace('```', '').strip()
-            data = json.loads(clean_json)
-            
-            exercises = []
-            
-            with transaction.atomic():
-                for ex_data in data.get('exercises', []):
-                    try:
-                        opt_dict = ex_data.get('options', {})
-                        full_option_text = repr(opt_dict) if opt_dict else ""
-                        
-                        # 确定题型
-                        q_type = ex_data.get('question_type', 'single')
+
+        result_text = response.choices[0].message.content.strip()
+        clean_json = result_text.replace('```json', '').replace('```', '').strip()
+        data = json.loads(clean_json)
+
+        exercises_raw = data.get('exercises', [])
+        if not exercises_raw:
+            return []
+
+        exercises = []
+
+        with transaction.atomic():
+            for ex_data in data.get('exercises', []):
+                try:
+                    opt_dict = ex_data.get('options', {})
+                    full_option_text = repr(opt_dict) if opt_dict else ""
+                    
+                    # 确定题型
+                    q_type = ex_data.get('question_type', 'single')
+                    if q_type == 'judgment':
+                        q_type = 'judgment'
+                        opt_dict = {'A': '正确', 'B': '错误'} if not opt_dict else opt_dict
+                    
+                    exercise = Exercise.objects.create(
+                        subject=subject,
+                        title=ex_data.get('title', '')[:200],
+                        content=ex_data.get('content', ''),
+                        question_type=q_type,
+                        creator=teacher,
+                        option_text=full_option_text,
+                        answer=ex_data.get('answer', 'A'),
+                        solution=ex_data.get('solution', ''),
+                        problemsets="课本快速构建",
+                        created_at=timezone.now()
+                    )
+                    
+                    # 创建选项
+                    for idx, (label, content) in enumerate(opt_dict.items()):
+                        is_correct = False
                         if q_type == 'judgment':
-                            q_type = 'judgment'
-                            opt_dict = {'A': '正确', 'B': '错误'} if not opt_dict else opt_dict
-                        
-                        exercise = Exercise.objects.create(
-                            subject=subject,
-                            title=ex_data.get('title', '')[:200],
-                            content=ex_data.get('content', ''),
-                            question_type=q_type,
-                            creator=teacher,
-                            option_text=full_option_text,
-                            answer=ex_data.get('answer', 'A'),
-                            solution=ex_data.get('solution', ''),
-                            problemsets="课本快速构建",
-                            created_at=timezone.now()
+                            is_correct = (label == 'A' and ex_data.get('answer') == '正确') or \
+                                       (label == 'B' and ex_data.get('answer') == '错误')
+                        else:
+                            is_correct = label in ex_data.get('answer', '')
+                            
+                        Choice.objects.create(
+                            exercise=exercise,
+                            content=f"{label}. {content}",
+                            is_correct=is_correct,
+                            order=idx + 1
                         )
-                        
-                        # 创建选项
-                        for idx, (label, content) in enumerate(opt_dict.items()):
-                            is_correct = False
-                            if q_type == 'judgment':
-                                is_correct = (label == 'A' and ex_data.get('answer') == '正确') or \
-                                           (label == 'B' and ex_data.get('answer') == '错误')
-                            else:
-                                is_correct = label in ex_data.get('answer', '')
-                                
-                            Choice.objects.create(
-                                exercise=exercise,
-                                content=f"{label}. {content}",
-                                is_correct=is_correct,
-                                order=idx + 1
+                    
+                    # 关联知识点
+                    for kp_name in ex_data.get('knowledge_points', []):
+                        if kp_name.strip():
+                            kp, _ = KnowledgePoint.objects.get_or_create(
+                                subject=subject,
+                                name=kp_name.strip(),
+                                defaults={'parent': None}
                             )
-                        
-                        # 关联知识点
-                        for kp_name in ex_data.get('knowledge_points', []):
-                            if kp_name.strip():
-                                kp, _ = KnowledgePoint.objects.get_or_create(
-                                    subject=subject,
-                                    name=kp_name.strip(),
-                                    defaults={'parent': None}
-                                )
-                                QMatrix.objects.get_or_create(
-                                    exercise=exercise,
-                                    knowledge_point=kp,
-                                    defaults={'weight': 1.0}
-                                )
-                        
-                        exercises.append(exercise)
-                        
-                    except Exception as e:
-                        print(f"保存习题失败: {e}")
-                        continue
-            
-            return exercises
-            
+                            QMatrix.objects.get_or_create(
+                                exercise=exercise,
+                                knowledge_point=kp,
+                                defaults={'weight': 1.0}
+                            )
+                    
+                    exercises.append(exercise)
+                    
+                except Exception as e:
+                    print(f"保存习题失败: {e}")
+                    continue
+        return exercises
+
     except Exception as e:
         print(f"习题生成失败: {e}")
     

@@ -232,7 +232,7 @@
                                         <div class="exercise-choices">
                                             {% for choice in exercise.choices.all %}
                                             <div style="padding: 8px 12px; background: #f8f9fa; border-radius: 4px; margin-bottom: 6px; font-size: 0.9rem;">
-                                                {% if exercise.question_type in '1236' %}
+                                                {% if exercise.question_type == '1' or exercise.question_type == '2' or exercise.question_type == '3' or exercise.question_type == '5' or exercise.question_type == 'single' or exercise.question_type == 'multiple' or exercise.question_type == 'judgment' %}
                                                     {% if forloop.counter == 1 %}A.{% elif forloop.counter == 2 %}B.{% elif forloop.counter == 3 %}C.{% elif forloop.counter == 4 %}D.{% elif forloop.counter == 5 %}E.{% elif forloop.counter == 6 %}F.{% endif %}
                                                 {% endif %}
                                                 {{ choice.content }}
@@ -241,11 +241,10 @@
                                         </div>
                                         {% endif %}
                                         <div class="exercise-meta mt-2">
-                                            {% if exercise.question_type == '1' %}单选题
-                                            {% elif exercise.question_type == '2' %}多选题
-                                            {% elif exercise.question_type == '3' %}投票题
-                                            {% elif exercise.question_type == '4' %}填空题
-                                            {% elif exercise.question_type == '5' %}主观题
+                                            {% if exercise.question_type == '1' or exercise.question_type == 'single' %}单选题
+                                            {% elif exercise.question_type == '2' or exercise.question_type == 'multiple' %}多选题
+                                            {% elif exercise.question_type == '3' or exercise.question_type == 'fill' %}填空题
+                                            {% elif exercise.question_type == '4' or exercise.question_type == 'subjective' %}主观题
                                             {% else %}判断题{% endif %}
                                             
                                             {% with weak_knowledge_count=exercise.qmatrix_set.count %}
