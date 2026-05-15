@@ -95,6 +95,7 @@ urlpatterns = [
     path('teacher/api/knowledge-point/<int:subject_id>/<int:kp_id>/delete-with-relations/', views_teacherknowledge_management.delete_knowledge_point_with_relations_api, name='delete_knowledge_point_with_relations_api'),
 
     path('teacher/subjects/', views_teacher.teacher_subject_management, name='teacher_subject_management'),#老师选择授课
+    path('teacher/subjects/create/', views_teacher.teacher_create_subject, name='teacher_create_subject'),#老师创建课程
     path('teacher/subjects/delete/<int:subject_id>/', views_teacher.subject_delete, name='subject_delete'),#删除课程
     path('teacher/course-management/', views_teacher.teacher_course_management, name='teacher_course_management'),#课程管理
 

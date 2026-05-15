@@ -136,9 +136,9 @@
     <h1 class="h2">
         <i class="fas fa-book me-2"></i>课程管理
     </h1>
-    <a href="{% url 'teacher_subject_management' %}" class="btn btn-primary">
+    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createSubjectModal">
         <i class="fas fa-plus"></i> 添加授课科目
-    </a>
+    </button>
 </div>
 
 <div class="row">
@@ -181,13 +181,52 @@
                         <i class="fas fa-book-open"></i>
                         <h5>您还没有分配授课科目</h5>
                         <p class="text-muted mb-4">请点击上方按钮添加授课科目</p>
-                        <a href="{% url 'teacher_subject_management' %}" class="btn btn-primary">
+                        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createSubjectModal">
                             <i class="fas fa-plus me-2"></i> 添加授课科目
-                        </a>
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
     {% endif %}
+</div>
+
+<!-- 创建课程弹窗 -->
+<div class="modal fade" id="createSubjectModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'teacher_create_subject' %}">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-plus-circle text-primary me-2"></i>添加授课科目
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="subjectName" class="form-label">
+                            课程名称 <span class="text-danger">*</span>
+                        </label>
+                        <input type="text" class="form-control" id="subjectName" name="name"
+                               placeholder="请输入课程名称" required maxlength="100">
+                    </div>
+                    <div class="mb-3">
+                        <label for="subjectDescription" class="form-label">
+                            课程描述 <span class="text-muted">(可选)</span>
+                        </label>
+                        <textarea class="form-control" id="subjectDescription" name="description"
+                                  rows="3" placeholder="请输入课程描述（可选）"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-check me-1"></i>创建并进入
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 {% endblock %}

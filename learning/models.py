@@ -455,6 +455,7 @@ def resource_file_upload_path(instance, filename):
 
 class ResourceFile(models.Model):
     RESOURCE_TYPES = [
+        ('教材', '教材'),
         ('教案', '教案'),
         ('课件', '课件'),
         ('其他', '其他资料'),

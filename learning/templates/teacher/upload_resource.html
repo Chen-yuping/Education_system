@@ -20,6 +20,7 @@
             <div class="mb-4">
                 <label for="resourceType" class="form-label fw-semibold">资料类型 <span class="text-danger">*</span></label>
                 <select name="resource_type" id="resourceType" class="form-select border-secondary text-dark">
+                    <option value="教材">📖 教材</option>
                     <option value="教案">📝 教案</option>
                     <option value="课件">📚 课件</option>
                     <option value="其他">📄 其他资料</option>
@@ -202,6 +203,7 @@
 <script>
 // 资料类型对应的文件扩展名映射
 const typeExtMap = {
+    '教材': ['.doc', '.docx', '.pdf'],
     '教案': ['.doc', '.docx', '.pdf'],
     '课件': ['.ppt', '.pptx'],
     '其他': [],
@@ -458,7 +460,7 @@ if(resetBtn) {
         fileList.innerHTML = '';
         if(fileInput) fileInput.value = '';
         // 恢复下拉框默认选中第一项
-        document.getElementById('resourceType').value = '课件';
+        document.getElementById('resourceType').value = '教材';
         document.getElementById('resourceTitle').value = '';
         document.getElementById('resourceDescription').value = '';
         document.getElementById('isPublic').checked = true;

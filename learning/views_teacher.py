@@ -157,6 +157,30 @@ def teacher_subject_management(request):
 
 @login_required
 @user_passes_test(is_teacher)
+def teacher_create_subject(request):
+    """教师创建新课程并直接进入授课管理界面"""
+    if request.method == 'POST':
+        name = request.POST.get('name', '').strip()
+        description = request.POST.get('description', '').strip()
+
+        if not name:
+            messages.error(request, '课程名称不能为空')
+            return redirect('teacher_course_management')
+
+        # 创建新课程
+        subject = Subject.objects.create(name=name, description=description)
+
+        # 创建教师授课关系
+        TeacherSubject.objects.get_or_create(teacher=request.user, subject=subject)
+
+        messages.success(request, f'课程《{name}》创建成功！')
+        return redirect(reverse('upload_exercise') + f'?subject_id={subject.id}')
+
+    return redirect('teacher_course_management')
+
+
+@login_required
+@user_passes_test(is_teacher)
 @require_POST
 def subject_delete(request, subject_id):
     """删除课程（Subject）及其所有相关数据"""

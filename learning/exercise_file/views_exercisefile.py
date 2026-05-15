@@ -201,7 +201,7 @@ def upload_resource(request):
 
                 # --- C. 教案/课件 → 自动抽取知识三元组 ---
                 extraction = None
-                if resource_file.resource_type in ('教案', '课件'):
+                if resource_file.resource_type in ('教材', '教案', '课件'):
                     if not resource_file.extracted_text:
                         if not text_extract_ok:
                             messages.warning(request, f'⚠️ {resource_file.get_resource_type_display()}文本提取失败，无法进行知识点抽取。请检查文件内容是否为空或格式是否正确。')

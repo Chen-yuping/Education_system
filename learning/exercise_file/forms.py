@@ -49,6 +49,7 @@ class ResourceFileForm(forms.ModelForm):
         if resource_type and file_obj:
             ext = '.' + file_obj.name.split('.').pop().lower()
             type_ext_map = {
+                '教材': ['.doc', '.docx', '.pdf'],
                 '教案': ['.doc', '.docx', '.pdf'],
                 '课件': ['.ppt', '.pptx'],
             }
