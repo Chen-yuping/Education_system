@@ -571,6 +571,7 @@
     </div>
 
 <script>
+let trainingStatusInterval = null;
 // 模型选择器功能
 function toggleModelSelector(event) {
     event.preventDefault();
@@ -611,6 +612,11 @@ document.addEventListener('click', function(event) {
 });
 
 function startAnalysis() {
+    if (trainingStatusInterval) {
+        clearInterval(trainingStatusInterval);
+        trainingStatusInterval = null;
+    }
+
     // ========== 新增：显示训练结果可视化区域（但隐藏图表，显示占位符） ==========
     const trainingCharts = document.getElementById('trainingCharts');
     const chartsContainer = document.querySelector('.charts-container');
@@ -713,9 +719,15 @@ function checkTasksStatus(tasks) {
     console.log('checkTasksStatus 被调用，tasks:', tasks);
     const totalTasks = tasks.length;
     const taskResults = {};
-    let completedCount = 0;
+    const taskErrors = {};
+    let finishedCount = 0;
+    let statusPollingFinished = false;
 
-    const interval = setInterval(() => {
+    if (trainingStatusInterval) {
+        clearInterval(trainingStatusInterval);
+    }
+
+    trainingStatusInterval = setInterval(() => {
         tasks.forEach(task => {
             fetch('/learning/researcher/check-status/?task=' + encodeURIComponent(task))
                 .then(response => response.json())
@@ -723,9 +735,9 @@ function checkTasksStatus(tasks) {
                     console.log(`任务 ${task} 返回数据:`, data);
 
                     // 如果任务完成且还没记录过
-                    if (data.status === 'completed' && !taskResults[task]) {
+                    if (data.status === 'completed' && !taskResults[task] && !taskErrors[task]) {
                         taskResults[task] = data.result;
-                        completedCount++;
+                        finishedCount++;
 
                         // 更新对应任务的状态显示
                         const taskItem = document.querySelector(`li[data-task="${task}"]`);
@@ -736,9 +748,30 @@ function checkTasksStatus(tasks) {
                     }
 
                     // 所有任务完成，显示表格
-                    if (completedCount === totalTasks && Object.keys(taskResults).length === totalTasks) {
-                        clearInterval(interval);
-                        displayFinalResults(taskResults);
+                    if (data.status === 'failed' && !taskErrors[task] && !taskResults[task]) {
+                        taskErrors[task] = data.error || '训练失败';
+                        taskResults[task] = { error: taskErrors[task] };
+                        finishedCount++;
+
+                        const taskItem = document.querySelector(`li[data-task="${task}"]`);
+                        if (taskItem) {
+                            taskItem.innerHTML = '<i class="fas fa-times-circle" style="color: #dc3545; margin-right: 10px;"></i>' +
+                                task + ' - 训练失败：' + taskErrors[task];
+                        }
+                    }
+
+                    if (!statusPollingFinished && finishedCount === totalTasks) {
+                        statusPollingFinished = true;
+                        clearInterval(trainingStatusInterval);
+                        trainingStatusInterval = null;
+                        if (Object.keys(taskResults).length > 0) {
+                            displayFinalResults(taskResults);
+                        } else {
+                            const resultsContainer = document.getElementById('resultsContainer');
+                            if (resultsContainer) {
+                                resultsContainer.innerHTML = '<div class="empty-state"><i class="fas fa-times-circle"></i><p>训练失败，请查看任务列表和命令行错误信息。</p></div>';
+                            }
+                        }
                     }
                 })
                 .catch(error => console.error('检查状态失败:', error));

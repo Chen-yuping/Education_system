@@ -218,7 +218,8 @@ class NCDM:
         logging.info("save parameters to %s" % filepath)
 
     def load(self, filepath):
-        self.ncdm_net.load_state_dict(torch.load(filepath))  # , map_location=lambda s, loc: s
+        map_location = "cuda:0" if torch.cuda.is_available() else "cpu"
+        self.ncdm_net.load_state_dict(torch.load(filepath, map_location=map_location))
         logging.info("load parameters from %s" % filepath)
 
     def advantage(self, test_data, device="cpu"):

@@ -385,6 +385,15 @@ function calculateKpAverages(diagnosisData) {
     return kpAverages;
 }
 
+function getMasteryAxisMax(values) {
+    const numericValues = (values || [])
+        .map(value => Number(value))
+        .filter(value => Number.isFinite(value));
+    const maxValue = numericValues.length > 0 ? Math.max(...numericValues) : 0;
+    if (maxValue <= 0) return 10;
+    return Math.min(100, Math.max(10, Math.ceil((maxValue * 1.15) / 10) * 10));
+}
+
 // 初始化图表
 function initCharts() {
     // 初始化ECharts实例
@@ -548,6 +557,7 @@ function renderOverallChartFromSummary(summary) {
 
     const categories = summary.knowledge_points.map(kp => kp.name);
     const masteryData = summary.knowledge_points.map(kp => parseFloat(kp.avg_mastery));
+    const yAxisMax = getMasteryAxisMax(masteryData);
 
     const option = {
         animation: false,  // 禁用动画
@@ -582,7 +592,7 @@ function renderOverallChartFromSummary(summary) {
             type: 'value',
             name: '掌握度(%)',
             min: 0,
-            max: 100,
+            max: yAxisMax,
             axisLabel: {
                 formatter: '{value}%'
             }
@@ -836,6 +846,7 @@ function renderBarChart(diagnosisData, kpAverages) {
     // 5. 分离出 X 轴标签和 Y 轴数据
     const categories = combinedList.map(item => item.name);
     const masteryData = combinedList.map(item => item.mastery);
+    const yAxisMax = getMasteryAxisMax(masteryData);
 
 
     const option = {
@@ -865,7 +876,7 @@ function renderBarChart(diagnosisData, kpAverages) {
             type: 'value',
             name: '掌握度(%)',
             min: 0,
-            max: 100,
+            max: yAxisMax,
             axisLabel: {
                 formatter: '{value}%'
             }
