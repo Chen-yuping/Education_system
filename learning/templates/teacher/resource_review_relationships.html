@@ -285,15 +285,123 @@ function resetRelationship(relationshipId) {
 }
 
 function approveAllRelationships() {
-    document.querySelectorAll('.relationship-approved').forEach(radio => {
-        radio.checked = true;
+    const cards = document.querySelectorAll('.relationship-card:not([style*="opacity: 0.5"])');
+    if (cards.length === 0) {
+        alert('当前批次没有待审核的关系。');
+        return;
+    }
+    if (!confirm(`确定要全部标记为正确吗？将自动勾选并提交 ${cards.length} 个关系。`)) {
+        return;
+    }
+
+    // 先全部标记为正确
+    cards.forEach(card => {
+        const relId = card.getAttribute('data-id');
+        const approvedRadio = card.querySelector(`input[name="review${relId}"][value="approved"]`);
+        if (approvedRadio) approvedRadio.checked = true;
     });
+
+    // 逐个提交
+    const submitNext = (index) => {
+        if (index >= cards.length) {
+            checkAllSubmitted();
+            return;
+        }
+        const card = cards[index];
+        const relationshipId = card.getAttribute('data-id');
+        const data = getRelationshipData(relationshipId);
+
+        fetch(`{% url 'resource_submit_review' extraction_id=extraction.id review_type='relationship' %}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: new URLSearchParams({
+                'relationship_id': relationshipId,
+                'is_approved': data.is_approved,
+                'is_rejected': data.is_rejected,
+                'review_notes': data.notes
+            })
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                card.style.opacity = '0.5';
+                card.style.pointerEvents = 'none';
+                const badge = document.createElement('span');
+                badge.className = 'badge bg-success ms-2';
+                badge.innerHTML = '<i class="bi bi-check"></i> 已提交';
+                card.querySelector('.card-header').appendChild(badge);
+            }
+            submitNext(index + 1);
+        })
+        .catch(() => {
+            submitNext(index + 1);
+        });
+    };
+
+    submitNext(0);
 }
 
 function rejectAllRelationships() {
-    document.querySelectorAll('.relationship-rejected').forEach(radio => {
-        radio.checked = true;
+    const cards = document.querySelectorAll('.relationship-card:not([style*="opacity: 0.5"])');
+    if (cards.length === 0) {
+        alert('当前批次没有待审核的关系。');
+        return;
+    }
+    if (!confirm(`确定要全部标记为错误吗？将自动勾选并提交 ${cards.length} 个关系。`)) {
+        return;
+    }
+
+    // 先全部标记为错误
+    cards.forEach(card => {
+        const relId = card.getAttribute('data-id');
+        const rejectedRadio = card.querySelector(`input[name="review${relId}"][value="rejected"]`);
+        if (rejectedRadio) rejectedRadio.checked = true;
     });
+
+    // 逐个提交
+    const submitNext = (index) => {
+        if (index >= cards.length) {
+            checkAllSubmitted();
+            return;
+        }
+        const card = cards[index];
+        const relationshipId = card.getAttribute('data-id');
+        const data = getRelationshipData(relationshipId);
+
+        fetch(`{% url 'resource_submit_review' extraction_id=extraction.id review_type='relationship' %}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: new URLSearchParams({
+                'relationship_id': relationshipId,
+                'is_approved': data.is_approved,
+                'is_rejected': data.is_rejected,
+                'review_notes': data.notes
+            })
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                card.style.opacity = '0.5';
+                card.style.pointerEvents = 'none';
+                const badge = document.createElement('span');
+                badge.className = 'badge bg-success ms-2';
+                badge.innerHTML = '<i class="bi bi-check"></i> 已提交';
+                card.querySelector('.card-header').appendChild(badge);
+            }
+            submitNext(index + 1);
+        })
+        .catch(() => {
+            submitNext(index + 1);
+        });
+    };
+
+    submitNext(0);
 }
 
 function resetAllRelationships() {

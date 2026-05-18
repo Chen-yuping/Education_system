@@ -69,21 +69,7 @@
                 <i class="fas fa-layer-group me-1"></i>融合知识图谱
             </button>
         </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="tab-教材" data-source="教材" type="button" role="tab" onclick="switchSource('教材')">
-                <i class="fas fa-book me-1"></i>教材知识图谱
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="tab-教案" data-source="教案" type="button" role="tab" onclick="switchSource('教案')">
-                <i class="fas fa-file-alt me-1"></i>教案知识图谱
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="tab-课件" data-source="课件" type="button" role="tab" onclick="switchSource('课件')">
-                <i class="fas fa-file-powerpoint me-1"></i>课件知识图谱
-            </button>
-        </li>
+        <!-- 各资源文件的分标签页由JS根据 API 返回的 available_resource_files 动态生成 -->
     </ul>
 </div>
 
@@ -295,17 +281,25 @@
 <script>
 // 全局变量
 let network, currentData = {}, currentSource = '';
-let sourceTabMapping = {'': 'tab-all', '教材': 'tab-教材', '教案': 'tab-教案', '课件': 'tab-课件'};
+// currentSource: '' = 融合图谱, 数字字符串 = resource_file_id, 旧版 "教材"/"教案"/"课件" = 向后兼容
+let currentResourceFileId = null;
 
 // 切换来源标签页
 function switchSource(source) {
     currentSource = source;
+    currentResourceFileId = source ? parseInt(source) : null;
     // 更新标签页激活状态
     document.querySelectorAll('#sourceTabs .nav-link').forEach(tab => {
         tab.classList.remove('active');
     });
-    const tabId = sourceTabMapping[source] || 'tab-all';
-    const tabEl = document.getElementById(tabId);
+    // 查找匹配的 tab（优先 resource-file-id，其次 data-source）
+    let tabEl = null;
+    if (source) {
+        tabEl = document.querySelector(`#sourceTabs .nav-link[data-resource-file-id="${source}"]`);
+    }
+    if (!tabEl) {
+        tabEl = document.getElementById('tab-all');
+    }
     if (tabEl) tabEl.classList.add('active');
 
     const subjectId = window.currentSubjectId || new URLSearchParams(window.location.search).get('subject_id');
@@ -314,26 +308,42 @@ function switchSource(source) {
     }
 }
 
-// 根据可用来源动态显示/隐藏标签页
-function updateSourceTabs(availableSources) {
-    const sourceTabIds = {'教材': 'tab-教材', '教案': 'tab-教案', '课件': 'tab-课件'};
-    for (const [source, tabId] of Object.entries(sourceTabIds)) {
-        const tab = document.getElementById(tabId);
-        if (!tab) continue;
-        const parent = tab.closest('.nav-item');
-        if (!parent) continue;
-        if (availableSources.includes(source)) {
-            parent.style.display = '';
-        } else {
-            parent.style.display = 'none';
-        }
+// 动态生成资源文件标签页
+function updateResourceFileTabs(resourceFiles) {
+    const tabList = document.getElementById('sourceTabs');
+    // 移除旧的动态标签（保留第一个"融合知识图谱"）
+    while (tabList.children.length > 1) {
+        tabList.removeChild(tabList.lastChild);
     }
-    // 如果当前选中的来源已无数据，切回融合视图
-    if (currentSource && !availableSources.includes(currentSource)) {
-        currentSource = '';
-        document.querySelectorAll('#sourceTabs .nav-link').forEach(t => t.classList.remove('active'));
-        const allTab = document.getElementById('tab-all');
-        if (allTab) allTab.classList.add('active');
+    // 添加资源文件标签
+    resourceFiles.forEach(rf => {
+        const li = document.createElement('li');
+        li.className = 'nav-item';
+        li.setAttribute('role', 'presentation');
+        const btn = document.createElement('button');
+        btn.className = 'nav-link';
+        btn.id = 'tab-rf-' + rf.id;
+        btn.setAttribute('data-resource-file-id', rf.id);
+        btn.setAttribute('type', 'button');
+        btn.setAttribute('role', 'tab');
+        btn.onclick = function() { switchSource(rf.id); };
+        // 截断过长的标题
+        const label = rf.title.length > 12 ? rf.title.substring(0, 12) + '…' : rf.title;
+        btn.innerHTML = '<i class="fas fa-file me-1"></i>' + label;
+        btn.title = rf.title + '知识图谱';
+        li.appendChild(btn);
+        tabList.appendChild(li);
+    });
+    // 如果当前选中的 resource_file 已不存在，切回融合视图
+    if (currentResourceFileId) {
+        const exists = resourceFiles.some(rf => rf.id === currentResourceFileId);
+        if (!exists) {
+            currentSource = '';
+            currentResourceFileId = null;
+            document.querySelectorAll('#sourceTabs .nav-link').forEach(t => t.classList.remove('active'));
+            const allTab = document.getElementById('tab-all');
+            if (allTab) allTab.classList.add('active');
+        }
     }
 }
 
@@ -399,9 +409,11 @@ function loadKnowledgeGraph(subjectId) {
     const loadingMessage = document.getElementById('loadingMessage');
 
     if (loadingMessage) {
-        const sourceLabels = {'教材': '教材', '教案': '教案', '课件': '课件', '': '全部来源'};
-        const label = sourceLabels[currentSource] || '';
-        loadingMessage.textContent = `正在加载${label}知识图谱数据...`;
+        if (currentResourceFileId) {
+            loadingMessage.textContent = '正在加载资源知识图谱数据...';
+        } else {
+            loadingMessage.textContent = '正在加载融合知识图谱数据...';
+        }
     }
 
     if (loading) {
@@ -420,7 +432,10 @@ function loadKnowledgeGraph(subjectId) {
 
     // 调用API
     let apiUrl = `/learning/teacher/api/knowledge-points/${subjectId}/`;
-    if (currentSource) {
+    if (currentResourceFileId) {
+        apiUrl += `?resource_file_id=${currentResourceFileId}`;
+    } else if (currentSource && isNaN(currentSource)) {
+        // 向后兼容：旧的 source 参数（教材/教案/课件）
         apiUrl += `?source=${encodeURIComponent(currentSource)}`;
     }
     console.log('调用API:', apiUrl);
@@ -459,13 +474,18 @@ function loadKnowledgeGraph(subjectId) {
                 if (nodeCountEl) nodeCountEl.textContent = data.node_count;
                 if (linkCountEl) linkCountEl.textContent = data.link_count;
                 if (subjectNameEl) {
-                    const srcLabels = {'教材': '教材', '教案': '教案', '课件': '课件', '': '融合图谱'};
-                    subjectNameEl.textContent = `${data.subject_name} - ${srcLabels[currentSource] || '融合图谱'}`;
+                    // 查找当前选中标签页的标题
+                    let tabLabel = '融合图谱';
+                    if (currentResourceFileId) {
+                        const rfBtn = document.querySelector(`#sourceTabs .nav-link[data-resource-file-id="${currentResourceFileId}"]`);
+                        if (rfBtn) tabLabel = rfBtn.title.replace('知识图谱', '');
+                    }
+                    subjectNameEl.textContent = `${data.subject_name} - ${tabLabel}`;
                 }
                 if (statsEl) statsEl.style.display = 'block';
 
-                // 按 available_sources 动态显示/隐藏标签页
-                updateSourceTabs(data.available_sources || []);
+                // 动态生成资源文件标签页
+                updateResourceFileTabs(data.available_resource_files || []);
 
                 // 显示管理知识点关系按钮
                 const manageBtn = document.getElementById('manageRelationshipBtn');

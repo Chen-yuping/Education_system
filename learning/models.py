@@ -87,6 +87,7 @@ class KnowledgeGraph(models.Model):
         default='教材',
         verbose_name="关系来源"
     )
+    resource_file = models.ForeignKey('ResourceFile', on_delete=models.CASCADE, null=True, blank=True, verbose_name="所属资料文件")
 
     class Meta:
         verbose_name = "知识点关系"
@@ -458,6 +459,7 @@ class ResourceFile(models.Model):
         ('教材', '教材'),
         ('教案', '教案'),
         ('课件', '课件'),
+        ('习题', '习题'),
         ('其他', '其他资料'),
     ]
 
@@ -491,8 +493,8 @@ class ResourceFile(models.Model):
     file = models.FileField(
         upload_to=resource_file_upload_path,
         validators=[FileExtensionValidator(allowed_extensions=[
-            'docx', 'xlsx', 'pptx', 'pdf', 'txt', 
-            'jpg', 'jpeg', 'png', 'gif', 
+            'docx', 'xlsx', 'xls', 'pptx', 'pdf', 'txt',
+            'jpg', 'jpeg', 'png', 'gif',
             'mp4', 'mp3', 'wav'
         ])],
         verbose_name="资料文件"
@@ -502,6 +504,7 @@ class ResourceFile(models.Model):
     status = models.CharField(max_length=20, choices=FILE_STATUS, default='pending', verbose_name="处理状态")
     is_public = models.BooleanField(default=True, verbose_name="公开给学生")
     extracted_text = models.TextField(blank=True, verbose_name="提取的文本内容")
+    exercise_count = models.IntegerField(default=0, verbose_name="习题数量")
     uploaded_at = models.DateTimeField(auto_now_add=True, verbose_name="上传时间")
     processed_at = models.DateTimeField(null=True, blank=True, verbose_name="处理完成时间")
     error_message = models.TextField(blank=True, verbose_name="错误信息")

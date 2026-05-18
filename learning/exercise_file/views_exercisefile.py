@@ -182,78 +182,109 @@ def upload_resource(request):
 
                 resource_file.save()  # 这一步执行后，文件保存到磁盘
 
-                # --- B. 提取文本内容 ---
-                text_extract_ok = False
-                try:
-                    file_path = resource_file.file.path
-                    extracted = extract_text_from_file(file_path, resource_file.file_type)
-                    resource_file.extracted_text = extracted
-                    resource_file.status = 'completed'
-                    text_extract_ok = bool(extracted and extracted.strip())
-                except Exception as extract_err:
-                    resource_file.extracted_text = ''
-                    resource_file.status = 'completed'
-                    resource_file.error_message = f'文本提取失败: {extract_err}'
-                    print(f"[WARN] 文本提取失败: {extract_err}")
-
-                resource_file.processed_at = timezone.now()
-                resource_file.save(update_fields=['extracted_text', 'status', 'error_message', 'processed_at'])
-
-                # --- C. 教案/课件 → 自动抽取知识三元组 ---
+                # --- 根据资料类型分流处理 ---
                 extraction = None
-                if resource_file.resource_type in ('教材', '教案', '课件'):
-                    if not resource_file.extracted_text:
-                        if not text_extract_ok:
-                            messages.warning(request, f'⚠️ {resource_file.get_resource_type_display()}文本提取失败，无法进行知识点抽取。请检查文件内容是否为空或格式是否正确。')
-                        else:
-                            messages.info(request, f'ℹ️ {resource_file.get_resource_type_display()}文本内容为空，跳过知识抽取。')
-                    else:
-                        try:
-                            pipeline = KnowledgeGraphPipeline()
-                            pipeline_result = pipeline.run(
-                                text=resource_file.extracted_text,
-                                subject=subject,
-                                subject_name=subject.name,
-                                source=resource_file.resource_type
-                            )
-                            if pipeline_result.get("success"):
-                                kp_count = pipeline_result.get('kp_count', 0)
-                                rel_count = pipeline_result.get('rel_count', 0)
-                                if kp_count > 0 and rel_count > 0:
-                                    print(f"[INFO] 知识图谱构建成功: {kp_count} 知识点, {rel_count} 关系")
-                                    # 创建审核记录
-                                    extraction = ResourceKnowledgeExtraction.objects.create(
-                                        resource_file=resource_file,
-                                        teacher=request.user,
-                                        subject=subject,
-                                        status='review_pending',
-                                        kp_count=kp_count,
-                                        rel_count=rel_count,
-                                    )
-                                    for kp in pipeline_result.get('created_kps', []):
-                                        ResourceReviewKnowledgePoint.objects.create(
-                                            extraction=extraction,
-                                            knowledge_point=kp,
-                                            original_name=kp.name,
-                                        )
-                                    for rel in pipeline_result.get('created_rels', []):
-                                        ResourceReviewRelationship.objects.create(
-                                            extraction=extraction,
-                                            from_knowledge_point=rel.source,
-                                            to_knowledge_point=rel.target,
-                                            relationship_type=rel.relationship_type,
-                                        )
-                                    messages.success(request, f'✅ 知识图谱构建成功：{kp_count}个知识点，{rel_count}条关系，请进行审核。')
-                                else:
-                                    messages.warning(request, '⚠️ 知识抽取完成但未提取到有效知识点和关系，请检查资料内容是否包含足够的专业知识点。')
+
+                if resource_file.resource_type == '习题':
+                    # === 习题上传处理流程 ===
+                    resource_file.status = 'processing'
+                    resource_file.save(update_fields=['status'])
+
+                    upload_mode = request.POST.get('upload_mode', 'direct')
+
+                    try:
+                        count = smart_handle_upload(resource_file, mode=upload_mode)
+                        resource_file.status = 'completed' if count > 0 else 'error'
+                        resource_file.exercise_count = count
+                        resource_file.processed_at = timezone.now()
+                        resource_file.save(update_fields=['status', 'exercise_count', 'processed_at'])
+
+                        if count > 0:
+                            if upload_mode == 'ai':
+                                messages.success(request, f'✨ AI 发力成功！根据资料为您智能生成了 {count} 道习题。')
                             else:
-                                err_msg = pipeline_result.get('error', '未知错误')
-                                print(f"[WARN] 知识图谱构建失败: {err_msg}")
-                                messages.warning(request, f'⚠️ 知识图谱构建失败：{err_msg}')
-                        except Exception as kg_err:
-                            import traceback
-                            print(f"[WARN] 知识图谱构建异常: {kg_err}\n{traceback.format_exc()}")
-                            messages.warning(request, f'⚠️ 知识图谱构建异常：{kg_err}')
+                                messages.success(request, f'✅ 提取成功！共导入 {count} 道习题。')
+                        else:
+                            messages.warning(request, '文件上传成功，但未解析出有效习题，请检查格式或资料内容。')
+                    except Exception as e:
+                        resource_file.status = 'error'
+                        resource_file.error_message = str(e)
+                        resource_file.processed_at = timezone.now()
+                        resource_file.save(update_fields=['status', 'error_message', 'processed_at'])
+                        messages.error(request, f'习题处理失败: {str(e)}')
+
+                else:
+                    # === 教学资料处理流程（文本提取 + 知识图谱） ===
+                    text_extract_ok = False
+                    try:
+                        file_path = resource_file.file.path
+                        extracted = extract_text_from_file(file_path, resource_file.file_type)
+                        resource_file.extracted_text = extracted
+                        resource_file.status = 'completed'
+                        text_extract_ok = bool(extracted and extracted.strip())
+                    except Exception as extract_err:
+                        resource_file.extracted_text = ''
+                        resource_file.status = 'completed'
+                        resource_file.error_message = f'文本提取失败: {extract_err}'
+                        print(f"[WARN] 文本提取失败: {extract_err}")
+
+                    resource_file.processed_at = timezone.now()
+                    resource_file.save(update_fields=['extracted_text', 'status', 'error_message', 'processed_at'])
+
+                    # --- 教案/教材/课件 → 自动抽取知识三元组 ---
+                    if resource_file.resource_type in ('教材', '教案', '课件'):
+                        if not resource_file.extracted_text:
+                            if not text_extract_ok:
+                                messages.warning(request, f'⚠️ {resource_file.get_resource_type_display()}文本提取失败，无法进行知识点抽取。请检查文件内容是否为空或格式是否正确。')
+                            else:
+                                messages.info(request, f'ℹ️ {resource_file.get_resource_type_display()}文本内容为空，跳过知识抽取。')
+                        else:
+                            try:
+                                pipeline = KnowledgeGraphPipeline()
+                                pipeline_result = pipeline.run(
+                                    text=resource_file.extracted_text,
+                                    subject=subject,
+                                    subject_name=subject.name,
+                                    source=resource_file.resource_type,
+                                    resource_file=resource_file
+                                )
+                                if pipeline_result.get("success"):
+                                    kp_count = pipeline_result.get('kp_count', 0)
+                                    rel_count = pipeline_result.get('rel_count', 0)
+                                    if kp_count > 0 and rel_count > 0:
+                                        print(f"[INFO] 知识图谱构建成功: {kp_count} 知识点, {rel_count} 关系")
+                                        extraction = ResourceKnowledgeExtraction.objects.create(
+                                            resource_file=resource_file,
+                                            teacher=request.user,
+                                            subject=subject,
+                                            status='review_pending',
+                                            kp_count=kp_count,
+                                            rel_count=rel_count,
+                                        )
+                                        for kp in pipeline_result.get('created_kps', []):
+                                            ResourceReviewKnowledgePoint.objects.create(
+                                                extraction=extraction,
+                                                knowledge_point=kp,
+                                                original_name=kp.name,
+                                            )
+                                        for rel in pipeline_result.get('created_rels', []):
+                                            ResourceReviewRelationship.objects.create(
+                                                extraction=extraction,
+                                                from_knowledge_point=rel.source,
+                                                to_knowledge_point=rel.target,
+                                                relationship_type=rel.relationship_type,
+                                            )
+                                        messages.success(request, f'✅ 知识图谱构建成功：{kp_count}个知识点，{rel_count}条关系，请进行审核。')
+                                    else:
+                                        messages.warning(request, '⚠️ 知识抽取完成但未提取到有效知识点和关系，请检查资料内容是否包含足够的专业知识点。')
+                                else:
+                                    err_msg = pipeline_result.get('error', '未知错误')
+                                    print(f"[WARN] 知识图谱构建失败: {err_msg}")
+                                    messages.warning(request, f'⚠️ 知识图谱构建失败：{err_msg}')
+                            except Exception as kg_err:
+                                import traceback
+                                print(f"[WARN] 知识图谱构建异常: {kg_err}\n{traceback.format_exc()}")
+                                messages.warning(request, f'⚠️ 知识图谱构建异常：{kg_err}')
 
                 messages.success(request, f'✅ 资料上传成功！标题：{resource_file.title}')
 
@@ -865,6 +896,38 @@ def resource_complete_review(request, extraction_id):
     extraction.status = 'completed'
     extraction.completed_at = timezone.now()
     extraction.save()
+
+    # --- 清理未通过审核的知识点和关系 ---
+    # 删除被拒绝的知识图谱关系
+    rejected_rels = ResourceReviewRelationship.objects.filter(
+        extraction=extraction,
+        is_rejected=True,
+    )
+    deleted_rel_count = 0
+    for rel_review in rejected_rels:
+        deleted_rel_count += KnowledgeGraph.objects.filter(
+            subject=extraction.subject,
+            source=rel_review.from_knowledge_point,
+            target=rel_review.to_knowledge_point,
+            relation_source=extraction.resource_file.resource_type,
+        ).delete()[0]
+
+    # 删除未通过审核的知识点
+    unapproved_kps = ResourceReviewKnowledgePoint.objects.filter(
+        extraction=extraction,
+        is_approved=False,
+    )
+    deleted_kp_count = 0
+    for kp_review in unapproved_kps:
+        deleted_kp_count += kp_review.knowledge_point.delete()[0]
+
+    if deleted_kp_count > 0 or deleted_rel_count > 0:
+        msg_parts = []
+        if deleted_kp_count > 0:
+            msg_parts.append(f'已移除 {deleted_kp_count} 个未通过的知识点')
+        if deleted_rel_count > 0:
+            msg_parts.append(f'已移除 {deleted_rel_count} 条被拒绝的关系')
+        messages.info(request, 'ℹ️ ' + '，'.join(msg_parts) + '。')
 
     messages.success(request, '✅ 知识提取审核完成！已提取的知识点已加入到知识图谱中。')
     return redirect(reverse('upload_resource') + f'?subject_id={extraction.subject.id}')

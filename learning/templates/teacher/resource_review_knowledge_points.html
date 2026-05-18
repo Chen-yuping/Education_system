@@ -232,9 +232,66 @@ function resetKnowledge(knowledgeId) {
 }
 
 function approveAllKnowledge() {
-    document.querySelectorAll('.knowledge-approved').forEach(checkbox => {
-        checkbox.checked = true;
+    const cards = document.querySelectorAll('.knowledge-card:not([style*="opacity: 0.5"])');
+    if (cards.length === 0) {
+        alert('当前批次没有待审核的知识点。');
+        return;
+    }
+    if (!confirm(`确定要全部通过当前 ${cards.length} 个知识点吗？将自动勾选并提交审核。`)) {
+        return;
+    }
+
+    // 先全部勾选
+    cards.forEach(card => {
+        card.querySelector('.knowledge-approved').checked = true;
     });
+
+    // 逐个提交（使用异步序列）
+    const submitNext = (index) => {
+        if (index >= cards.length) {
+            checkAllSubmitted();
+            return;
+        }
+        const card = cards[index];
+        const knowledgeId = card.getAttribute('data-id');
+        const data = getKnowledgeData(knowledgeId);
+
+        if (!data.name.trim()) {
+            submitNext(index + 1);
+            return;
+        }
+
+        fetch(`{% url 'resource_submit_review' extraction_id=extraction.id review_type='knowledge' %}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: new URLSearchParams({
+                'knowledge_id': knowledgeId,
+                'reviewed_name': data.name,
+                'is_approved': data.is_approved,
+                'review_notes': data.notes
+            })
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                card.style.opacity = '0.5';
+                card.style.pointerEvents = 'none';
+                const badge = document.createElement('span');
+                badge.className = 'badge bg-success ms-2';
+                badge.innerHTML = '<i class="bi bi-check"></i> 已提交';
+                card.querySelector('.card-header').appendChild(badge);
+            }
+            submitNext(index + 1);
+        })
+        .catch(() => {
+            submitNext(index + 1);
+        });
+    };
+
+    submitNext(0);
 }
 
 function resetAllKnowledge() {

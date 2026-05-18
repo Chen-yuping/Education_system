@@ -41,7 +41,7 @@ def _get_neo4j_driver():
     return GraphDatabase.driver(uri, auth=(neo4j_user, neo4j_password))
 
 
-def save_to_django(triples: list, subject: Subject, relation_source: str = '教材') -> dict:
+def save_to_django(triples: list, subject: Subject, relation_source: str = '教材', resource_file=None) -> dict:
     kp_count = 0
     rel_count = 0
 
@@ -94,13 +94,19 @@ def save_to_django(triples: list, subject: Subject, relation_source: str = '教�
             if rel_type not in dict(KnowledgeGraph.RELATION_CHOICES):
                 rel_type = "关联"
 
+            defaults = {"relationship_type": rel_type}
+            if resource_file:
+                defaults["resource_file"] = resource_file
             kg, created = KnowledgeGraph.objects.get_or_create(
                 subject=subject,
                 source=subj_kp,
                 target=obj_kp,
                 relation_source=relation_source,
-                defaults={"relationship_type": rel_type},
+                defaults=defaults,
             )
+            if not created and resource_file and not kg.resource_file:
+                kg.resource_file = resource_file
+                kg.save(update_fields=['resource_file'])
             if created:
                 rel_count += 1
                 created_rels.append(kg)

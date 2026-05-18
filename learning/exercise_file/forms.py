@@ -52,6 +52,7 @@ class ResourceFileForm(forms.ModelForm):
                 '教材': ['.doc', '.docx', '.pdf'],
                 '教案': ['.doc', '.docx', '.pdf'],
                 '课件': ['.ppt', '.pptx'],
+                '习题': ['.doc', '.docx', '.xlsx', '.xls', '.pdf', '.txt'],
             }
             allowed = type_ext_map.get(resource_type)
             if allowed and ext not in allowed:

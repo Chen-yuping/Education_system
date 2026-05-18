@@ -30,7 +30,7 @@ class KnowledgeGraphPipeline:
         self.output_dir = output_dir
 
     def run(self, pdf_path: str = "", subject=None, subject_name: str = "",
-            text: str = "", source: str = '教材') -> dict:
+            text: str = "", source: str = '教材', resource_file=None) -> dict:
         result = {"success": False, "kp_count": 0, "rel_count": 0, "error": ""}
 
         try:
@@ -94,7 +94,7 @@ class KnowledgeGraphPipeline:
             print("=" * 50)
             self._update_status('building_graph')
 
-            storage_result = save_to_django(triples, subject, relation_source=source)
+            storage_result = save_to_django(triples, subject, relation_source=source, resource_file=resource_file)
 
             # Neo4j存储已弃用，图谱数据直接由MySQL提供
 
