@@ -295,6 +295,8 @@ def add_knowledge_relationship(request, subject_id):
         
         source_id = request.POST.get('source_id')
         target_id = request.POST.get('target_id')
+        rel_type = request.POST.get('relationship_type', '关联')
+        rel_source = request.POST.get('relation_source', '教材')
         
         source = get_object_or_404(KnowledgePoint, id=source_id, subject=subject)
         target = get_object_or_404(KnowledgePoint, id=target_id, subject=subject)
@@ -310,7 +312,8 @@ def add_knowledge_relationship(request, subject_id):
         if KnowledgeGraph.objects.filter(
             subject=subject,
             source=source,
-            target=target
+            target=target,
+            relation_source=rel_source
         ).exists():
             return JsonResponse({
                 'success': False,
@@ -321,14 +324,22 @@ def add_knowledge_relationship(request, subject_id):
         KnowledgeGraph.objects.create(
             subject=subject,
             source=source,
-            target=target
+            target=target,
+            relationship_type=rel_type,
+            relation_source=rel_source,
         )
-        
+
+        # 更新知识点来源记录（独立存储，删除关系后仍保留）
+        for kp in (source, target):
+            if rel_source not in kp.sources.split(','):
+                kp.sources = (kp.sources + ',' + rel_source) if kp.sources else rel_source
+                kp.save(update_fields=['sources'])
+
         return JsonResponse({
             'success': True,
             'message': f'已添加关系：{source.name} → {target.name}'
         })
-    
+
     except Exception as e:
         return JsonResponse({
             'success': False,
@@ -451,6 +462,14 @@ def get_knowledge_point_exercises(request, kp_id):
             'fill': '填空题',
             'short': '简答题',
             'essay': '论述题',
+            'subjective': '主观题',
+            'judgment': '判断题',
+            '1': '单选题',
+            '2': '多选题',
+            '3': '填空题',
+            '4': '主观题',
+            '5': '判断题',
+            '6': '判断题',
         }
         
         exercises_list = []
@@ -538,8 +557,8 @@ def get_knowledge_point_relationships(request, subject_id):
         # 获取所有关系
         relationships = KnowledgeGraph.objects.filter(subject=subject).select_related(
             'source', 'target'
-        ).values('id', 'source__id', 'source__name', 'target__id', 'target__name')
-        
+        ).values('id', 'source__id', 'source__name', 'target__id', 'target__name', 'relationship_type')
+
         relationships_list = []
         for rel in relationships:
             relationships_list.append({
@@ -551,7 +570,8 @@ def get_knowledge_point_relationships(request, subject_id):
                 'target': {
                     'id': rel['target__id'],
                     'name': rel['target__name']
-                }
+                },
+                'relationship_type': rel['relationship_type'],
             })
         
         return JsonResponse({
@@ -580,6 +600,8 @@ def add_knowledge_point_relationship_api(request, subject_id):
         
         source_id = data.get('source_id')
         target_id = data.get('target_id')
+        rel_type = data.get('relationship_type', '关联')
+        rel_source = data.get('relation_source', '教材')
         
         source = get_object_or_404(KnowledgePoint, id=source_id, subject=subject)
         target = get_object_or_404(KnowledgePoint, id=target_id, subject=subject)
@@ -591,11 +613,12 @@ def add_knowledge_point_relationship_api(request, subject_id):
                 'message': '知识点不能指向自己'
             })
         
-        # 检查是否已存在
+        # 检查是否已存在，包含relation_source
         if KnowledgeGraph.objects.filter(
             subject=subject,
             source=source,
-            target=target
+            target=target,
+            relation_source=rel_source
         ).exists():
             return JsonResponse({
                 'success': False,
@@ -606,8 +629,16 @@ def add_knowledge_point_relationship_api(request, subject_id):
         KnowledgeGraph.objects.create(
             subject=subject,
             source=source,
-            target=target
+            target=target,
+            relationship_type=rel_type,
+            relation_source=rel_source,
         )
+
+        # 更新知识点来源记录（独立存储，删除关系后仍保留）
+        for kp in (source, target):
+            if rel_source not in kp.sources.split(','):
+                kp.sources = (kp.sources + ',' + rel_source) if kp.sources else rel_source
+                kp.save(update_fields=['sources'])
         
         return JsonResponse({
             'success': True,
@@ -649,6 +680,48 @@ def delete_knowledge_point_relationship_api(request, subject_id, relationship_id
             'message': str(e)
         }, status=500)
 
+
+@login_required
+@user_passes_test(is_teacher)
+@require_POST
+def delete_knowledge_point_with_relations_api(request, subject_id, kp_id):
+    """删除知识点及其所有关联关系"""
+    try:
+        subject = get_object_or_404(Subject, id=subject_id)
+        knowledge_point = get_object_or_404(KnowledgePoint, id=kp_id, subject=subject)
+
+        if not TeacherSubject.objects.filter(teacher=request.user, subject=subject).exists():
+            return JsonResponse({'success': False, 'message': '您没有权限'}, status=403)
+
+        exercise_count = QMatrix.objects.filter(knowledge_point=knowledge_point).count()
+        if exercise_count > 0:
+            return JsonResponse({
+                'success': False,
+                'message': f'该知识点关联了 {exercise_count} 道习题，请先解除习题关联再删除'
+            })
+
+        kp_name = knowledge_point.name
+        rel_count = KnowledgeGraph.objects.filter(
+            Q(source=knowledge_point) | Q(target=knowledge_point)
+        ).count()
+
+        # 删除相关关系（只删关系记录，不删另一端的知识点）
+        KnowledgeGraph.objects.filter(
+            Q(source=knowledge_point) | Q(target=knowledge_point)
+        ).delete()
+        knowledge_point.delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'已删除知识点"{kp_name}"及其{rel_count}条关联关系'
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        }, status=500)
 
 
     """关联或取消关联习题 (API版本)"""

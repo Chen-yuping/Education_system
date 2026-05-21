@@ -17,18 +17,21 @@ try:
 except ImportError:
     print("【提示】缺少 pdfplumber，请运行: pip install pdfplumber")
 
-try:
-    import dashscope
-    from dashscope import Generation
-
-    # TODO: 请务必在这里填入您在阿里云申请的 API-KEY (千万不要发到网上)
-    dashscope.api_key = "sk-0ddb7aa22f694638ab3c9e4386e7f1b3"
-except ImportError:
-    print("【提示】缺少 dashscope，请运行: pip install dashscope")
-
+from openai import OpenAI
+from django.conf import settings
 from django.utils import timezone
 from django.db import transaction
-from learning.models import Exercise, Choice, KnowledgePoint, QMatrix
+from learning.models import Subject, TeacherSubject, Exercise, Choice, KnowledgePoint, QMatrix
+
+
+def get_deepseek_client():
+    """获取 DeepSeek OpenAI 兼容客户端"""
+    config = getattr(settings, 'LLM_CONFIG', {})
+    api_key = os.environ.get('DEEPSEEK_API_KEY') or config.get('deepseek_api_key', '') or config.get('api_key', '')
+    base_url = os.environ.get('DEEPSEEK_BASE_URL') or config.get('deepseek_base_url', 'https://api.deepseek.com')
+    if not api_key:
+        return None
+    return OpenAI(api_key=api_key, base_url=base_url)
 
 
 # ==========================================
@@ -278,12 +281,17 @@ def handle_data_file(file_record):
 # ==========================================
 def auto_generate_exercises_from_text(text):
     """
-    调用通义千问，让它阅读资料并自动出题
+    调用 DeepSeek，让它阅读资料并自动出题
     """
-    print(">>> 开始调用通义千问基于资料自动生成习题...")
+    print(">>> 开始调用 DeepSeek 基于资料自动生成习题...")
 
     # 截取前 4000 字（大模型阅读材料的范围，防止 Token 超限）
     content = text[:4000]
+
+    client = get_deepseek_client()
+    if not client:
+        print("[WARN] 未配置 DeepSeek API密钥")
+        return []
 
     # 专门针对计算机科学类的出题 Prompt
     prompt = f"""
@@ -314,25 +322,29 @@ def auto_generate_exercises_from_text(text):
     """
 
     try:
-        response = Generation.call(
-            model="qwen-turbo",
-            prompt=prompt,
-            result_format='message'
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            temperature=0.3,
         )
 
-        if response.status_code == 200:
-            result_text = response.output.choices[0].message.content.strip()
+        result_text = response.choices[0].message.content.strip()
 
-            # 清洗并解析 JSON
-            clean_json = result_text.replace('```json', '').replace('```', '').strip()
-            exercise_list = json.loads(clean_json)
+        # 清洗并解析 JSON
+        clean_json = result_text.replace('```json', '').replace('```', '').strip()
+        parsed = json.loads(clean_json)
 
-            return exercise_list if isinstance(exercise_list, list) else []
-        else:
-            print(f"大模型调用失败: {response.code} - {response.message}")
+        # DeepSeek 可能返回 {"exercises": [...]} 或直接返回 [...]
+        if isinstance(parsed, dict):
+            for key in ('exercises', 'questions', 'data'):
+                if key in parsed and isinstance(parsed[key], list):
+                    return parsed[key]
             return []
+        return parsed if isinstance(parsed, list) else []
     except Exception as e:
         print(f"AI 生成习题解析异常: {e}")
+        traceback.print_exc()
         return []
 
 
@@ -444,12 +456,219 @@ def handle_material_generation(file_record):
 
 
 # ==========================================
-# 6. 🎯 终极管家接口 (根据情况自动分配)
+# 6. 🎯 LLM 提取习题：从文档文本中智能识别每道题 (新增)
+# ==========================================
+def llm_extract_exercises_from_text(extracted_text, subject, teacher):
+    """
+    调用 DeepSeek 从非结构化文本中提取习题。
+    识别题型、生成参考答案+解析，并关联到已有知识点。
+    """
+    print(">>> 开始调用 DeepSeek 进行 LLM 习题提取...")
+
+    # 1. 获取该科目已有关联知识点
+    existing_kps = KnowledgePoint.objects.filter(subject=subject)
+    kp_list = [kp.name for kp in existing_kps]
+    kp_str = "、".join(kp_list) if kp_list else "（暂无已有知识点）"
+
+    if not kp_list:
+        print("[WARN] 该科目没有已有知识点，LLM将无法关联知识点")
+
+    # 2. 截取文本（防止 token 超限）
+    text_content = extracted_text[:8000]
+
+    client = get_deepseek_client()
+    if not client:
+        print("[WARN] 未配置 DeepSeek API密钥")
+        return 0
+
+    prompt = f"""
+你是一个专业的习题提取助手。请从以下文本中提取所有习题。
+
+要求：
+1. 识别每道题的完整内容
+2. 判断题型：single(单选题) / multiple(多选题) / fill(填空题) / subjective(主观题/简答题) / judgment(判断题)
+3. 提取选项（如果有）
+4. 给出参考答案
+5. 给出答案解析
+6. 从已有知识点列表中选择最匹配的知识点关联（如果列表为空或没有匹配的，可为空数组）
+
+已有知识点列表：
+{kp_str}
+
+文本内容：
+{text_content}
+
+必须严格按照以下 JSON 格式返回，不要包含任何前缀、后缀或 Markdown 代码块标记：
+{{
+    "exercises": [
+        {{
+            "title": "题目标题（简短）",
+            "content": "完整的题目内容",
+            "question_type": "single 或 multiple 或 fill 或 subjective 或 judgment",
+            "options": {{"A": "选项A", "B": "选项B", "C": "选项C", "D": "选项D"}},
+            "answer": "参考答案",
+            "solution": "详细答案解析",
+            "knowledge_points": ["已有知识点名称1", "已有知识点名称2"]
+        }}
+    ]
+}}
+
+格式说明：
+- 单选题、多选题必须有 options 字段
+- 判断题 options 固定为 {{"A": "正确", "B": "错误"}}
+- 填空题、主观题不需要 options 字段
+- answer：单选题填选项字母如"A"，多选题填字母组合如"AB"，判断题填"A"或"B"，填空题/主观题填参考答案文本
+- 没有明确答案时 answer 填"略"
+- knowledge_points 必须从已有知识点列表中选择，完全匹配名称，不要新创建知识点
+    """
+
+    try:
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            temperature=0.1,
+        )
+
+        result_text = response.choices[0].message.content.strip()
+        clean_json = result_text.replace('```json', '').replace('```', '').strip()
+        data = json.loads(clean_json)
+
+        exercises_data = data.get('exercises', [])
+        if not exercises_data:
+            print("--- LLM 未提取到有效习题 ---")
+            return 0
+
+        print(f"--- LLM 成功提取了 {len(exercises_data)} 道题 ---")
+
+        count = 0
+        with transaction.atomic():
+            for item in exercises_data:
+                try:
+                    q_type = item.get('question_type', 'single')
+                    opt_dict = item.get('options', {}) or {}
+                    full_option_text = repr(opt_dict) if opt_dict else ""
+
+                    exercise = Exercise.objects.create(
+                        subject=subject,
+                        title=item.get('content', '')[:200],
+                        content=item.get('content', ''),
+                        question_type=q_type,
+                        creator=teacher,
+                        option_text=full_option_text,
+                        answer=item.get('answer', '略'),
+                        solution=item.get('solution', ''),
+                        problemsets="LLM提取导入",
+                        created_at=timezone.now()
+                    )
+
+                    # 创建选项
+                    for idx, (label, content) in enumerate(opt_dict.items()):
+                        is_correct = False
+                        if q_type == 'judgment':
+                            is_correct = (label == 'A' and item.get('answer', '') == 'A') or \
+                                         (label == 'B' and item.get('answer', '') == 'B')
+                        else:
+                            is_correct = label in item.get('answer', '')
+                        Choice.objects.create(
+                            exercise=exercise,
+                            content=f"{label}. {content}",
+                            is_correct=is_correct,
+                            order=idx + 1
+                        )
+
+                    # 关联已有知识点（不存在则跳过）
+                    for kp_name in item.get('knowledge_points', []):
+                        if kp_name.strip():
+                            try:
+                                kp = KnowledgePoint.objects.get(subject=subject, name=kp_name.strip())
+                                QMatrix.objects.get_or_create(exercise=exercise, knowledge_point=kp, defaults={'weight': 1.0})
+                            except KnowledgePoint.DoesNotExist:
+                                print(f"  跳过不存在知识点: {kp_name}")
+
+                    count += 1
+                except Exception as e:
+                    print(f"保存 LLM 提取习题出错: {e}")
+                    continue
+
+        return count
+
+    except Exception as e:
+        print(f"LLM 提取习题 API 调用失败: {e}")
+        traceback.print_exc()
+        return 0
+
+
+def handle_document_file_llm(file_record):
+    """
+    LLM 版文档处理入口：提取文本 → LLM 识别习题 → 存入题库
+    替换原来的正则解析 handle_document_file
+    """
+    print(">>> 进入 LLM 文档提取: handle_document_file_llm")
+    subject = file_record.subject
+    teacher = file_record.teacher
+    filename = file_record.original_filename.lower()
+    full_text = ""
+
+    try:
+        try:
+            with file_record.file.open('rb') as f:
+                file_content = f.read()
+        except Exception:
+            with open(file_record.file.path, 'rb') as f:
+                file_content = f.read()
+
+        if not file_content:
+            return 0
+
+        if filename.endswith('.pdf'):
+            try:
+                with pdfplumber.open(io.BytesIO(file_content)) as pdf:
+                    full_text = "\n".join([page.extract_text() or '' for page in pdf.pages])
+            except Exception as e:
+                print(f"PDF 解析失败: {e}")
+                return 0
+        elif filename.endswith('.docx'):
+            try:
+                docx_file = io.BytesIO(file_content)
+                doc = docx.Document(docx_file)
+                full_text = "\n".join([para.text.strip() for para in doc.paragraphs if para.text.strip()])
+            except Exception as e:
+                print(f"Word 解析异常: {e}")
+                return 0
+        else:
+            try:
+                full_text = file_content.decode('utf-8')
+            except:
+                try:
+                    full_text = file_content.decode('gbk', errors='ignore')
+                except:
+                    return 0
+
+        if not full_text.strip():
+            return 0
+
+        # 调用 LLM 提取
+        return llm_extract_exercises_from_text(full_text, subject, teacher)
+
+    except Exception as e:
+        print(f"【LLM文档处理报错】: {e}")
+        traceback.print_exc()
+        return 0
+    finally:
+        try:
+            file_record.file.close()
+        except:
+            pass
+
+
+# ==========================================
+# 7. 🎯 终极管家接口 (根据情况自动分配)
 # ==========================================
 def smart_handle_upload(file_record, mode='ai'):
     """
     自动判断是直接提取还是让AI出题。
-    如果想要强制用AI出题，mode保持 'ai' 即可。
+    传统模式（direct）现在使用 LLM 智能提取习题。
     """
     filename = file_record.original_filename.lower()
 
@@ -459,42 +678,41 @@ def smart_handle_upload(file_record, mode='ai'):
         if filename.endswith(('.xls', '.xlsx', '.csv')):
             return handle_data_file(file_record)
         else:
-            return handle_document_file(file_record)
+            return handle_document_file_llm(file_record)
 
 
 
 # ==========================================
-# 7. PDF课本完整分析功能
+# 8. PDF课本完整分析功能
 # ==========================================
 def analyze_textbook_pdf(textbook_builder):
     """
     分析PDF课本，提取章节结构、知识点、习题，并构建知识图谱
+    使用新的知识图谱构建管线（LLM三元组抽取 → 别名映射 → 实体标准化 → 存储）
     """
     print(f">>> 开始分析PDF课本: {textbook_builder.subject_name}")
-    
+
     try:
         # 1. 提取PDF文本
         textbook_builder.status = 'extracting_text'
         textbook_builder.save()
-        
+
         file_path = textbook_builder.textbook_file.path
-        full_text = ""
-        
-        with pdfplumber.open(file_path) as pdf:
-            for page_num, page in enumerate(pdf.pages):
-                text = page.extract_text() or ''
-                full_text += text + "\n"
-        
+
+        # 使用PyMuPDF提取文本（支持OCR回退）
+        from learning.knowledge_graph_builder.pdf_extractor import extract_text_from_pdf
+        full_text = extract_text_from_pdf(file_path)
+
         textbook_builder.extracted_text = full_text[:10000]  # 保存前10000字符用于参考
         textbook_builder.status = 'analyzing_content'
         textbook_builder.save()
-        
+
         # 2. 分析章节结构
         chapters = extract_chapters_from_text(full_text)
         textbook_builder.chapter_count = len(chapters)
         textbook_builder.status = 'generating_exercises'
         textbook_builder.save()
-        
+
         # 3. 创建课程科目
         subject, created = Subject.objects.get_or_create(
             name=textbook_builder.subject_name,
@@ -502,45 +720,65 @@ def analyze_textbook_pdf(textbook_builder):
                 'description': textbook_builder.subject_description or f"基于《{textbook_builder.subject_name}》PDF课本快速构建的课程"
             }
         )
-        
+
         # 4. 教师关联课程
         TeacherSubject.objects.get_or_create(
             teacher=textbook_builder.teacher,
             subject=subject
         )
-        
+
         textbook_builder.generated_subject = subject
         textbook_builder.status = 'extracting_knowledge'
         textbook_builder.save()
-        
-        # 5. 提取知识点
-        knowledge_points = extract_knowledge_points_from_text(full_text, subject)
-        textbook_builder.knowledge_point_count = len(knowledge_points)
+
+        # ===== 5. 使用知识图谱构建管线 =====
+        #   - LLM三元组抽取
+        #   - 别名映射构建
+        #   - 实体名称标准化
+        #   - 存入Django模型 (KnowledgePoint, KnowledgeGraph)
+        #   - 尝试存入Neo4j
+        from learning.knowledge_graph_builder.pipeline import KnowledgeGraphPipeline
+
+        import tempfile
+        output_dir = tempfile.mkdtemp(prefix=f"kg_{textbook_builder.id}_")
+
+        pipeline = KnowledgeGraphPipeline(
+            textbook_builder=textbook_builder,
+            output_dir=output_dir
+        )
+        pipeline_result = pipeline.run(
+            pdf_path=file_path,
+            subject=subject,
+            subject_name=textbook_builder.subject_name
+        )
+
+        textbook_builder.knowledge_point_count = pipeline_result.get("kp_count", 0)
+        textbook_builder.relationship_count = pipeline_result.get("rel_count", 0)
+
+        if not pipeline_result["success"]:
+            raise Exception(pipeline_result.get("error", "知识图谱构建失败"))
+
+        # 6. 生成习题（保持原有流程）
         textbook_builder.status = 'building_graph'
         textbook_builder.save()
-        
-        # 6. 构建知识点关系
-        relationships = build_knowledge_graph(knowledge_points, subject)
-        textbook_builder.relationship_count = len(relationships)
-        
-        # 7. 生成习题
+
         exercises = generate_exercises_from_textbook(full_text, subject, textbook_builder.teacher)
         textbook_builder.exercise_count = len(exercises)
-        
-        # 8. 完成初步处理，设置为待审核状态
+
+        # 7. 完成初步处理，设置为待审核状态
         textbook_builder.status = 'review_pending'
         textbook_builder.processed_at = timezone.now()
         textbook_builder.save()
-        
+
         return {
             'success': True,
             'subject_id': subject.id,
             'chapters': len(chapters),
-            'knowledge_points': len(knowledge_points),
-            'relationships': len(relationships),
+            'knowledge_points': pipeline_result.get("kp_count", 0),
+            'relationships': pipeline_result.get("rel_count", 0),
             'exercises': len(exercises)
         }
-        
+
     except Exception as e:
         print(f"PDF课本分析失败: {e}")
         traceback.print_exc()
@@ -609,50 +847,57 @@ def extract_knowledge_points_from_text(text, subject):
     """
     
     try:
-        response = Generation.call(
-            model="qwen-turbo",
-            prompt=prompt,
-            result_format='message'
+        client = get_deepseek_client()
+        if not client:
+            raise Exception("未配置 DeepSeek API密钥")
+
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            temperature=0.1,
         )
-        
-        if response.status_code == 200:
-            result_text = response.output.choices[0].message.content.strip()
-            clean_json = result_text.replace('```json', '').replace('```', '').strip()
-            data = json.loads(clean_json)
-            
-            knowledge_points = []
-            kp_map = {}  # 名称到对象的映射
-            
-            for kp_data in data.get('knowledge_points', []):
-                # 创建知识点
-                parent = None
-                if kp_data.get('parent'):
-                    # 先检查父知识点是否已创建
-                    if kp_data['parent'] in kp_map:
-                        parent = kp_map[kp_data['parent']]
-                    else:
-                        # 如果父知识点不存在，先创建它
-                        parent_kp, _ = KnowledgePoint.objects.get_or_create(
-                            subject=subject,
-                            name=kp_data['parent'],
-                            defaults={'parent': None}
-                        )
-                        kp_map[kp_data['parent']] = parent_kp
-                        parent = parent_kp
-                
-                kp, created = KnowledgePoint.objects.get_or_create(
-                    subject=subject,
-                    name=kp_data['name'],
-                    defaults={
-                        'parent': parent,
-                        'description': kp_data.get('description', '')
-                    }
-                )
-                
-                kp_map[kp_data['name']] = kp
-                knowledge_points.append(kp)
-            
-            return knowledge_points
+
+        result_text = response.choices[0].message.content.strip()
+        clean_json = result_text.replace('```json', '').replace('```', '').strip()
+        data = json.loads(clean_json)
+
+        if "knowledge_points" not in data:
+            return extract_keywords_as_knowledge_points(text, subject)
+
+        knowledge_points = []
+        kp_map = {}  # 名称到对象的映射
+
+        for kp_data in data.get('knowledge_points', []):
+            # 创建知识点
+            parent = None
+            if kp_data.get('parent'):
+                # 先检查父知识点是否已创建
+                if kp_data['parent'] in kp_map:
+                    parent = kp_map[kp_data['parent']]
+                else:
+                    # 如果父知识点不存在，先创建它
+                    parent_kp, _ = KnowledgePoint.objects.get_or_create(
+                        subject=subject,
+                        name=kp_data['parent'],
+                        defaults={'parent': None}
+                    )
+                    kp_map[kp_data['parent']] = parent_kp
+                    parent = parent_kp
+
+            kp, created = KnowledgePoint.objects.get_or_create(
+                subject=subject,
+                name=kp_data['name'],
+                defaults={
+                    'parent': parent,
+                    'description': kp_data.get('description', '')
+                }
+            )
+
+            kp_map[kp_data['name']] = kp
+            knowledge_points.append(kp)
+
+        return knowledge_points
             
     except Exception as e:
         print(f"知识点提取失败: {e}")
@@ -698,11 +943,12 @@ def build_knowledge_graph(knowledge_points, subject):
             common_words = words1.intersection(words2)
             
             if common_words and len(common_words) / min(len(words1), len(words2)) > 0.3:
-                # 创建关系
+                # 创建关系（基于名称相似度，默认为相似关系）
                 relationship, created = KnowledgeGraph.objects.get_or_create(
                     subject=subject,
                     source=kp1,
-                    target=kp2
+                    target=kp2,
+                    defaults={"relationship_type": "相似"},
                 )
                 relationships.append(relationship)
     
@@ -749,82 +995,89 @@ def generate_exercises_from_textbook(text, subject, teacher):
     """
     
     try:
-        response = Generation.call(
-            model="qwen-turbo",
-            prompt=prompt,
-            result_format='message'
+        client = get_deepseek_client()
+        if not client:
+            raise Exception("未配置 DeepSeek API密钥")
+
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            temperature=0.3,
         )
-        
-        if response.status_code == 200:
-            result_text = response.output.choices[0].message.content.strip()
-            clean_json = result_text.replace('```json', '').replace('```', '').strip()
-            data = json.loads(clean_json)
-            
-            exercises = []
-            
-            with transaction.atomic():
-                for ex_data in data.get('exercises', []):
-                    try:
-                        opt_dict = ex_data.get('options', {})
-                        full_option_text = repr(opt_dict) if opt_dict else ""
-                        
-                        # 确定题型
-                        q_type = ex_data.get('question_type', 'single')
+
+        result_text = response.choices[0].message.content.strip()
+        clean_json = result_text.replace('```json', '').replace('```', '').strip()
+        data = json.loads(clean_json)
+
+        exercises_raw = data.get('exercises', [])
+        if not exercises_raw:
+            return []
+
+        exercises = []
+
+        with transaction.atomic():
+            for ex_data in data.get('exercises', []):
+                try:
+                    opt_dict = ex_data.get('options', {})
+                    full_option_text = repr(opt_dict) if opt_dict else ""
+                    
+                    # 确定题型
+                    q_type = ex_data.get('question_type', 'single')
+                    if q_type == 'judgment':
+                        q_type = 'judgment'
+                        opt_dict = {'A': '正确', 'B': '错误'} if not opt_dict else opt_dict
+                    
+                    exercise = Exercise.objects.create(
+                        subject=subject,
+                        title=ex_data.get('title', '')[:200],
+                        content=ex_data.get('content', ''),
+                        question_type=q_type,
+                        creator=teacher,
+                        option_text=full_option_text,
+                        answer=ex_data.get('answer', 'A'),
+                        solution=ex_data.get('solution', ''),
+                        problemsets="课本快速构建",
+                        created_at=timezone.now()
+                    )
+                    
+                    # 创建选项
+                    for idx, (label, content) in enumerate(opt_dict.items()):
+                        is_correct = False
                         if q_type == 'judgment':
-                            q_type = 'judgment'
-                            opt_dict = {'A': '正确', 'B': '错误'} if not opt_dict else opt_dict
-                        
-                        exercise = Exercise.objects.create(
-                            subject=subject,
-                            title=ex_data.get('title', '')[:200],
-                            content=ex_data.get('content', ''),
-                            question_type=q_type,
-                            creator=teacher,
-                            option_text=full_option_text,
-                            answer=ex_data.get('answer', 'A'),
-                            solution=ex_data.get('solution', ''),
-                            problemsets="课本快速构建",
-                            created_at=timezone.now()
+                            is_correct = (label == 'A' and ex_data.get('answer') == '正确') or \
+                                       (label == 'B' and ex_data.get('answer') == '错误')
+                        else:
+                            is_correct = label in ex_data.get('answer', '')
+                            
+                        Choice.objects.create(
+                            exercise=exercise,
+                            content=f"{label}. {content}",
+                            is_correct=is_correct,
+                            order=idx + 1
                         )
-                        
-                        # 创建选项
-                        for idx, (label, content) in enumerate(opt_dict.items()):
-                            is_correct = False
-                            if q_type == 'judgment':
-                                is_correct = (label == 'A' and ex_data.get('answer') == '正确') or \
-                                           (label == 'B' and ex_data.get('answer') == '错误')
-                            else:
-                                is_correct = label in ex_data.get('answer', '')
-                                
-                            Choice.objects.create(
-                                exercise=exercise,
-                                content=f"{label}. {content}",
-                                is_correct=is_correct,
-                                order=idx + 1
+                    
+                    # 关联知识点
+                    for kp_name in ex_data.get('knowledge_points', []):
+                        if kp_name.strip():
+                            kp, _ = KnowledgePoint.objects.get_or_create(
+                                subject=subject,
+                                name=kp_name.strip(),
+                                defaults={'parent': None}
                             )
-                        
-                        # 关联知识点
-                        for kp_name in ex_data.get('knowledge_points', []):
-                            if kp_name.strip():
-                                kp, _ = KnowledgePoint.objects.get_or_create(
-                                    subject=subject,
-                                    name=kp_name.strip(),
-                                    defaults={'parent': None}
-                                )
-                                QMatrix.objects.get_or_create(
-                                    exercise=exercise,
-                                    knowledge_point=kp,
-                                    defaults={'weight': 1.0}
-                                )
-                        
-                        exercises.append(exercise)
-                        
-                    except Exception as e:
-                        print(f"保存习题失败: {e}")
-                        continue
-            
-            return exercises
-            
+                            QMatrix.objects.get_or_create(
+                                exercise=exercise,
+                                knowledge_point=kp,
+                                defaults={'weight': 1.0}
+                            )
+                    
+                    exercises.append(exercise)
+                    
+                except Exception as e:
+                    print(f"保存习题失败: {e}")
+                    continue
+        return exercises
+
     except Exception as e:
         print(f"习题生成失败: {e}")
     
@@ -832,7 +1085,7 @@ def generate_exercises_from_textbook(text, subject, teacher):
 
 
 # ==========================================
-# 8. 课本快速构建接口
+# 9. 课本快速构建接口
 # ==========================================
 def quick_build_course_from_textbook(textbook_builder):
     """

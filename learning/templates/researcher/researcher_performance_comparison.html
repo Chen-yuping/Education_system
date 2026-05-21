@@ -491,43 +491,6 @@
                         </div>
                     </div>
                 </div>
-
-                <div class="config-item">
-                    <label for="paramSelect">模型参数</label>
-                    <select id="paramSelect" name="param">
-                        <option value="default" selected>默认参数</option>
-                        <option value="custom">自定义参数</option>
-                    </select>
-                </div>
-            </div>
-
-            <!-- 自定义模型参数区域 -->
-            <div id="customParamsSection" style="margin-top: 20px; display: none;">
-                <div class="config-title">
-                    <i class="fas fa-sliders-h"></i>自定义模型参数
-                </div>
-
-                <div class="config-row">
-                    <div class="config-item">
-                        <label for="learningRate">学习率</label>
-                        <input type="number" id="learningRate" name="learningRate" value="0.001" step="0.0001" min="0" style="padding: 10px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.95rem;">
-                    </div>
-
-                    <div class="config-item">
-                        <label for="iterations">迭代次数</label>
-                        <input type="number" id="iterations" name="iterations" value="100" step="10" min="1" style="padding: 10px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.95rem;">
-                    </div>
-
-                    <div class="config-item">
-                        <label for="batchSize">批次大小</label>
-                        <input type="number" id="batchSize" name="batchSize" value="64" step="1" min="1" style="padding: 10px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.95rem;">
-                    </div>
-
-                    <div class="config-item">
-                        <label for="regularization">正则化系数</label>
-                        <input type="number" id="regularization" name="regularization" value="0.01" step="0.001" min="0" style="padding: 10px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.95rem;">
-                    </div>
-                </div>
             </div>
 
             <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 20px;">
@@ -608,6 +571,7 @@
     </div>
 
 <script>
+let trainingStatusInterval = null;
 // 模型选择器功能
 function toggleModelSelector(event) {
     event.preventDefault();
@@ -647,17 +611,12 @@ document.addEventListener('click', function(event) {
     }
 });
 
-// 监听参数选择变化
-document.getElementById('paramSelect').addEventListener('change', function() {
-    const customParamsSection = document.getElementById('customParamsSection');
-    if (this.value === 'custom') {
-        customParamsSection.style.display = 'block';
-    } else {
-        customParamsSection.style.display = 'none';
-    }
-});
-
 function startAnalysis() {
+    if (trainingStatusInterval) {
+        clearInterval(trainingStatusInterval);
+        trainingStatusInterval = null;
+    }
+
     // ========== 新增：显示训练结果可视化区域（但隐藏图表，显示占位符） ==========
     const trainingCharts = document.getElementById('trainingCharts');
     const chartsContainer = document.querySelector('.charts-container');
@@ -760,9 +719,15 @@ function checkTasksStatus(tasks) {
     console.log('checkTasksStatus 被调用，tasks:', tasks);
     const totalTasks = tasks.length;
     const taskResults = {};
-    let completedCount = 0;
+    const taskErrors = {};
+    let finishedCount = 0;
+    let statusPollingFinished = false;
 
-    const interval = setInterval(() => {
+    if (trainingStatusInterval) {
+        clearInterval(trainingStatusInterval);
+    }
+
+    trainingStatusInterval = setInterval(() => {
         tasks.forEach(task => {
             fetch('/learning/researcher/check-status/?task=' + encodeURIComponent(task))
                 .then(response => response.json())
@@ -770,9 +735,9 @@ function checkTasksStatus(tasks) {
                     console.log(`任务 ${task} 返回数据:`, data);
 
                     // 如果任务完成且还没记录过
-                    if (data.status === 'completed' && !taskResults[task]) {
+                    if (data.status === 'completed' && !taskResults[task] && !taskErrors[task]) {
                         taskResults[task] = data.result;
-                        completedCount++;
+                        finishedCount++;
 
                         // 更新对应任务的状态显示
                         const taskItem = document.querySelector(`li[data-task="${task}"]`);
@@ -783,9 +748,30 @@ function checkTasksStatus(tasks) {
                     }
 
                     // 所有任务完成，显示表格
-                    if (completedCount === totalTasks && Object.keys(taskResults).length === totalTasks) {
-                        clearInterval(interval);
-                        displayFinalResults(taskResults);
+                    if (data.status === 'failed' && !taskErrors[task] && !taskResults[task]) {
+                        taskErrors[task] = data.error || '训练失败';
+                        taskResults[task] = { error: taskErrors[task] };
+                        finishedCount++;
+
+                        const taskItem = document.querySelector(`li[data-task="${task}"]`);
+                        if (taskItem) {
+                            taskItem.innerHTML = '<i class="fas fa-times-circle" style="color: #dc3545; margin-right: 10px;"></i>' +
+                                task + ' - 训练失败：' + taskErrors[task];
+                        }
+                    }
+
+                    if (!statusPollingFinished && finishedCount === totalTasks) {
+                        statusPollingFinished = true;
+                        clearInterval(trainingStatusInterval);
+                        trainingStatusInterval = null;
+                        if (Object.keys(taskResults).length > 0) {
+                            displayFinalResults(taskResults);
+                        } else {
+                            const resultsContainer = document.getElementById('resultsContainer');
+                            if (resultsContainer) {
+                                resultsContainer.innerHTML = '<div class="empty-state"><i class="fas fa-times-circle"></i><p>训练失败，请查看任务列表和命令行错误信息。</p></div>';
+                            }
+                        }
                     }
                 })
                 .catch(error => console.error('检查状态失败:', error));
@@ -894,7 +880,11 @@ function drawTrainingCharts(data) {
     }
 
     const colors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
-    const epochs = Array.from({length: 10}, (_, i) => `第${i+1}轮`);
+    const maxEpochs = Math.max(
+        10,
+        ...[...(data.acc || []), ...(data.auc || []), ...(data.rmse || [])].map(series => (series || []).length)
+    );
+    const epochs = Array.from({length: maxEpochs}, (_, i) => `第${i+1}轮`);
 
     // 绘制ACC图表
     drawChart('accChart', 'ACC (%)', data.models, data.acc, colors, epochs, true);

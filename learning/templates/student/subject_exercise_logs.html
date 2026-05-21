@@ -711,8 +711,8 @@ function showQuestionModal(logId) {
     // 清空并重新设置选项或答案
     answerOptions.innerHTML = '';
     
-    // 判断题型：主观题（类型5）显示文本答案，填空题（类型4）显示填空答案，其他显示选项
-    if (questionType === '5') {
+    // 判断题型：主观题（类型5/subjective）显示文本答案，填空题（类型4/fill）显示填空答案，其他显示选项
+    if (questionType === '4' || questionType === 'subjective') {
         // 主观题：显示文本答案
         answerOptions.innerHTML = `
             <h6>我的作答：</h6>
@@ -720,7 +720,7 @@ function showQuestionModal(logId) {
                 ${textAnswer || '未作答'}
             </div>
         `;
-    } else if (questionType === '4') {
+    } else if (questionType === '3' || questionType === 'fill') {
         // 填空题：显示填空答案
         try {
             const studentAnswers = textAnswer ? JSON.parse(textAnswer) : {};

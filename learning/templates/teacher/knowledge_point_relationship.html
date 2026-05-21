@@ -330,6 +330,15 @@
                     </select>
                 </div>
 
+                <div class="form-group">
+                    <label class="form-label">关系来源</label>
+                    <select name="relation_source" class="form-select" required>
+                        <option value="教材">教材</option>
+                        <option value="教案">教案</option>
+                        <option value="课件">课件</option>
+                    </select>
+                </div>
+
                 <button type="submit" class="btn-add">
                     <i class="fas fa-plus"></i> 添加关系
                 </button>
@@ -356,7 +365,7 @@
     <!-- 右侧：关系列表 -->
     <div class="relationships-panel">
         <div class="panel-title">
-            <i class="fas fa-list"></i> 先决关系
+            <i class="fas fa-list"></i> 关系列表
         </div>
 
         {% if relationships %}
@@ -366,6 +375,7 @@
                         <span class="kp-name source">{{ rel.source.name }}</span>
                         <span class="relationship-arrow">→</span>
                         <span class="kp-name target">{{ rel.target.name }}</span>
+                        <span class="badge bg-secondary ms-2">{{ rel.relation_source|default:'教材' }}</span>
                     </div>
                     <button class="btn-delete" onclick="deleteRelationship({{ rel.id }}, this)">
                         <i class="fas fa-trash"></i> 删除
@@ -397,10 +407,7 @@ document.getElementById('add-relationship-form').addEventListener('submit', func
         return;
     }
     
-    const formData = new FormData();
-    formData.append('source_id', sourceId);
-    formData.append('target_id', targetId);
-    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    const formData = new FormData(this);
     
     fetch('{% url "add_knowledge_relationship" subject_id=subject.id %}', {
         method: 'POST',

@@ -229,7 +229,8 @@ def student_knowledge_data_api(request, subject_id):
                 'type': 'bidirectional' if reverse_exists else 'unidirectional',
                 'bidirectional': reverse_exists,
                 'avg_mastery': avg_mastery,
-                'strength': 1
+                'strength': 1,
+                'relationship_type': rel.relationship_type,
             }
             links.append(link_data)
 

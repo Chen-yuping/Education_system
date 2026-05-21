@@ -54,36 +54,53 @@ def knowledge_graph(request):
 @user_passes_test(is_teacher)
 @require_GET
 def knowledge_points_api(request, subject_id):
-    """获取知识点关系图数据 - 返回JSON格式"""
+    """获取知识点关系图数据 - 从MySQL获取数据"""
     try:
 
         # 验证科目存在
         subject = Subject.objects.get(id=subject_id)
 
-        # 获取该科目的所有知识点
+        # 过滤参数：resource_file_id（优先）或 source（向后兼容）
+        resource_file_id = request.GET.get('resource_file_id', '').strip()
+        source_filter = request.GET.get('source', '').strip()
+        source_list = [s.strip() for s in source_filter.split(',') if s.strip()] if source_filter else []
+
+        # 获取该科目的知识点
         knowledge_points = KnowledgePoint.objects.filter(subject_id=subject_id)
+
+        rel_filter = {'subject_id': subject_id}
+
+        if resource_file_id:
+            # 按资源文件过滤：只显示该资源文件解析出的关系涉及的知识点
+            resource_file_id = int(resource_file_id)
+            rel_filter['resource_file_id'] = resource_file_id
+            # 获取该资源文件关系涉及的所有知识点ID
+            rel_kp_ids = set(
+                KnowledgeGraph.objects.filter(
+                    subject_id=subject_id, resource_file_id=resource_file_id
+                ).values_list('source_id', flat=True)
+            ) | set(
+                KnowledgeGraph.objects.filter(
+                    subject_id=subject_id, resource_file_id=resource_file_id
+                ).values_list('target_id', flat=True)
+            )
+            if rel_kp_ids:
+                knowledge_points = knowledge_points.filter(id__in=rel_kp_ids)
+            else:
+                knowledge_points = KnowledgePoint.objects.none()
+        elif source_list:
+            # 按来源筛选（向后兼容）
+            from django.db.models import Q
+            q_filter = Q()
+            for s in source_list:
+                q_filter |= Q(sources__contains=s)
+            knowledge_points = knowledge_points.filter(q_filter)
+            rel_filter['relation_source__in'] = source_list
 
         # 构建节点数据
         nodes = []
         for kp in knowledge_points:
-            # 获取每个知识点的习题数量（从QMatrix统计）
-
-            # 获取科目对应的习题模型
-            exercise_model = None
-            if subject.name == '数学':
-                exercise_model = MathExercise
-            elif subject.name == '语文':
-                exercise_model = ChineseExercise
-            elif subject.name == '英语':
-                exercise_model = EnglishExercise
-
-            exercise_count = 0
-            if exercise_model:
-                # 统计与该知识点相关的习题数量
-                exercise_count = QMatrix.objects.filter(
-                    content_type__model=exercise_model._meta.model_name,
-                    knowledge_point=kp
-                ).count()
+            exercise_count = QMatrix.objects.filter(knowledge_point=kp).count()
 
             nodes.append({
                 'id': kp.id,
@@ -92,58 +109,97 @@ def knowledge_points_api(request, subject_id):
                 'exercise_count': exercise_count
             })
 
-        # 获取该科目的所有知识点关系
-        relationships = KnowledgeGraph.objects.filter(subject_id=subject_id)
+        # 构建关系查询
+        relationships = KnowledgeGraph.objects.filter(**rel_filter)
 
-        # 处理关系，合并双向关系
         links = []
         processed_pairs = set()
 
         for rel in relationships:
-            # 创建唯一标识符
             source_id = rel.source_id
             target_id = rel.target_id
             pair_key = frozenset([source_id, target_id])
 
-            # 跳过已处理的关系对
             if pair_key in processed_pairs:
                 continue
 
-            # 检查是否存在反向关系
-            reverse_exists = KnowledgeGraph.objects.filter(
-                subject_id=subject_id,
-                source_id=target_id,
-                target_id=source_id
-            ).exists()
+            # 检查反向关系是否存在
+            rev_filter = {
+                'subject_id': subject_id,
+                'source_id': target_id,
+                'target_id': source_id,
+            }
+            if resource_file_id:
+                rev_filter['resource_file_id'] = resource_file_id
+            elif source_list:
+                rev_filter['relation_source__in'] = source_list
+
+            reverse_exists = KnowledgeGraph.objects.filter(**rev_filter).exists()
 
             if reverse_exists:
-                # 双向关系 - 无箭头
                 links.append({
                     'source': min(source_id, target_id),
                     'target': max(source_id, target_id),
                     'type': 'bidirectional',
-                    'arrow': False
+                    'arrow': False,
+                    'relationship_type': rel.relationship_type,
                 })
             else:
-                # 单向关系 - 有箭头
                 links.append({
                     'source': source_id,
                     'target': target_id,
                     'type': 'unidirectional',
-                    'arrow': True
+                    'arrow': True,
+                    'relationship_type': rel.relationship_type,
                 })
 
-            # 标记已处理
             processed_pairs.add(pair_key)
+
+        # 获取该科目下有知识图谱的资源文件列表（用于前端动态生成标签页）
+        available_sources = list(set(
+            list(KnowledgeGraph.objects.filter(
+                subject_id=subject_id
+            ).values_list('relation_source', flat=True).distinct())
+            + [
+                s.strip() for kp in KnowledgePoint.objects.filter(
+                    subject_id=subject_id
+                ).exclude(sources='').values_list('sources', flat=True)
+                for s in kp.split(',') if s.strip()
+            ]
+        ))
+
+        # 获取关联了 ResourceFile 的图谱资源文件列表
+        resource_files_data = []
+        resource_file_ids = KnowledgeGraph.objects.filter(
+            subject_id=subject_id,
+            resource_file__isnull=False
+        ).values_list('resource_file_id', flat=True).distinct()
+        for rf_id in set(resource_file_ids):
+            try:
+                rf = ResourceFile.objects.get(id=rf_id)
+                resource_files_data.append({
+                    'id': rf.id,
+                    'title': rf.title,
+                    'resource_type': rf.resource_type,
+                })
+            except ResourceFile.DoesNotExist:
+                pass
+        # 按 ID 排序
+        resource_files_data.sort(key=lambda x: x['id'])
 
         response_data = {
             'status': 'success',
             'subject_id': subject_id,
             'subject_name': subject.name,
+            'source': source_filter or ('resource_file' if resource_file_id else 'all'),
+            'available_sources': available_sources,
+            'available_resource_files': resource_files_data,
+            'current_resource_file_id': resource_file_id,
             'nodes': nodes,
             'links': links,
             'node_count': len(nodes),
             'link_count': len(links),
+            'data_source': 'mysql',
             'message': f'成功获取{len(nodes)}个知识点和{len(links)}个关系'
         }
         return JsonResponse(response_data)
@@ -157,6 +213,8 @@ def knowledge_points_api(request, subject_id):
         }, status=404)
     except Exception as e:
         print(f"API错误: {e}")
+        import traceback
+        traceback.print_exc()
         return JsonResponse({
             'status': 'error',
             'message': f'获取数据失败: {str(e)}',

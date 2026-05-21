@@ -302,9 +302,8 @@
                 <button class="filter-btn" data-type="1" onclick="filterByType('1')">单选题</button>
                 <button class="filter-btn" data-type="2" onclick="filterByType('2')">多选题</button>
                 <button class="filter-btn" data-type="3" onclick="filterByType('3')">填空题</button>
-                <button class="filter-btn" data-type="4" onclick="filterByType('4')">简答题</button>
-                <button class="filter-btn" data-type="5" onclick="filterByType('5')">主观题</button>
-                <button class="filter-btn" data-type="6" onclick="filterByType('6')">判断题</button>
+                <button class="filter-btn" data-type="4" onclick="filterByType('4')">主观题</button>
+                <button class="filter-btn" data-type="5" onclick="filterByType('5')">判断题</button>
             </div>
         </div>
         <div class="search-box">
@@ -322,12 +321,11 @@
                 <i class="fas fa-star"></i>
             </div>
             <div class="favorite-title">
-                {% if favorite.exercise.question_type == '1' %}单选题
-                {% elif favorite.exercise.question_type == '2' %}多选题
-                {% elif favorite.exercise.question_type == '3' %}填空题
-                {% elif favorite.exercise.question_type == '4' %}简答题
-                {% elif favorite.exercise.question_type == '5' %}主观题
-                {% elif favorite.exercise.question_type == '6' %}判断题
+                {% if favorite.exercise.question_type == '1' or favorite.exercise.question_type == 'single' %}单选题
+                {% elif favorite.exercise.question_type == '2' or favorite.exercise.question_type == 'multiple' %}多选题
+                {% elif favorite.exercise.question_type == '3' or favorite.exercise.question_type == 'fill' %}填空题
+                {% elif favorite.exercise.question_type == '4' or favorite.exercise.question_type == 'subjective' %}主观题
+                {% elif favorite.exercise.question_type == '5' or favorite.exercise.question_type == 'judgment' %}判断题
                 {% else %}习题{% endif %}
             </div>
             <div class="favorite-date">
@@ -499,8 +497,21 @@ function applyFilters() {
         const cardType = card.getAttribute('data-type');
         const cardContent = card.getAttribute('data-content');
         
-        // 检查题型筛选
-        const typeMatch = currentType === 'all' || cardType === currentType;
+        // 检查题型筛选（支持数字和英文两种题型编码）
+        const typeAliases = {
+            '1': ['1', 'single'],
+            'single': ['1', 'single'],
+            '2': ['2', 'multiple'],
+            'multiple': ['2', 'multiple'],
+            '3': ['3', 'fill'],
+            'fill': ['3', 'fill'],
+            '4': ['4', 'subjective'],
+            'subjective': ['4', 'subjective'],
+            '5': ['5', 'judgment'],
+            'judgment': ['5', 'judgment'],
+        };
+        const matchingTypes = typeAliases[currentType] || [currentType];
+        const typeMatch = currentType === 'all' || matchingTypes.includes(cardType);
         
         // 检查搜索关键词
         const searchMatch = currentSearch === '' || cardContent.includes(currentSearch);

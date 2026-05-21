@@ -16,6 +16,9 @@
 
     <!-- 页眉 -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <a href="{% url 'teacher_dashboard' %}" class="text-white px-3" style="text-decoration: none; font-size: 15px; white-space: nowrap;" title="返回教师主界面">
+            <i class="fas fa-arrow-left"></i> 返回
+        </a>
         <div class="container">
             <a class="navbar-brand" href="{% url 'home' %}">
                 <i class="fas fa-graduation-cap"></i> 学习诊断系统
@@ -46,6 +49,16 @@
                 {% include 'teacher/course_management_sidebar.html' %}
             </nav>
             <main class="teacher-main-content">
+                {% if messages %}
+                <div class="messages mb-3">
+                    {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
                 {% block content %}{% endblock %}
             </main>
         </div>

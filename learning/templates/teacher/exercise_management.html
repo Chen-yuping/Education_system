@@ -19,22 +19,25 @@
 </div>
 {% else %}
 
+<!-- 所有知识点数据（按科目分组，供添加/编辑习题使用） -->
+{{ all_knowledge_points|json_script:"all-knowledge-points-data" }}
+
 <!--主要模块-->
 <div class="container-fluid">
     <!-- 筛选和搜索区域 -->
     <div class="card shadow mb-4">
         <div class="card-body">
             <form id="filterForm" method="get" class="row g-3">
+                <input type="hidden" name="subject" value="{{ request.GET.subject }}">
                 <div class="col-md-3">
                     <label for="typeFilter" class="form-label">题型</label>
                     <select class="form-select" id="typeFilter" name="question_type">
                         <option value="">全部题型</option>
-                        <option value="1" {% if request.GET.question_type == '1' %}selected{% endif %}>单选题</option>
-                        <option value="2" {% if request.GET.question_type == '2' %}selected{% endif %}>多选题</option>
-                        <option value="3" {% if request.GET.question_type == '3' %}selected{% endif %}>投票题</option>
-                        <option value="4" {% if request.GET.question_type == '4' %}selected{% endif %}>填空题</option>
-                        <option value="5" {% if request.GET.question_type == '5' %}selected{% endif %}>主观题</option>
-                        <option value="6" {% if request.GET.question_type == '6' %}selected{% endif %}>判断题</option>
+                        <option value="1" {% if request.GET.question_type == '1' or request.GET.question_type == 'single' %}selected{% endif %}>单选题</option>
+                        <option value="2" {% if request.GET.question_type == '2' or request.GET.question_type == 'multiple' %}selected{% endif %}>多选题</option>
+                        <option value="3" {% if request.GET.question_type == '3' or request.GET.question_type == 'fill' %}selected{% endif %}>填空题</option>
+                        <option value="4" {% if request.GET.question_type == '4' or request.GET.question_type == 'subjective' %}selected{% endif %}>主观题</option>
+                        <option value="5" {% if request.GET.question_type == '5' or request.GET.question_type == 'judgment' %}selected{% endif %}>判断题</option>
                     </select>
                 </div>
 
@@ -119,17 +122,15 @@
                             </td>
                             <td>{{ exercise.subject.name }}</td>
                             <td>
-                                {% if exercise.question_type == '1' %}
+                                {% if exercise.question_type == '1' or exercise.question_type == 'single' %}
                                 <span class="badge bg-primary">单选题</span>
-                                {% elif exercise.question_type == '2' %}
+                                {% elif exercise.question_type == '2' or exercise.question_type == 'multiple' %}
                                 <span class="badge bg-success">多选题</span>
-                                {% elif exercise.question_type == '3' %}
-                                <span class="badge bg-warning">投票题</span>
-                                {% elif exercise.question_type == '4' %}
+                                {% elif exercise.question_type == '3' or exercise.question_type == 'fill' %}
                                 <span class="badge bg-info">填空题</span>
-                                {% elif exercise.question_type == '5' %}
+                                {% elif exercise.question_type == '4' or exercise.question_type == 'subjective' %}
                                 <span class="badge bg-warning">主观题</span>
-                                {% elif exercise.question_type == '6' %}
+                                {% elif exercise.question_type == '5' or exercise.question_type == 'judgment' %}
                                 <span class="badge bg-info">判断题</span>
                                 {% else %}
                                 <span class="badge bg-secondary">{{ exercise.question_type }}</span>
@@ -361,7 +362,7 @@
                             <label for="add_subject" class="form-label fw-bold">所属科目 *</label>
                             <select class="form-select" id="add_subject" name="subject_id" required>
                                 {% for subject in subjects %}
-                                <option value="{{ subject.id }}">{{ subject.name }}</option>
+                                <option value="{{ subject.id }}" {% if subject.id|stringformat:"s" == request.GET.subject %}selected{% endif %}>{{ subject.name }}</option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -440,6 +441,32 @@
                     <label for="add_solution" class="form-label fw-bold">答案解析</label>
                     <textarea class="form-control" id="add_solution" name="solution" rows="2" placeholder="输入答案解析（可选）"></textarea>
                 </div>
+
+                <!-- 关联知识点 -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">关联知识点</label>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="border rounded p-3 bg-light h-100">
+                                <h6 class="mb-3 fw-bold">可选知识点</h6>
+                                <div class="mb-2">
+                                    <input type="text" class="form-control form-control-sm" id="add_kp_search" placeholder="搜索知识点...">
+                                </div>
+                                <div class="list-group" style="max-height: 200px; overflow-y: auto;" id="add-unselected-kp-list">
+                                    <div class="list-group-item text-muted text-center py-3">请先选择科目</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="border rounded p-3 bg-light h-100">
+                                <h6 class="mb-3 fw-bold">已关联知识点</h6>
+                                <div class="list-group" style="max-height: 200px; overflow-y: auto;" id="add-selected-kp-list">
+                                    <div class="list-group-item text-muted text-center py-3">暂无关联知识点</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
@@ -467,14 +494,35 @@ function showAddExercise() {
     document.getElementById('add_content').value = '';
     document.getElementById('add_answer').value = '';
     document.getElementById('add_solution').value = '';
-    
+
     // 清空选项
     document.querySelectorAll('.add-choice-input').forEach(input => input.value = '');
     document.querySelectorAll('.add-choice-correct').forEach(checkbox => checkbox.checked = false);
-    
+
+    // 清空知识点选择
+    document.getElementById('add-selected-kp-list').innerHTML = '<div class="list-group-item text-muted text-center py-3">暂无关联知识点</div>';
+    document.getElementById('add-unselected-kp-list').innerHTML = '<div class="list-group-item text-muted text-center py-3">加载中...</div>';
+    document.getElementById('add_kp_search').value = '';
+
     // 显示模态框
     const modal = new bootstrap.Modal(document.getElementById('exerciseAddModal'));
     modal.show();
+
+    // 加载当前选中科目的知识点
+    const subjectSelect = document.getElementById('add_subject');
+    loadSubjectKPsForAdd(subjectSelect.value);
+}
+
+// 题型英文转中文
+function getQuestionTypeName(type) {
+    const map = {
+        'single': '单选题', '1': '单选题',
+        'multiple': '多选题', '2': '多选题',
+        'fill': '填空题', '3': '填空题',
+        'subjective': '主观题', '4': '主观题',
+        'judgment': '判断题', '5': '判断题',
+    };
+    return map[type] || type;
 }
 
 // 提交添加习题
@@ -524,6 +572,14 @@ function submitAddExercise() {
     formData.append('answer', answer);
     formData.append('solution', document.getElementById('add_solution').value);
     formData.append('choices', JSON.stringify(choices));
+
+    // 收集已选知识点ID
+    const selectedKpIds = [];
+    document.querySelectorAll('#add-selected-kp-list .selected-kp').forEach(item => {
+        const kpId = item.dataset.kpId;
+        if (kpId) selectedKpIds.push(parseInt(kpId));
+    });
+    formData.append('knowledge_points', JSON.stringify(selectedKpIds));
     
     // 显示加载状态
     saveBtn.disabled = true;
@@ -557,6 +613,176 @@ function submitAddExercise() {
         saveBtn.innerHTML = '<i class="fas fa-save me-1"></i>保存习题';
     });
 }
+
+// ========== 添加习题知识点选择 ==========
+
+// 获取所有知识点数据
+function getAllKnowledgePoints() {
+    const el = document.getElementById('all-knowledge-points-data');
+    if (!el) return [];
+    try {
+        return JSON.parse(el.textContent);
+    } catch(e) {
+        return [];
+    }
+}
+
+// 加载指定科目的知识点到添加模态框
+function loadSubjectKPsForAdd(subjectId) {
+    const allKps = getAllKnowledgePoints();
+    const subjectKps = allKps.filter(kp => kp.subject_id === parseInt(subjectId));
+    const unselectedList = document.getElementById('add-unselected-kp-list');
+    const selectedList = document.getElementById('add-selected-kp-list');
+
+    // 清空已选列表（切换科目时重置）
+    selectedList.innerHTML = '<div class="list-group-item text-muted text-center py-3">暂无关联知识点</div>';
+
+    if (subjectKps.length === 0) {
+        unselectedList.innerHTML = '<div class="list-group-item text-muted text-center py-3">该科目暂无知识点</div>';
+        return;
+    }
+
+    // 清空并改用 DOM 方式创建，避免 HTML 特殊字符问题
+    unselectedList.innerHTML = '';
+    subjectKps.forEach(kp => {
+        const div = document.createElement('div');
+        div.className = 'list-group-item d-flex justify-content-between align-items-center unselected-kp';
+        div.dataset.kpId = kp.id;
+        div.dataset.kpName = kp.name;
+
+        const span = document.createElement('span');
+        span.textContent = kp.name;
+        div.appendChild(span);
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-sm btn-primary add-kp-btn';
+        btn.dataset.kpId = kp.id;
+        btn.dataset.kpName = kp.name;
+        btn.innerHTML = '<i class="fas fa-arrow-right"></i>';
+        div.appendChild(btn);
+
+        unselectedList.appendChild(div);
+    });
+
+    // 重新绑定事件
+    bindAddKpEvents();
+}
+
+// 绑定添加模态框的知识点按钮事件
+function bindAddKpEvents() {
+    document.querySelectorAll('#add-unselected-kp-list .add-kp-btn').forEach(btn => {
+        btn.onclick = function(e) {
+            e.preventDefault();
+            const kpId = this.dataset.kpId;
+            const kpName = this.dataset.kpName;
+            addAddKnowledgePoint(kpId, kpName);
+        };
+    });
+}
+
+// 添加知识点到已选列表（添加模态框）
+function addAddKnowledgePoint(kpId, kpName) {
+    const unselectedList = document.getElementById('add-unselected-kp-list');
+    const selectedList = document.getElementById('add-selected-kp-list');
+
+    const item = document.querySelector('#add-unselected-kp-list .unselected-kp[data-kp-id="' + kpId + '"]');
+    if (item) item.remove();
+
+    if (unselectedList.querySelectorAll('.unselected-kp').length === 0) {
+        unselectedList.innerHTML = '<div class="list-group-item text-muted text-center py-3">全部已关联</div>';
+    }
+
+    // 清空"暂无关联知识点"提示
+    const emptyMsg = selectedList.querySelector('.text-muted');
+    if (emptyMsg) emptyMsg.remove();
+
+    const newItem = document.createElement('div');
+    newItem.className = 'list-group-item d-flex justify-content-between align-items-center selected-kp';
+    newItem.dataset.kpId = kpId;
+
+    const span = document.createElement('span');
+    span.textContent = kpName;
+    newItem.appendChild(span);
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-sm btn-danger remove-kp-btn';
+    btn.dataset.kpId = kpId;
+    btn.innerHTML = '<i class="fas fa-trash"></i>';
+    newItem.appendChild(btn);
+
+    selectedList.appendChild(newItem);
+
+    newItem.querySelector('.remove-kp-btn').onclick = function(e) {
+        e.preventDefault();
+        removeAddKnowledgePoint(kpId, kpName);
+    };
+}
+
+// 从已选列表移除知识点（添加模态框）
+function removeAddKnowledgePoint(kpId, kpName) {
+    const unselectedList = document.getElementById('add-unselected-kp-list');
+    const selectedList = document.getElementById('add-selected-kp-list');
+
+    const item = document.querySelector('#add-selected-kp-list .selected-kp[data-kp-id="' + kpId + '"]');
+    if (item) item.remove();
+
+    if (selectedList.querySelectorAll('.selected-kp').length === 0) {
+        selectedList.innerHTML = '<div class="list-group-item text-muted text-center py-3">暂无关联知识点</div>';
+    }
+
+    // 清空"全部已关联"提示
+    const emptyMsg = unselectedList.querySelector('.text-muted');
+    if (emptyMsg) emptyMsg.remove();
+
+    const newItem = document.createElement('div');
+    newItem.className = 'list-group-item d-flex justify-content-between align-items-center unselected-kp';
+    newItem.dataset.kpId = kpId;
+    newItem.dataset.kpName = kpName;
+
+    const span = document.createElement('span');
+    span.textContent = kpName;
+    newItem.appendChild(span);
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-sm btn-primary add-kp-btn';
+    btn.dataset.kpId = kpId;
+    btn.dataset.kpName = kpName;
+    btn.innerHTML = '<i class="fas fa-arrow-right"></i>';
+    newItem.appendChild(btn);
+
+    unselectedList.appendChild(newItem);
+
+    newItem.querySelector('.add-kp-btn').onclick = function(e) {
+        e.preventDefault();
+        addAddKnowledgePoint(kpId, kpName);
+    };
+}
+
+// 搜索知识点（添加模态框）
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('add_kp_search');
+    if (searchInput) {
+        searchInput.addEventListener('keyup', function() {
+            const term = this.value.toLowerCase();
+            document.querySelectorAll('#add-unselected-kp-list .unselected-kp').forEach(item => {
+                const name = (item.dataset.kpName || '').toLowerCase();
+                item.style.display = name.includes(term) ? '' : 'none';
+            });
+        });
+    }
+
+    // 科目切换时刷新知识点列表
+    const subjectSelect = document.getElementById('add_subject');
+    if (subjectSelect) {
+        subjectSelect.addEventListener('change', function() {
+            document.getElementById('add_kp_search').value = '';
+            loadSubjectKPsForAdd(this.value);
+        });
+    }
+});
 
 // 显示习题详情模态框
 function showExerciseDetail(exerciseId) {
@@ -640,7 +866,7 @@ function renderExerciseDetail(exercise) {
             <h4>${exercise.title || '无标题'}</h4>
             <div class="mb-2">
                 <span class="badge bg-info text-dark me-1">${exercise.subject || '未分类'}</span>
-                <span class="badge bg-secondary me-1">${exercise.question_type || '未知题型'}</span>
+                <span class="badge bg-secondary me-1">${getQuestionTypeName(exercise.question_type) || '未知题型'}</span>
 
             </div>
         </div>
@@ -918,7 +1144,7 @@ function renderExerciseEditForm(exercise) {
 
                 <div class="mb-3">
                     <label class="form-label fw-bold">题型</label>
-                    <input type="text" class="form-control" value="${exercise.question_type || ''}" readonly disabled style="max-width: 200px;">
+                    <input type="text" class="form-control" value="${getQuestionTypeName(exercise.question_type) || exercise.question_type || ''}" readonly disabled style="max-width: 200px;">
                 </div>
 
                 <hr>

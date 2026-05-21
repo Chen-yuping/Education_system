@@ -1,69 +1,9 @@
 [
   {
     "user_id": 1,
-    "exer_id": 89,
+    "exer_id": 129,
     "score": 1,
-    "knowledge_code": [
-      133,
-      148
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 90,
-    "score": 1,
-    "knowledge_code": [
-      101,
-      120
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 91,
-    "score": 0,
-    "knowledge_code": [
-      92,
-      138
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 92,
-    "score": 0,
-    "knowledge_code": [
-      21,
-      87,
-      154
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 22,
-    "score": 0,
-    "knowledge_code": [
-      30,
-      40,
-      102,
-      111
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 38,
-    "score": 0,
-    "knowledge_code": [
-      1,
-      103,
-      168
-    ]
-  },
-  {
-    "user_id": 1,
-    "exer_id": 5,
-    "score": 0,
-    "knowledge_code": [
-      167
-    ]
+    "knowledge_code": []
   },
   {
     "user_id": 2,

@@ -46,6 +46,16 @@
                 {% include 'teacher/quick_build_course_sidebar.html' %}
             </nav>
             <main class="teacher-main-content">
+                {% if messages %}
+                <div class="messages mb-3">
+                    {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
                 {% block content %}{% endblock %}
             </main>
         </div>

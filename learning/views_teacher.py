@@ -50,9 +50,7 @@ def teacher_dashboard(request):
     ).distinct().count()
 
     # 4. 授课活跃学生数（最近30天有答题记录的学生）
-    from datetime import datetime, timedelta
-
-    thirty_days_ago = datetime.now() - timedelta(days=30)
+    thirty_days_ago = timezone.now() - timedelta(days=30)
 
     active_students = User.objects.filter(
         enrolled_subjects__subject__in=teaching_subjects
@@ -74,8 +72,6 @@ def teacher_dashboard(request):
     total_exercises_created = Exercise.objects.filter(creator=teacher).count()
 
     # 8. 学生活跃度分布（按周几统计最近30天的活跃学生）
-    from django.db.models import Count
-    from datetime import datetime, timedelta
     
     activity_by_day = [0] * 7  # 周一到周日
     for i in range(7):
@@ -158,6 +154,41 @@ def teacher_subject_management(request):
         'teaching_subject_ids': teaching_subject_ids,  # 传递预处理后的ID列表
     }
     return render(request, 'teacher/subject_management.html', context)
+
+@login_required
+@user_passes_test(is_teacher)
+def teacher_create_subject(request):
+    """教师创建新课程并直接进入授课管理界面"""
+    if request.method == 'POST':
+        name = request.POST.get('name', '').strip()
+        description = request.POST.get('description', '').strip()
+
+        if not name:
+            messages.error(request, '课程名称不能为空')
+            return redirect('teacher_course_management')
+
+        # 创建新课程
+        subject = Subject.objects.create(name=name, description=description)
+
+        # 创建教师授课关系
+        TeacherSubject.objects.get_or_create(teacher=request.user, subject=subject)
+
+        messages.success(request, f'课程《{name}》创建成功！')
+        return redirect(reverse('upload_exercise') + f'?subject_id={subject.id}')
+
+    return redirect('teacher_course_management')
+
+
+@login_required
+@user_passes_test(is_teacher)
+@require_POST
+def subject_delete(request, subject_id):
+    """删除课程（Subject）及其所有相关数据"""
+    subject = get_object_or_404(Subject, id=subject_id)
+    subject_name = subject.name
+    subject.delete()
+    messages.success(request, f'课程《{subject_name}》已成功删除')
+    return redirect('teacher_subject_management')
 
 @login_required
 @user_passes_test(is_teacher)
@@ -475,7 +506,15 @@ def exercise_management(request):
             exercises = exercises.filter(subject_id=int(subject_id))
 
     if question_type:
-        exercises = exercises.filter(question_type=question_type)
+        type_mapping = {
+            '1': ['1', 'single'],
+            '2': ['2', 'multiple'],
+            '3': ['3', 'fill'],
+            '4': ['4', 'subjective'],
+            '5': ['5', 'judgment'],
+        }
+        type_filter = type_mapping.get(question_type, [question_type])
+        exercises = exercises.filter(question_type__in=type_filter)
 
     if knowledge_point_id and knowledge_point_id.isdigit():
         exercises = exercises.filter(
@@ -517,7 +556,7 @@ def exercise_management(request):
     else:
         knowledge_points = KnowledgePoint.objects.none()
 
-    # 获取在当前筛选科目下创建习题的教师
+    # 获取当前科目下创建习题的教师
     if current_subject_id:
         creator_ids = Exercise.objects.filter(
             subject_id=current_subject_id
@@ -528,6 +567,11 @@ def exercise_management(request):
         )
     else:
         creators = User.objects.none()
+
+    # 获取教师所有授课科目的知识点（供添加/编辑习题使用）
+    all_knowledge_points = list(KnowledgePoint.objects.filter(
+        subject_id__in=teacher_subject_ids
+    ).values('id', 'name', 'subject_id'))
 
     # 排序和分页
     exercises = exercises.order_by('id')  # 按ID降序，最新的在前面
@@ -546,6 +590,7 @@ def exercise_management(request):
         'no_subjects': False,
         'default_subject_id': default_subject.id if default_subject else None,
         'subject': Subject.objects.get(id=current_subject_id) if current_subject_id else None,
+        'all_knowledge_points': all_knowledge_points,
         'filters': {
             'subject': subject_id,
             'question_type': question_type,
@@ -599,16 +644,14 @@ def exercise_detail_json(request, exercise_id):
         question_type_mapping = {
             'single': '单选题',
             'multiple': '多选题',
-            'vote': '投票题',
             'fill': '填空题',
             'subjective': '主观题',
             'judgment': '判断题',
             '1': '单选题',
             '2': '多选题',
-            '3': '投票题',
-            '4': '填空题',
-            '5': '主观题',
-            '6': '判断题',
+            '3': '填空题',
+            '4': '主观题',
+            '5': '判断题',
         }
 
         # 获取题型显示名称
@@ -786,28 +829,53 @@ def exercise_add_json(request):
             return JsonResponse({'success': False, 'message': '您无权在此科目下添加习题'})
 
         with transaction.atomic():
+            # 构建 option_text
+            try:
+                choices_data = json.loads(choices_json)
+                opt_dict = {}
+                for idx, choice_item in enumerate(choices_data):
+                    label = chr(65 + idx)  # A, B, C, D...
+                    choice_content = choice_item.get('content', '').strip()
+                    if choice_content:
+                        opt_dict[label] = choice_content
+                full_option_text = repr(opt_dict) if opt_dict else ""
+            except json.JSONDecodeError:
+                choices_data = []
+                full_option_text = ""
+
             # 创建习题
             exercise = Exercise.objects.create(
                 subject_id=int(subject_id),
                 title=title,
                 content=content,
                 question_type=question_type,
+                option_text=full_option_text,
                 answer=answer,
                 solution=solution,
                 creator=request.user
             )
 
             # 处理选项
+            for choice_item in choices_data:
+                choice_content = choice_item.get('content', '').strip()
+                if choice_content:
+                    Choice.objects.create(
+                        exercise=exercise,
+                        content=choice_content,
+                        is_correct=choice_item.get('is_correct', False),
+                        order=choice_item.get('order', 0)
+                    )
+
+            # 关联知识点
+            knowledge_points_json = request.POST.get('knowledge_points', '[]')
             try:
-                choices_data = json.loads(choices_json)
-                for choice_item in choices_data:
-                    choice_content = choice_item.get('content', '').strip()
-                    if choice_content:
-                        Choice.objects.create(
+                kp_ids = json.loads(knowledge_points_json)
+                for kp_id in kp_ids:
+                    if kp_id:
+                        QMatrix.objects.get_or_create(
                             exercise=exercise,
-                            content=choice_content,
-                            is_correct=choice_item.get('is_correct', False),
-                            order=choice_item.get('order', 0)
+                            knowledge_point_id=int(kp_id),
+                            defaults={'weight': 1.0}
                         )
             except json.JSONDecodeError:
                 pass
@@ -1040,7 +1108,15 @@ def export_exercises(request):
         exercises = exercises.filter(subject_id=int(subject_id))
 
     if question_type:
-        exercises = exercises.filter(question_type=question_type)
+        type_mapping = {
+            '1': ['1', 'single'],
+            '2': ['2', 'multiple'],
+            '3': ['3', 'fill'],
+            '4': ['4', 'subjective'],
+            '5': ['5', 'judgment'],
+        }
+        type_filter = type_mapping.get(question_type, [question_type])
+        exercises = exercises.filter(question_type__in=type_filter)
 
     if knowledge_point_id and knowledge_point_id.isdigit():
         exercises = exercises.filter(qmatrix__knowledge_point_id=int(knowledge_point_id)).distinct()
@@ -1152,10 +1228,10 @@ def grade_subjective(request):
         # 如果指定的科目不在授课范围内，使用第一个
         subject_id = teacher_subject_ids[0] if teacher_subject_ids else None
     
-    # 基础查询：主观题的答题记录 (question_type = '5' 或 'subjective')
+    # 基础查询：主观题的答题记录 (question_type = '4' 或 'subjective')
     answer_logs = AnswerLog.objects.filter(
         exercise__subject_id__in=teacher_subject_ids,
-        exercise__question_type__in=['5', 'subjective']
+        exercise__question_type__in=['4', 'subjective']
     ).select_related('student', 'exercise', 'exercise__subject').order_by('-submitted_at')
     
     # 按科目筛选
@@ -1175,20 +1251,20 @@ def grade_subjective(request):
     # 统计数量
     pending_count = AnswerLog.objects.filter(
         exercise__subject_id__in=teacher_subject_ids,
-        exercise__question_type__in=['5', 'subjective'],
+        exercise__question_type__in=['4', 'subjective'],
         is_correct__isnull=True
     ).count()
     
     graded_count = AnswerLog.objects.filter(
         exercise__subject_id__in=teacher_subject_ids,
-        exercise__question_type__in=['5', 'subjective'],
+        exercise__question_type__in=['4', 'subjective'],
         is_correct__isnull=False
     ).count()
     
     # 获取当前科目的所有主观题
     exercises = Exercise.objects.filter(
         subject_id=subject_id,
-        question_type__in=['5', 'subjective']
+        question_type__in=['4', 'subjective']
     ).order_by('title')
     
     # 分页

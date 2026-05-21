@@ -60,6 +60,13 @@ urlpatterns = [
     path('teacher/course-review/<int:builder_id>/submit/<str:review_type>/', views_exercisefile.submit_review, name='submit_review'),#提交审核结果
     path('teacher/course-review/<int:builder_id>/complete/', views_exercisefile.complete_review, name='complete_review'),#完成审核
 
+    # 资源知识提取审核URL
+    path('teacher/resource-extraction/<int:extraction_id>/review/', views_exercisefile.resource_extraction_review, name='resource_extraction_review'),
+    path('teacher/resource-extraction/<int:extraction_id>/review/knowledge/', views_exercisefile.resource_review_knowledge_points, name='resource_review_knowledge_points'),
+    path('teacher/resource-extraction/<int:extraction_id>/review/relationships/', views_exercisefile.resource_review_relationships, name='resource_review_relationships'),
+    path('teacher/resource-extraction/<int:extraction_id>/review/submit/<str:review_type>/', views_exercisefile.resource_submit_review, name='resource_submit_review'),
+    path('teacher/resource-extraction/<int:extraction_id>/review/complete/', views_exercisefile.resource_complete_review, name='resource_complete_review'),
+
 
     # 知识点关系图页面,知识点数据接口
     path('teacher/knowledge-graph/',views_teacherknowledge.knowledge_graph,name='teacher_knowledge_graph'),#知识点关系图
@@ -85,8 +92,11 @@ urlpatterns = [
     path('teacher/api/knowledge-points/<int:subject_id>/relationships/', views_teacherknowledge_management.get_knowledge_point_relationships, name='get_knowledge_point_relationships'),
     path('teacher/api/knowledge-point-relationship/add/<int:subject_id>/', views_teacherknowledge_management.add_knowledge_point_relationship_api, name='add_knowledge_point_relationship_api'),
     path('teacher/api/knowledge-point-relationship/delete/<int:subject_id>/<int:relationship_id>/', views_teacherknowledge_management.delete_knowledge_point_relationship_api, name='delete_knowledge_point_relationship_api'),
+    path('teacher/api/knowledge-point/<int:subject_id>/<int:kp_id>/delete-with-relations/', views_teacherknowledge_management.delete_knowledge_point_with_relations_api, name='delete_knowledge_point_with_relations_api'),
 
     path('teacher/subjects/', views_teacher.teacher_subject_management, name='teacher_subject_management'),#老师选择授课
+    path('teacher/subjects/create/', views_teacher.teacher_create_subject, name='teacher_create_subject'),#老师创建课程
+    path('teacher/subjects/delete/<int:subject_id>/', views_teacher.subject_delete, name='subject_delete'),#删除课程
     path('teacher/course-management/', views_teacher.teacher_course_management, name='teacher_course_management'),#课程管理
 
     path('teacher/upload/knowledge/', views_teacher.upload_knowledge, name='upload_knowledge'),

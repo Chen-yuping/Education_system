@@ -68,7 +68,10 @@ def run_diagnosis(request):
         except DiagnosisModel.DoesNotExist:
             return JsonResponse({'status': 'error', 'message': '诊断模型不存在或已禁用'}, status=404)
 
-        # 1. 导出训练数据
+        model_name = diagnosis_model.name
+
+        from .dual_relation_ncdm import MODEL_NAMES as IRD_NCDM_MODEL_NAMES
+        is_ird_ncdm_model = model_name in IRD_NCDM_MODEL_NAMES
         try:
             export_result = export_training_data(subject_id)
             print(f"数据导出成功: {export_result}")
@@ -76,13 +79,17 @@ def run_diagnosis(request):
             print(f"数据导出失败: {str(e)}")
             return JsonResponse({'status': 'error', 'message': f'数据导出失败: {str(e)}'}, status=500)
 
-        # 2. 训练模型
-        model_name = diagnosis_model.name
         if export_result['success']:
-            run_training(subject_id, model_name)
+            try:
+                run_training(subject_id, model_name)
+            except Exception as e:
+                return JsonResponse({'status': 'error', 'message': f'训练失败: {str(e)}'}, status=500)
 
         # 3. 推理获取诊断数据
-        from inference_and_save import infer_and_get_diagnosis_data
+        if is_ird_ncdm_model:
+            from .dual_relation_ncdm.platform import infer_and_get_diagnosis_data
+        else:
+            from .inference_and_save import infer_and_get_diagnosis_data
         diagnosis_data = infer_and_get_diagnosis_data(subject_id, model_id, model_name)
 
         if diagnosis_data is None:
@@ -145,24 +152,35 @@ if CMD_SURVEY_PATH not in sys.path:
 def run_training(subject_id, model_name):
 
     try:
+        from .dual_relation_ncdm import MODEL_NAMES as IRD_NCDM_MODEL_NAMES
+        if model_name in IRD_NCDM_MODEL_NAMES:
+            from .dual_relation_ncdm.platform import train_subject
+
+            print(f"开始训练 {model_name} 模型...")
+            result = train_subject(subject_id, model_name=model_name)
+            print(f"{model_name} 训练完成: {result}")
+            return result
+
         # 设置环境变量
         os.environ['CD_DATASET'] = str(subject_id)
 
-        from main import model_functions
+        from .main import model_functions
 
         # 模型名称需要与 main.py 中的键匹配（大写）
         # 数据库存储的是 "IRT"、"NCDM" 等，直接使用
         if model_name in model_functions:
             print(f"开始训练 {model_name} 模型...")
-            model_functions[model_name]()
+            return model_functions[model_name]()
         else:
             print(f"未知模型: {model_name}")
             print(f"可用模型: {list(model_functions.keys())}")
+            raise ValueError(f'未知模型: {model_name}')
 
     except Exception as e:
         import traceback
         traceback.print_exc()
         print(f"训练失败: {str(e)}")
+        raise
 
 @login_required
 @user_passes_test(is_teacher)
@@ -250,7 +268,7 @@ def get_student_diagnosis_detail(request, student_id, subject_id):
                 'id': kp.id,
                 'name': kp.name,
                 'mastery': round(mastery * 100, 2),
-                'status': '优秀' if mastery >= 0.8 else '良好' if mastery >= 0.6 else '需加强',
+                'status': '已掌握' if mastery >= 0.5 else '未掌握',
                 'practice_count': practice_count,
                 'correct_rate': correct_rate
             })
@@ -297,8 +315,8 @@ def get_student_diagnosis_detail(request, student_id, subject_id):
             'overall_score': overall_score,
             'model_used': model_name,
             'knowledge_data': knowledge_data,
-            'weak_points': [kp for kp in knowledge_data if kp['mastery'] < 60],
-            'strong_points': [kp for kp in knowledge_data if kp['mastery'] >= 80],
+            'weak_points': [kp for kp in knowledge_data if kp['mastery'] < 50],
+            'strong_points': [kp for kp in knowledge_data if kp['mastery'] >= 50],
             'diagnosis_history': [
                 {
                     'knowledge_point': diagnosis.knowledge_point.name,
@@ -410,7 +428,7 @@ def get_diagnosis_summary(request, subject_id):
                 'id': kp.id,
                 'name': kp.name,
                 'avg_mastery': avg_mastery_pct,
-                'status': '优秀' if avg_mastery_pct >= 80 else '良好' if avg_mastery_pct >= 60 else '需加强',
+                'status': '已掌握' if avg_mastery_pct >= 50 else '未掌握',
                 'diagnosed_students': kp_diagnoses.values('student').distinct().count(),
                 'total_students': student_count
             })
@@ -419,9 +437,9 @@ def get_diagnosis_summary(request, subject_id):
         last_diagnosis = student_diagnoses.order_by('-last_practiced').first()
         last_diagnosis_time = last_diagnosis.last_practiced.strftime('%Y-%m-%d %H:%M') if last_diagnosis else '暂无'
 
-        # 找出薄弱和优势知识点
-        weak_knowledge_points = [kp for kp in kp_stats if kp['avg_mastery'] < 60]
-        strong_knowledge_points = [kp for kp in kp_stats if kp['avg_mastery'] >= 80]
+        # 找出未掌握和已掌握知识点
+        weak_knowledge_points = [kp for kp in kp_stats if kp['avg_mastery'] < 50]
+        strong_knowledge_points = [kp for kp in kp_stats if kp['avg_mastery'] >= 50]
 
         summary = {
             'subject_id': subject.id,

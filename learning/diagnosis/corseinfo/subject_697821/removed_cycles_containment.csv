@@ -1,0 +1,10 @@
+﻿relation_kind,cycle_nodes,removed_source_kp_id,removed_target_kp_id,removed_source_node_id,removed_target_node_id,removed_source_name,removed_target_name,score,reason
+containment,"[10508, 9542]",9542,10508,151,171,物理页,物理页帧,0.5,fallback child_to_parent
+containment,"[5568, 7106]",5568,7106,87,108,用户态,内核态,0.5,fallback child_to_parent
+containment,"[7840, 3879]",3879,7840,58,124,阻塞状态,就绪状态,0.5,fallback child_to_parent
+containment,"[5977, 2730]",2730,5977,43,99,处理机调度,进程调度,0.5,fallback child_to_parent
+containment,"[2730, 6853]",2730,6853,43,106,处理机调度,处理器调度,0.5,fallback child_to_parent
+containment,"[10505, 4788]",4788,10505,72,170,移臂调度算法,电梯调度算法,0.5,fallback child_to_parent
+containment,"[930, 9810]",930,9810,15,158,CLOCK置换算法,FIFO置换算法,0.5,fallback child_to_parent
+containment,"[929, 10395]",929,10395,14,166,应用软件,操作系统,0.5,fallback child_to_parent
+containment,"[10395, 9413]",9413,10395,149,166,系统软件,操作系统,0.5,fallback child_to_parent

@@ -24,8 +24,63 @@ os.makedirs('result', exist_ok=True)
 
 
 src, tgt = dataloader.CD_DL()
-device = 'cuda:0'
+device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
+args = None
+
+
+def _run_cdf_bridge_model(model_name):
+    # CDF 家族模型统一走桥接层，而不是老的 CMD_survey 训练入口。
+    # 这样 teacher 端只需要传模型名，不需要关心底层训练细节。
+    # 这里返回可用可不用，可以用来看信息
+    try:
+        from learning.diagnosis.cdf_bridge import train_cdf_model
+    except ImportError as exc:
+        raise RuntimeError(
+            'CDF bridge is missing. Restore learning/diagnosis/cdf_bridge.py '
+            'before running IdpCDF/HierCDF/ConCDF/PCG-CDF.'
+        ) from exc
+
+    subject_id = os.environ.get('CD_DATASET')
+    if not subject_id:
+        raise ValueError('CD_DATASET is not set')
+
+    result = train_cdf_model(int(subject_id), model_name)
+    if 'error' in result:
+        raise RuntimeError(result['error'])
+
+    model_info = result.get('model_info', {})
+    graph_info = result.get('knowledge_graph_info', {})
+    print("\n" + "=" * 50)
+    print(f"{model_name} training completed")
+    print("=" * 50)
+    print(f"total_students: {result.get('total_students', 0)}")
+    print(f"total_kp_count: {result.get('total_kp_count', 0)}")
+    print(f"checkpoint: {model_info.get('checkpoint_file', '')}")
+    print(f"log_dir: {model_info.get('log_dir', '')}")
+    print(f"graph_dir: {graph_info.get('graph_dir', '')}")
+    print("=" * 50 + "\n")
+    return result
+
+
+def IdpCDF_main():
+    # IdpCDF 对应新的独立实现入口。
+    return _run_cdf_bridge_model('IdpCDF')
+
+
+def HierCDF_main():
+    # 层次型 CDF 模型入口。
+    return _run_cdf_bridge_model('HierCDF')
+
+
+def ConCDF_main():
+    # 包含关系型 CDF 模型入口。
+    return _run_cdf_bridge_model('ConCDF')
+
+
+def PCGCDF_main():
+    # PCG-CDF 对应新的 PCGCDF 实现入口。
+    return _run_cdf_bridge_model('PCG-CDF')
 
 def IRT_main():
     """
@@ -474,6 +529,10 @@ model_functions = {
     'DINA': DINA_main,
     'NCDM': NCD_main,
     'NCDM_NoQ': NCDM_NoQ_main,
+    'IdpCDF': IdpCDF_main,
+    'HierCDF': HierCDF_main,
+    'ConCDF': ConCDF_main,
+    'PCG-CDF': PCGCDF_main,
     'RCD': myRCD_main,
     'KSCD': KSCD_main,
     'AGCDM': AGCDM_main,
@@ -499,7 +558,7 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser(description='Cognitive Diagnosis Model Training - 所有参数从 params.py 读取')
     parser.add_argument('--model', choices=[
-        'IRT', 'MIRT', 'DINA', 'NCDM', 'NCDM_NoQ', 'RCD', 'KSCD', 'AGCDM', 'AGCDM_no_gate', 
+        'IRT', 'MIRT', 'DINA', 'NCDM', 'IdpCDF', 'HierCDF', 'ConCDF', 'PCG-CDF', 'NCDM_NoQ', 'RCD', 'KSCD', 'AGCDM', 'AGCDM_no_gate', 
         'CDFKC_with_gate', 'CDMFKC', 'NCDM_GS', 'RCD_GS', 'KSCD_GS', 'KaNCD', 
         'CACD', 'QCCDM', 'IRT_Affect', 'MIRT_Affect', 'DINA_Affect', 'RCD_Affect', 
         'MF', 'MF_Affect'

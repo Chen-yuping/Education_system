@@ -191,7 +191,7 @@
             <hr>
 
             <!-- 选择题选项显示（单选和多选） -->
-            {% if answer_log.exercise.question_type == '1' or answer_log.exercise.question_type == '2' %}
+            {% if answer_log.exercise.question_type == '1' or answer_log.exercise.question_type == '2' or answer_log.exercise.question_type == 'single' or answer_log.exercise.question_type == 'multiple' %}
             <div class="mb-4">
                 <div class="options-list">
                     {% for choice in answer_log.exercise.choices.all %}
@@ -263,7 +263,7 @@
             </div>
 
             <!-- 填空题 -->
-            {% elif answer_log.exercise.question_type == '4' %}
+            {% elif answer_log.exercise.question_type == '3' or answer_log.exercise.question_type == 'fill' %}
             <div class="mb-4">
                 <h5 class="mb-3">
                     <i class="fas fa-edit me-2"></i>答题结果
@@ -288,7 +288,7 @@
             </div>
 
             <!-- 主观题 -->
-            {% elif answer_log.exercise.question_type == '5' %}
+            {% elif answer_log.exercise.question_type == '4' or answer_log.exercise.question_type == 'subjective' %}
             <div class="mb-4">
                 <h5 class="mb-3">
                     <i class="fas fa-file-alt me-2"></i>答题结果
@@ -341,7 +341,7 @@
             </div>
 
             <!-- 判断题 -->
-            {% elif answer_log.exercise.question_type == '6' %}
+            {% elif answer_log.exercise.question_type == '5' or answer_log.exercise.question_type == 'judgment' %}
             <div class="mb-4">
                 <div class="options-list">
                     {% for choice in answer_log.exercise.choices.all %}
@@ -408,35 +408,6 @@
                             {% endif %}
                         {% endfor %}
                     </div>
-                </div>
-            </div>
-
-            <!-- 投票题 -->
-            {% elif answer_log.exercise.question_type == '3' %}
-            <div class="mb-4">
-                <h5 class="mb-3">
-                    <i class="fas fa-vote-yea me-2"></i>投票结果
-                </h5>
-
-                <div class="options-list">
-                    {% for choice in answer_log.exercise.choices.all %}
-                        {% with choice_index=forloop.counter0 %}
-                        {% with option_letter=choice_index|add:65|stringformat:"c"|upper %}
-                        <div class="option-item mb-2 p-3 rounded
-                            {% if choice.id in selected_choice_ids %}bg-primary bg-opacity-10 border border-primary{% else %}bg-light{% endif %}">
-                            <div class="d-flex align-items-center">
-                                <span class="option-letter">{{ option_letter }}</span>
-                                <div class="flex-grow-1">
-                                    {{ choice.content }}
-                                </div>
-                                {% if choice.id in selected_choice_ids %}
-                                    <span class="text-primary">✓ 您的选择</span>
-                                {% endif %}
-                            </div>
-                        </div>
-                        {% endwith %}
-                        {% endwith %}
-                    {% endfor %}
                 </div>
             </div>
             {% endif %}
