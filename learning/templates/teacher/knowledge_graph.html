@@ -210,8 +210,10 @@
                                 </div>
 
                                 <div style="margin-bottom: 16px;">
-                                    <label style="font-weight: 700; margin-bottom: 8px; color: #1a1a1a; font-size: 13px; display: block;">关系来源</label>
-                                    <select name="relation_source" class="form-select" style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 13px;" id="relationSourceSelect"></select>
+                                    <label style="font-weight: 700; margin-bottom: 8px; color: #1a1a1a; font-size: 13px; display: block;">关系来源（资料文件）</label>
+                                    <select name="resource_file_id" class="form-select" style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 13px;" id="resourceFileSelect">
+                                        <option value="">-- 请选择资料 --</option>
+                                    </select>
                                 </div>
 
                                 <button type="submit" style="width: 100%; padding: 12px 16px; background: #667eea; color: white; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
@@ -879,13 +881,16 @@ function loadRelationshipData() {
                 sourceSelect.innerHTML = '<option value="">-- 请选择 --</option>' + options;
                 targetSelect.innerHTML = '<option value="">-- 请选择 --</option>' + options;
 
-                // 初始化关系来源下拉，根据当前标签页预选
-                const relSourceSelect = document.querySelector('#add-relationship-form-modal [name="relation_source"]');
-                if (relSourceSelect) {
-                    const sources = ['教材', '教案', '课件'];
-                    relSourceSelect.innerHTML = sources.map(s =>
-                        `<option value="${s}" ${s === currentSource ? 'selected' : ''}>${s}</option>`
-                    ).join('');
+                // 初始化关系来源下拉使用上传资料名称，根据当前标签页预选
+                const relSourceSelect = document.querySelector('#add-relationship-form-modal [name="resource_file_id"]');
+                if (relSourceSelect && data.available_resource_files) {
+                    const files = data.available_resource_files;
+                    // 检查当前标签页是否匹配某个资源文件
+                    const matchedRf = files.find(rf => String(rf.id) === currentSource);
+                    relSourceSelect.innerHTML = '<option value="">-- 请选择资料 --</option>'
+                        + files.map(rf =>
+                            `<option value="${rf.id}" ${matchedRf && matchedRf.id === rf.id ? 'selected' : ''}>${rf.title}</option>`
+                        ).join('');
                 }
 
                 document.getElementById('modalKpCount').textContent = allKnowledgePoints.length;
@@ -953,7 +958,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const sourceId = this.querySelector('[name="source_id"]').value;
             const targetId = this.querySelector('[name="target_id"]').value;
             const relType = this.querySelector('[name="relationship_type"]').value;
-            const relSource = this.querySelector('[name="relation_source"]').value;
+            const resourceFileId = this.querySelector('[name="resource_file_id"]').value;
 
             if (!sourceId || !targetId) {
                 alert('请选择前置和后续知识点');
@@ -979,7 +984,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     source_id: sourceId,
                     target_id: targetId,
                     relationship_type: relType,
-                    relation_source: relSource,
+                    resource_file_id: resourceFileId,
                 })
             })
             .then(response => response.json())
@@ -1009,7 +1014,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // 删除关系
 function deleteRelationshipModal(relationshipId) {
-    if (!confirm('确定要删除该关系吗？')) {
+    if (!confirm('确定要删除该关系吗？（仅删除关系边，知识点节点将保留在图谱中）')) {
         return;
     }
 
@@ -1024,7 +1029,10 @@ function deleteRelationshipModal(relationshipId) {
     .then(data => {
         if (data.success) {
             alert(data.message);
+            // 刷新弹窗中的关系列表
             loadRelationshipData();
+            // 同时刷新图谱可视化，确保边已删除、孤立节点仍显示
+            loadKnowledgeGraph(currentSubjectId);
         } else {
             alert('操作失败: ' + data.message);
         }

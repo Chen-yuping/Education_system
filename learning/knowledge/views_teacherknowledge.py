@@ -71,23 +71,11 @@ def knowledge_points_api(request, subject_id):
         rel_filter = {'subject_id': subject_id}
 
         if resource_file_id:
-            # 按资源文件过滤：只显示该资源文件解析出的关系涉及的知识点
+            # 按资源文件过滤：使用 M2M 关联筛选该资料关联的知识点节点
+            # （M2M 在创建关系时填充，删除关系后保留，确保孤立节点仍可显示）
             resource_file_id = int(resource_file_id)
             rel_filter['resource_file_id'] = resource_file_id
-            # 获取该资源文件关系涉及的所有知识点ID
-            rel_kp_ids = set(
-                KnowledgeGraph.objects.filter(
-                    subject_id=subject_id, resource_file_id=resource_file_id
-                ).values_list('source_id', flat=True)
-            ) | set(
-                KnowledgeGraph.objects.filter(
-                    subject_id=subject_id, resource_file_id=resource_file_id
-                ).values_list('target_id', flat=True)
-            )
-            if rel_kp_ids:
-                knowledge_points = knowledge_points.filter(id__in=rel_kp_ids)
-            else:
-                knowledge_points = KnowledgePoint.objects.none()
+            knowledge_points = knowledge_points.filter(resource_files__id=resource_file_id)
         elif source_list:
             # 按来源筛选（向后兼容）
             from django.db.models import Q
@@ -170,10 +158,10 @@ def knowledge_points_api(request, subject_id):
 
         # 获取关联了 ResourceFile 的图谱资源文件列表
         resource_files_data = []
-        resource_file_ids = KnowledgeGraph.objects.filter(
+        resource_file_ids = KnowledgePoint.objects.filter(
             subject_id=subject_id,
-            resource_file__isnull=False
-        ).values_list('resource_file_id', flat=True).distinct()
+            resource_files__isnull=False
+        ).values_list('resource_files', flat=True).distinct()
         for rf_id in set(resource_file_ids):
             try:
                 rf = ResourceFile.objects.get(id=rf_id)

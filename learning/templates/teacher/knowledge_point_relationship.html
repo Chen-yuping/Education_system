@@ -331,11 +331,12 @@
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">关系来源</label>
-                    <select name="relation_source" class="form-select" required>
-                        <option value="教材">教材</option>
-                        <option value="教案">教案</option>
-                        <option value="课件">课件</option>
+                    <label class="form-label">关系来源（资料文件）</label>
+                    <select name="resource_file_id" class="form-select" required>
+                        <option value="">-- 请选择资料 --</option>
+                        {% for rf in resource_files %}
+                            <option value="{{ rf.id }}">{{ rf.title }}</option>
+                        {% endfor %}
                     </select>
                 </div>
 
@@ -375,7 +376,7 @@
                         <span class="kp-name source">{{ rel.source.name }}</span>
                         <span class="relationship-arrow">→</span>
                         <span class="kp-name target">{{ rel.target.name }}</span>
-                        <span class="badge bg-secondary ms-2">{{ rel.relation_source|default:'教材' }}</span>
+                        <span class="badge bg-secondary ms-2" title="来源资料">{{ rel.resource_file.title|default:rel.relation_source }}</span>
                     </div>
                     <button class="btn-delete" onclick="deleteRelationship({{ rel.id }}, this)">
                         <i class="fas fa-trash"></i> 删除

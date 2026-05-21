@@ -56,6 +56,7 @@ class KnowledgePoint(models.Model):
     similar_points = models.ManyToManyField('self', blank=True, symmetrical=True,
                                             verbose_name="相似知识点")
     sources = models.CharField(max_length=100, blank=True, default='', verbose_name="所属来源（教材/教案/课件）")
+    resource_files = models.ManyToManyField('ResourceFile', blank=True, verbose_name="关联资源文件")
     class Meta:
         verbose_name = "知识点"
         verbose_name_plural = "知识点"

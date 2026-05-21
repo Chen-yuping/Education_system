@@ -10,7 +10,7 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_POST, require_GET
 from django.db.models import Q, Count
 from django.core.paginator import Paginator
-from ..models import KnowledgePoint, Subject, Exercise, QMatrix, KnowledgeGraph, TeacherSubject
+from ..models import KnowledgePoint, Subject, Exercise, QMatrix, KnowledgeGraph, TeacherSubject, ResourceFile
 from ..forms import KnowledgePointForm
 
 def is_teacher(user):
@@ -257,26 +257,34 @@ def knowledge_point_relationship(request, subject_id):
     """管理知识点之间的关系"""
     teacher = request.user
     subject = get_object_or_404(Subject, id=subject_id)
-    
+
     # 验证教师权限
     if not TeacherSubject.objects.filter(teacher=teacher, subject=subject).exists():
         messages.error(request, '您没有权限管理此科目的知识点')
         return redirect('teacher_course_management')
-    
+
     # 获取所有知识点
     knowledge_points = KnowledgePoint.objects.filter(subject=subject).order_by('id')
-    
+
     # 获取所有关系
     relationships = KnowledgeGraph.objects.filter(subject=subject).select_related(
-        'source', 'target'
+        'source', 'target', 'resource_file'
     )
-    
+
+    # 获取该科目下有关联的资源文件（用于关系来源下拉框）
+    resource_file_ids = KnowledgePoint.objects.filter(
+        subject=subject,
+        resource_files__isnull=False
+    ).values_list('resource_files', flat=True).distinct()
+    resource_files = ResourceFile.objects.filter(id__in=set(resource_file_ids))
+
     context = {
         'subject': subject,
         'knowledge_points': knowledge_points,
         'relationships': relationships,
+        'resource_files': resource_files,
     }
-    
+
     return render(request, 'teacher/knowledge_point_relationship.html', context)
 
 # ==================== 添加知识点关系 API ====================
@@ -288,48 +296,68 @@ def add_knowledge_relationship(request, subject_id):
     try:
         teacher = request.user
         subject = get_object_or_404(Subject, id=subject_id)
-        
+
         # 验证教师权限
         if not TeacherSubject.objects.filter(teacher=teacher, subject=subject).exists():
             return JsonResponse({'success': False, 'message': '您没有权限'}, status=403)
-        
+
         source_id = request.POST.get('source_id')
         target_id = request.POST.get('target_id')
         rel_type = request.POST.get('relationship_type', '关联')
-        rel_source = request.POST.get('relation_source', '教材')
-        
+        resource_file_id = request.POST.get('resource_file_id')
+
         source = get_object_or_404(KnowledgePoint, id=source_id, subject=subject)
         target = get_object_or_404(KnowledgePoint, id=target_id, subject=subject)
-        
+
         # 不能自己指向自己
         if source_id == target_id:
             return JsonResponse({
                 'success': False,
                 'message': '知识点不能指向自己'
             })
-        
-        # 检查是否已存在
-        if KnowledgeGraph.objects.filter(
-            subject=subject,
-            source=source,
-            target=target,
-            relation_source=rel_source
-        ).exists():
+
+        # 查找资源文件
+        resource_file = None
+        rel_source = '教材'
+        if resource_file_id:
+            try:
+                resource_file = ResourceFile.objects.get(id=resource_file_id, subject=subject)
+                rel_source = resource_file.resource_type
+            except ResourceFile.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'message': '所选资料文件不存在'
+                }, status=400)
+
+        # 检查是否已存在（以 resource_file 为准，兼容旧版 relation_source）
+        dup_filter = {'subject': subject, 'source': source, 'target': target}
+        if resource_file:
+            dup_filter['resource_file'] = resource_file
+        else:
+            dup_filter['resource_file__isnull'] = True
+            dup_filter['relation_source'] = rel_source
+        if KnowledgeGraph.objects.filter(**dup_filter).exists():
             return JsonResponse({
                 'success': False,
                 'message': '该关系已存在'
             })
-        
+
         # 创建关系
-        KnowledgeGraph.objects.create(
+        kg = KnowledgeGraph.objects.create(
             subject=subject,
             source=source,
             target=target,
             relationship_type=rel_type,
             relation_source=rel_source,
+            resource_file=resource_file,
         )
 
-        # 更新知识点来源记录（独立存储，删除关系后仍保留）
+        # 关联知识点的 resource_files M2M（删除关系后保留，用于分图谱节点展示）
+        if resource_file:
+            for kp in (source, target):
+                kp.resource_files.add(resource_file)
+
+        # 更新知识点来源记录（向后兼容）
         for kp in (source, target):
             if rel_source not in kp.sources.split(','):
                 kp.sources = (kp.sources + ',' + rel_source) if kp.sources else rel_source
@@ -595,46 +623,66 @@ def add_knowledge_point_relationship_api(request, subject_id):
     try:
         import json
         data = json.loads(request.body)
-        
+
         subject = get_object_or_404(Subject, id=subject_id)
-        
+
         source_id = data.get('source_id')
         target_id = data.get('target_id')
         rel_type = data.get('relationship_type', '关联')
-        rel_source = data.get('relation_source', '教材')
-        
+        resource_file_id = data.get('resource_file_id')
+
         source = get_object_or_404(KnowledgePoint, id=source_id, subject=subject)
         target = get_object_or_404(KnowledgePoint, id=target_id, subject=subject)
-        
+
         # 不能自己指向自己
         if source_id == target_id:
             return JsonResponse({
                 'success': False,
                 'message': '知识点不能指向自己'
             })
-        
-        # 检查是否已存在，包含relation_source
-        if KnowledgeGraph.objects.filter(
-            subject=subject,
-            source=source,
-            target=target,
-            relation_source=rel_source
-        ).exists():
+
+        # 查找资源文件
+        resource_file = None
+        rel_source = '教材'
+        if resource_file_id:
+            try:
+                resource_file = ResourceFile.objects.get(id=resource_file_id, subject=subject)
+                rel_source = resource_file.resource_type
+            except ResourceFile.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'message': '所选资料文件不存在'
+                }, status=400)
+
+        # 检查是否已存在（以 resource_file 为准）
+        dup_filter = {'subject': subject, 'source': source, 'target': target}
+        if resource_file:
+            dup_filter['resource_file'] = resource_file
+        else:
+            dup_filter['resource_file__isnull'] = True
+            dup_filter['relation_source'] = rel_source
+        if KnowledgeGraph.objects.filter(**dup_filter).exists():
             return JsonResponse({
                 'success': False,
                 'message': '该关系已存在'
             })
-        
+
         # 创建关系
-        KnowledgeGraph.objects.create(
+        kg = KnowledgeGraph.objects.create(
             subject=subject,
             source=source,
             target=target,
             relationship_type=rel_type,
             relation_source=rel_source,
+            resource_file=resource_file,
         )
 
-        # 更新知识点来源记录（独立存储，删除关系后仍保留）
+        # 关联知识点的 resource_files M2M（删除关系后保留，用于分图谱节点展示）
+        if resource_file:
+            for kp in (source, target):
+                kp.resource_files.add(resource_file)
+
+        # 更新知识点来源记录（向后兼容）
         for kp in (source, target):
             if rel_source not in kp.sources.split(','):
                 kp.sources = (kp.sources + ',' + rel_source) if kp.sources else rel_source
