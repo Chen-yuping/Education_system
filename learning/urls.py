@@ -117,6 +117,10 @@ urlpatterns = [
     path('teacher/api/answer/<int:log_id>/', views_teacher.get_answer_detail, name='get_answer_detail'),
     path('teacher/api/answer/<int:log_id>/grade/', views_teacher.grade_answer, name='grade_answer'),
     path('teacher/api/answer/<int:log_id>/ai-grade/', views_teacher.ai_grade_answer, name='ai_grade_answer'),
+    # 智能体评分（三模型仲裁）+ 批量批改 + 清除记录
+    path('teacher/api/answer/<int:log_id>/ai-agent-score/', views_teacher.ai_agent_score, name='ai_agent_score'),
+    path('teacher/api/answer/batch-ai-score/', views_teacher.batch_ai_agent_score, name='batch_ai_agent_score'),
+    path('teacher/api/answer/clear-records/', views_teacher.clear_grading_records, name='clear_grading_records'),
 
 #研究者功能
     path('researcher/dashboard/', views_researcher.researcher_dashboard, name='researcher_dashboard'),

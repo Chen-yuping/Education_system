@@ -1,7 +1,5 @@
-<!-- 主页面-学习面板-->
 {% extends 'student/student-base.html' %}
 {% load tz %}
-
 
 {% block title %}学习面板 - 在线学习诊断系统{% endblock %}
 
@@ -54,8 +52,6 @@
                 </div>
             </div>
         </div>
-
-        
 
         <div class="col-xl-4 col-md-6 mb-4">
             <div class="card border-left-warning shadow h-100 py-2">
@@ -112,27 +108,37 @@
                 <div class="card-body">
                     {% if recent_logs %}
                     <div class="table-responsive">
-                        <table class="table table-bordered" width="100%" cellspacing="0">
+                        <table class="table table-bordered table-hover" width="100%" cellspacing="0">
                             <thead>
                                 <tr>
                                     <th>科目</th>
                                     <th>习题名称</th>
                                     <th>答题时间</th>
                                     <th>结果</th>
+                                    <th>AI得分</th>
                                     <th>耗时</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for log in recent_logs %}
-                                <tr>
+                                <tr style="cursor: pointer;" onclick="window.location.href='{% url 'exercise_result' log.id %}'">
                                     <td>{{ log.exercise.subject.name }}</td>
                                     <td>{{ log.exercise.title }}</td>
                                     <td>{{ log.submitted_at|date:"Y-m-d H:i" }}</td>
                                     <td>
-                                        {% if log.is_correct %}
+                                        {% if log.is_correct == True %}
                                         <span class="badge bg-success">正确</span>
-                                        {% else %}
+                                        {% elif log.is_correct == False %}
                                         <span class="badge bg-danger">错误</span>
+                                        {% else %}
+                                        <span class="badge bg-primary">主观题</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if log.score %}
+                                        <span class="badge bg-info text-white">{{ log.score }}</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">-</span>
                                         {% endif %}
                                     </td>
                                     <td>{{ log.time_spent }}秒</td>
@@ -160,7 +166,6 @@
             </div>
         </div>
 
-        
     </div>
 
 </main>
@@ -169,7 +174,7 @@
 <script>
     var subjectStatsData = {{ subject_stats_json|safe }};
     var weakKPData = {{ weak_kp_json|safe }};
-    
+
     if (subjectStatsData && subjectStatsData.length > 0) {
         var subjectCtx = document.getElementById('subjectStatsChart').getContext('2d');
         new Chart(subjectCtx, {
@@ -235,7 +240,7 @@
             }
         });
     }
-    
+
     if (weakKPData && weakKPData.length > 0) {
         var weakCtx = document.getElementById('weakKnowledgeChart').getContext('2d');
         new Chart(weakCtx, {

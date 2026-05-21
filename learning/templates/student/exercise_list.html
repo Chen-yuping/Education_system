@@ -1,0 +1,13 @@
+{% extends 'learning/student/base.html' %}
+{% block content %}
+<h2>在线习题</h2>
+{% for ex in exercises %}
+<div class="card mb-3">
+    <div class="card-body">
+        <h5>{{ ex.title }}</h5>
+        <p>{{ ex.content|truncatechars:120 }}</p>
+        <a href="{% url 'student_do_exercise' ex.id %}" class="btn btn-primary">开始答题</a>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}

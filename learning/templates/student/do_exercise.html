@@ -1,0 +1,21 @@
+{% extends 'learning/student/base.html' %}
+{% block content %}
+<div class="card">
+    <div class="card-header"><h4>{{ exercise.title }}</h4></div>
+    <div class="card-body">
+        <p>{{ exercise.content }}</p>
+        <p><b>满分：{{ exercise.score }} 分</b></p>
+
+        {% if has_answered %}
+        <div class="alert alert-warning">你已答过该题，再次提交将重新AI批改</div>
+        {% endif %}
+
+        <form method="post" action="{% url 'student_submit_answer' exercise.id %}">
+            {% csrf_token %}
+            <textarea name="text_answer" class="form-control" rows="8" placeholder="请输入你的主观题答案" required></textarea>
+            <br>
+            <button type="submit" class="btn btn-success">提交答案（AI自动批改）</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
