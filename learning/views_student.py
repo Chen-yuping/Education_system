@@ -524,12 +524,21 @@ def exercise_result(request, log_id):
         exercise=current_exercise
     ).exists()
     
+    # 读取 AI 评分缓存（不改变数据库）
+    cached_score = None
+    try:
+        from .ai_scoring.scoring_agent import get_cached_score
+        cached_score = get_cached_score(answer_log.id)
+    except Exception:
+        pass
+
     context = {
         'answer_log': answer_log,
         'selected_choice_ids': selected_choice_ids,
         'next_exercise': next_exercise,
         'is_favorited': is_favorited,
         'single_mode': single_mode,
+        'cached_score': cached_score,
     }
 
     # 如果在单题模式中，清除session标志

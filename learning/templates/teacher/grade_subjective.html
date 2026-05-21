@@ -23,6 +23,9 @@
     <div class="card shadow mb-4">
         <div class="card-body">
             <form method="get" class="row g-3">
+                {% if current_subject %}
+                <input type="hidden" name="subject_id" value="{{ current_subject }}">
+                {% endif %}
                 <div class="col-md-4">
                     <label for="exerciseFilter" class="form-label">题目</label>
                     <select class="form-select" id="exerciseFilter" name="exercise">
@@ -50,6 +53,24 @@
             </form>
         </div>
     </div>
+
+    <!-- 快捷操作按钮 -->
+    <div class="row mb-3">
+        <div class="col">
+            <button type="button" class="btn btn-warning" onclick="batchAIScore()">
+                <i class="fas fa-robot me-1"></i> 一键批量批改
+            </button>
+            <span class="ms-2 text-muted">
+                待批改: <strong>{{ pending_count }}</strong> 题
+            </span>
+        </div>
+        <div class="col-auto">
+            <button type="button" class="btn btn-outline-danger btn-sm" onclick="clearGradingRecords()">
+                <i class="fas fa-eraser me-1"></i> 清除批改记录
+            </button>
+        </div>
+    </div>
+    <div id="batchProgress" class="alert alert-info" style="display:none;"></div>
 
     <!-- 答题记录列表 -->
     <div class="card shadow">
@@ -169,15 +190,22 @@
             </div>
             <div class="modal-footer" id="gradeModalFooter" style="display: none;">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
-                <button type="button" class="btn btn-info" onclick="requestAIGrade()">
-                    <i class="fas fa-brain me-1"></i>AI评分建议
-                </button>
-                <button type="button" class="btn btn-danger" onclick="submitGrade(false)">
-                    <i class="fas fa-times me-1"></i>错误
-                </button>
-                <button type="button" class="btn btn-success" onclick="submitGrade(true)">
-                    <i class="fas fa-check me-1"></i>正确
-                </button>
+                <span id="aiGradeBtns">
+                    <button type="button" class="btn btn-info" onclick="requestAIGrade()">
+                        <i class="fas fa-brain me-1"></i>AI评分建议
+                    </button>
+                    <button type="button" class="btn btn-warning" onclick="requestAgentScore()">
+                        <i class="fas fa-robot me-1"></i>智能体评分
+                    </button>
+                </span>
+                <span id="manualGradeBtns">
+                    <button type="button" class="btn btn-success" onclick="confirmScore()">
+                        <i class="fas fa-check me-1"></i>确认分数
+                    </button>
+                    <button type="button" class="btn btn-warning" onclick="modifyScore()">
+                        <i class="fas fa-edit me-1"></i>修改分数
+                    </button>
+                </span>
             </div>
         </div>
     </div>
@@ -210,7 +238,7 @@ function showGradeModal(logId) {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                renderGradeContent(data.log);
+                renderGradeContent(data.log, data.cached_score);
             } else {
                 bodyDiv.innerHTML = `<div class="alert alert-danger">${data.message}</div>`;
             }
@@ -220,20 +248,27 @@ function showGradeModal(logId) {
         });
 }
 
-function renderGradeContent(log) {
+function renderGradeContent(log, cachedScore) {
     const bodyDiv = document.getElementById('gradeModalBody');
     const footerDiv = document.getElementById('gradeModalFooter');
-    
+    const manualBtns = document.getElementById('manualGradeBtns');
+    const aiBtns = document.getElementById('aiGradeBtns');
+
+    footerDiv.style.display = 'flex';
+
     let statusBadge = '';
     if (log.is_correct === null) {
         statusBadge = '<span class="badge bg-warning text-dark">待批改</span>';
-        footerDiv.style.display = 'flex';
+        if (manualBtns) manualBtns.style.display = '';
+        if (aiBtns) aiBtns.style.display = '';
     } else if (log.is_correct) {
         statusBadge = '<span class="badge bg-success">已批改：正确</span>';
-        footerDiv.style.display = 'none';
+        if (manualBtns) manualBtns.style.display = 'none';
+        if (aiBtns) aiBtns.style.display = 'none';
     } else {
         statusBadge = '<span class="badge bg-danger">已批改：错误</span>';
-        footerDiv.style.display = 'none';
+        if (manualBtns) manualBtns.style.display = 'none';
+        if (aiBtns) aiBtns.style.display = 'none';
     }
     
     bodyDiv.innerHTML = `
@@ -284,6 +319,20 @@ function renderGradeContent(log) {
         
         <div id="aiGradingResult" style="display: none;"></div>
     `;
+
+    if (cachedScore && cachedScore.success) {
+        const resultDiv = document.getElementById('aiGradingResult');
+        const grading = {
+            is_correct: log.is_correct,
+            final_score: cachedScore.final_score,
+            full_score: cachedScore.full_score,
+            ds_score: cachedScore.ds_score,
+            km_score: cachedScore.km_score,
+            xf_score: cachedScore.xf_score,
+            process: cachedScore.process,
+        };
+        displayAgentGradingResult(grading, resultDiv);
+    }
 }
 
 function requestAIGrade() {
@@ -407,26 +456,181 @@ function displayAIGradingResult(grading, resultDiv) {
     `;
 }
 
-function submitGrade(isCorrect) {
+// 记录最近一次 AI 评分结果，供确认/修改使用
+let lastAIScore = null;
+
+function confirmScore() {
     if (!currentLogId) return;
-    
+    const score = lastAIScore !== null ? lastAIScore : 0;
+    submitManualScore(score);
+}
+
+function modifyScore() {
+    if (!currentLogId) return;
+    const fullScore = lastAIScore !== null ? lastAIScore : 1.0;
+    const newScore = prompt(`请输入修改后的分值（满分参考：${fullScore}）：`, '');
+    if (newScore === null) return;  // 取消
+    const score = parseFloat(newScore);
+    if (isNaN(score) || score < 0) {
+        alert('请输入有效的分值（>=0）');
+        return;
+    }
+    submitManualScore(score);
+}
+
+function submitManualScore(score) {
     const formData = new FormData();
-    formData.append('is_correct', isCorrect);
-    
+    formData.append('manual_score', score);
+
     fetch(`/learning/teacher/api/answer/${currentLogId}/grade/`, {
         method: 'POST',
-        headers: {
-            'X-CSRFToken': '{{ csrf_token }}'
-        },
+        headers: { 'X-CSRFToken': '{{ csrf_token }}' },
         body: formData
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('批改成功！');
+            alert(data.message || '评分成功！');
             location.reload();
         } else {
-            alert('批改失败：' + data.message);
+            alert('评分失败：' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('网络错误，请重试');
+    });
+}
+
+// ===================== 智能体三模型评分 =====================
+function requestAgentScore() {
+    if (!currentLogId) return;
+
+    const resultDiv = document.getElementById('aiGradingResult');
+    resultDiv.innerHTML = `<div class="alert alert-info mt-4"><div class="d-flex align-items-center"><div class="spinner-border spinner-border-sm me-2" role="status"></div><span>智能体正在评分（DeepSeek + Kimi + 讯飞三模型仲裁），请稍候...</span></div></div>`;
+    resultDiv.style.display = 'block';
+
+    fetch(`/learning/teacher/api/answer/${currentLogId}/ai-agent-score/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': '{{ csrf_token }}' }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            displayAgentGradingResult(data.grading, resultDiv);
+        } else {
+            resultDiv.innerHTML = `<div class="alert alert-warning mt-4"><i class="fas fa-exclamation-triangle me-2"></i>${data.message}</div>`;
+        }
+    })
+    .catch(error => {
+        resultDiv.innerHTML = `<div class="alert alert-danger mt-4"><i class="fas fa-times-circle me-2"></i>智能体评分请求失败，请重试</div>`;
+    });
+}
+
+function displayAgentGradingResult(g, resultDiv) {
+    resultDiv.style.display = 'block';
+    const finalScore = g.final_score || 0;
+    // 记录 AI 评分，供确认分数/修改分数使用
+    lastAIScore = finalScore;
+    const fullScore = g.full_score || 0;
+    const rate = fullScore > 0 ? (finalScore / fullScore * 100).toFixed(0) : 0;
+    function fmtScore(s) { return s !== null && s !== undefined ? s + ' 分' : '未响应'; }
+
+    const isCorrect = g.is_correct;
+    let verdictBadge = '';
+    if (isCorrect === true) {
+        verdictBadge = '<span class="badge bg-success">判定：正确</span>';
+    } else if (isCorrect === false) {
+        verdictBadge = '<span class="badge bg-danger">判定：错误</span>';
+    }
+
+    const scores = [g.ds_score, g.km_score, g.xf_score].filter(s => s !== null && s !== undefined);
+    const maxDiff = scores.length >= 2 ? (Math.max(...scores) - Math.min(...scores)).toFixed(1) : 'N/A';
+
+    const isManual = g.manual === true;
+    const hasAIScores = g.ds_score !== null && g.ds_score !== undefined
+                     || g.km_score !== null && g.km_score !== undefined
+                     || g.xf_score !== null && g.xf_score !== undefined;
+    const modelRow = (isManual && !hasAIScores) ? '' : `
+        <div class="row mb-3">
+            <div class="col-md-3 text-center"><div class="border rounded p-2 bg-white"><small class="text-muted">DeepSeek</small><h5 class="mb-0 text-primary">${fmtScore(g.ds_score)}</h5></div></div>
+            <div class="col-md-3 text-center"><div class="border rounded p-2 bg-white"><small class="text-muted">Kimi</small><h5 class="mb-0 text-info">${fmtScore(g.km_score)}</h5></div></div>
+            <div class="col-md-3 text-center"><div class="border rounded p-2 bg-white"><small class="text-muted">讯飞星火</small><h5 class="mb-0 text-secondary">${fmtScore(g.xf_score)}</h5></div></div>
+            <div class="col-md-3 text-center"><div class="border rounded p-2 bg-white"><small class="text-muted">最终得分</small><h5 class="mb-0 text-warning">${finalScore} / ${fullScore}</h5></div></div>
+        </div>`;
+
+    resultDiv.innerHTML = `
+        <div class="alert ${isManual ? 'alert-success' : 'alert-warning'} mt-4">
+            <h6 class="alert-heading"><i class="fas ${isManual ? 'fa-user-check' : 'fa-robot'} me-2"></i>${isManual ? '手动评分结果' : '智能体评分结果（三模型仲裁）'}</h6>
+            <hr>
+            ${modelRow}
+            <div class="mb-3"><strong>得分率：</strong> ${rate}% ${verdictBadge}</div>
+            <div class="mb-3"><strong>${isManual ? '评分信息' : '评分过程'}：</strong><div class="mt-2 p-2 bg-white rounded" style="max-height:200px;overflow-y:auto;font-size:0.85rem;">${(g.process || '').replace(/\n/g, '<br>')}</div></div>
+        </div>
+    `;
+}
+
+// ===================== 批量一键批改 =====================
+function batchAIScore() {
+    if (!confirm('确认对当前科目所有待批改主观题执行智能体三模型评分？\n\n此操作将调用 DeepSeek + Kimi + 讯飞三模型，耗时较长。')) return;
+
+    const progressDiv = document.getElementById('batchProgress');
+    progressDiv.style.display = 'block';
+    progressDiv.innerHTML = `<div class="d-flex align-items-center"><div class="spinner-border spinner-border-sm me-2" role="status"></div><span>批量评分进行中，请稍候...</span></div>`;
+
+    const formData = new FormData();
+    {% if current_subject %}
+    formData.append('subject_id', '{{ current_subject }}');
+    {% endif %}
+
+    fetch(`/learning/teacher/api/answer/batch-ai-score/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            let html = `<div class="d-flex align-items-center mb-2"><i class="fas fa-check-circle text-success me-2"></i><strong>${data.message}</strong></div>`;
+            if (data.results && data.results.length > 0) {
+                html += '<div class="mt-2" style="max-height:200px;overflow-y:auto;"><table class="table table-sm table-bordered mb-0"><thead><tr><th>学生</th><th>得分</th><th>结果</th></tr></thead><tbody>';
+                data.results.forEach(r => {
+                    const tag = r.is_correct === true ? '<span class="badge bg-success">正确</span>' : (r.is_correct === false ? '<span class="badge bg-danger">错误</span>' : '<span class="badge bg-secondary">失败</span>');
+                    html += `<tr><td>${r.student}</td><td>${r.final_score !== undefined ? r.final_score : '-'}</td><td>${tag}</td></tr>`;
+                });
+                html += '</tbody></table></div>';
+            }
+            progressDiv.innerHTML = html;
+            setTimeout(() => location.reload(), 3000);
+        } else {
+            progressDiv.innerHTML = `<div class="alert alert-warning mb-0"><i class="fas fa-exclamation-triangle me-2"></i>${data.message}</div>`;
+        }
+    })
+    .catch(error => {
+        progressDiv.innerHTML = `<div class="alert alert-danger mb-0"><i class="fas fa-times-circle me-2"></i>批量评分请求失败，请重试</div>`;
+    });
+}
+
+// ===================== 清除批改记录 =====================
+function clearGradingRecords() {
+    if (!confirm('确认清除当前科目的所有批改记录？\n\n此操作将重置所有 is_correct 为"待批改"状态，不可恢复！')) return;
+
+    const formData = new FormData();
+    {% if current_subject %}
+    formData.append('subject_id', '{{ current_subject }}');
+    {% endif %}
+
+    fetch(`/learning/teacher/api/answer/clear-records/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('清除失败：' + data.message);
         }
     })
     .catch(error => {

@@ -1305,6 +1305,13 @@ def get_answer_detail(request, log_id):
         if log.exercise.subject_id not in teacher_subjects:
             return JsonResponse({'success': False, 'message': '无权查看此记录'})
         
+        cached_score = None
+        try:
+            from .ai_scoring.scoring_agent import get_cached_score
+            cached_score = get_cached_score(log.id)
+        except Exception:
+            pass
+
         data = {
             'success': True,
             'log': {
@@ -1318,7 +1325,8 @@ def get_answer_detail(request, log_id):
                 'is_correct': log.is_correct,
                 'submitted_at': log.submitted_at.strftime('%Y-%m-%d %H:%M:%S'),
                 'subject_name': log.exercise.subject.name
-            }
+            },
+            'cached_score': cached_score,
         }
         return JsonResponse(data)
         
@@ -1330,35 +1338,65 @@ def get_answer_detail(request, log_id):
 @user_passes_test(is_teacher)
 @require_POST
 def grade_answer(request, log_id):
-    """批改答题"""
+    """批改答题 — 接受分值，自动判定正确/错误"""
     try:
         log = get_object_or_404(AnswerLog, id=log_id)
-        
-        # 检查权限
+
         teacher_subjects = TeacherSubject.objects.filter(
             teacher=request.user
         ).values_list('subject_id', flat=True)
-        
+
         if log.exercise.subject_id not in teacher_subjects:
             return JsonResponse({'success': False, 'message': '无权批改此记录'})
-        
-        # 获取批改结果
+
+        # 兼容旧的 is_correct 参数
         is_correct = request.POST.get('is_correct')
-        
-        if is_correct == 'true':
-            log.is_correct = True
-        elif is_correct == 'false':
-            log.is_correct = False
+        manual_score = request.POST.get('manual_score')
+
+        if manual_score is not None:
+            manual_score = float(manual_score)
+        elif is_correct is not None:
+            full = float(log.exercise.score)
+            manual_score = full if is_correct == 'true' else 0.0
         else:
-            return JsonResponse({'success': False, 'message': '请选择批改结果'})
-        
+            return JsonResponse({'success': False, 'message': '请提供分值'})
+
+        full_score = float(log.exercise.score)
+        threshold = full_score * 0.6 if full_score > 0 else 0
+        log.is_correct = manual_score >= threshold
         log.save()
-        
+
+        # 缓存评分结果（保留已有 AI 评分详情）
+        try:
+            from .ai_scoring.scoring_agent import _scoring_result_cache
+            existing = _scoring_result_cache.get(str(log_id), {})
+            manual_note = '【手动评分】{}/{}，判定：{}'.format(
+                manual_score, full_score, '正确' if log.is_correct else '错误')
+            # 合并：保留 AI 模型分数和过程，叠加手动评分信息
+            merged = {
+                'success': True,
+                'final_score': manual_score,
+                'full_score': full_score,
+                'ds_score': existing.get('ds_score'),
+                'km_score': existing.get('km_score'),
+                'xf_score': existing.get('xf_score'),
+                'manual': True,
+                'process': (existing.get('process', '') + '\n' + manual_note).strip(),
+            }
+            _scoring_result_cache[str(log_id)] = merged
+            try:
+                from .ai_scoring.scoring_agent import _save_cache, _scoring_result_cache as cache_obj
+                _save_cache(cache_obj)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
         return JsonResponse({
             'success': True,
-            'message': '批改成功！'
+            'message': f'评分成功！{manual_score}/{full_score}',
         })
-        
+
     except Exception as e:
         return JsonResponse({'success': False, 'message': str(e)})
 
@@ -1412,6 +1450,180 @@ def ai_grade_answer(request, log_id):
         return JsonResponse({
             'success': False,
             'message': f'AI评分服务出错: {str(e)}'
+        }, status=500)
+
+
+@login_required
+@user_passes_test(is_teacher)
+@require_POST
+def ai_agent_score(request, log_id):
+    """使用智能体（三模型仲裁）评分，结果写入 is_correct + 返回详细 JSON"""
+    try:
+        from .ai_scoring.scoring_agent import auto_score_answer
+
+        log = get_object_or_404(AnswerLog, id=log_id)
+
+        teacher_subjects = TeacherSubject.objects.filter(
+            teacher=request.user
+        ).values_list('subject_id', flat=True)
+
+        if log.exercise.subject_id not in teacher_subjects:
+            return JsonResponse({'success': False, 'message': '无权批改此记录'})
+
+        result = auto_score_answer(log_id)
+
+        if not result.get('success'):
+            return JsonResponse({'success': False, 'message': result.get('error', '评分失败')})
+
+        full = result['full_score']
+        score = result['final_score']
+        threshold = full * 0.6 if full > 0 else 0
+        log.is_correct = score >= threshold
+        log.save()
+
+        return JsonResponse({
+            'success': True,
+            'grading': {
+                'is_correct': log.is_correct,
+                'final_score': score,
+                'full_score': full,
+                'ds_score': result.get('ds_score'),
+                'km_score': result.get('km_score'),
+                'xf_score': result.get('xf_score'),
+                'process': result.get('process', ''),
+                'question': result.get('question', ''),
+                'student_answer': result.get('student_answer', ''),
+                'std_answer': result.get('std_answer', ''),
+            }
+        })
+
+    except Exception as e:
+        import traceback
+        logger.error(f"Agent scoring error: {traceback.format_exc()}")
+        return JsonResponse({
+            'success': False,
+            'message': f'智能体评分出错: {str(e)}'
+        }, status=500)
+
+
+@login_required
+@user_passes_test(is_teacher)
+@require_POST
+def batch_ai_agent_score(request):
+    """批量一键批改"""
+    try:
+        teacher = request.user
+        subject_id = request.POST.get('subject_id') or request.GET.get('subject_id')
+
+        teacher_subjects = TeacherSubject.objects.filter(
+            teacher=teacher
+        ).values_list('subject_id', flat=True)
+
+        if not subject_id:
+            return JsonResponse({'success': False, 'message': '请指定科目'})
+        if int(subject_id) not in teacher_subjects:
+            return JsonResponse({'success': False, 'message': '无权批改此科目'})
+
+        pending_logs = AnswerLog.objects.filter(
+            exercise__subject_id=int(subject_id),
+            exercise__question_type__in=['5', 'subjective'],
+            is_correct__isnull=True,
+        ).exclude(text_answer__isnull=True).exclude(text_answer='')
+
+        total = pending_logs.count()
+        if total == 0:
+            return JsonResponse({'success': False, 'message': '没有待批改的记录'})
+
+        from .ai_scoring.scoring_agent import auto_score_answer
+
+        success_count = 0
+        fail_count = 0
+        results = []
+
+        for log in pending_logs:
+            result = auto_score_answer(log.id)
+            if result.get('success'):
+                full = result['full_score']
+                score = result['final_score']
+                threshold = full * 0.6 if full > 0 else 0
+                log.is_correct = score >= threshold
+                log.save()
+                success_count += 1
+                results.append({
+                    'log_id': log.id,
+                    'student': log.student.username,
+                    'final_score': score,
+                    'is_correct': log.is_correct,
+                })
+            else:
+                fail_count += 1
+                results.append({
+                    'log_id': log.id,
+                    'student': log.student.username,
+                    'error': result.get('error', '评分失败'),
+                })
+
+        return JsonResponse({
+            'success': True,
+            'message': f'批量批改完成：成功 {success_count}，失败 {fail_count}，共 {total} 题',
+            'total': total,
+            'success_count': success_count,
+            'fail_count': fail_count,
+            'results': results,
+        })
+
+    except Exception as e:
+        import traceback
+        logger.error(f"Batch scoring error: {traceback.format_exc()}")
+        return JsonResponse({
+            'success': False,
+            'message': f'批量批改出错: {str(e)}'
+        }, status=500)
+
+
+@login_required
+@user_passes_test(is_teacher)
+@require_POST
+def clear_grading_records(request):
+    """临时功能：清除指定科目的批改记录（重置 is_correct + 清缓存）"""
+    try:
+        teacher = request.user
+        subject_id = request.POST.get('subject_id') or request.GET.get('subject_id')
+
+        teacher_subjects = TeacherSubject.objects.filter(
+            teacher=teacher
+        ).values_list('subject_id', flat=True)
+
+        if not subject_id:
+            return JsonResponse({'success': False, 'message': '请指定科目'})
+        if int(subject_id) not in teacher_subjects:
+            return JsonResponse({'success': False, 'message': '无权操作此科目'})
+
+        logs_to_clear = AnswerLog.objects.filter(
+            exercise__subject_id=int(subject_id),
+            exercise__question_type__in=['5', 'subjective'],
+            is_correct__isnull=False,
+        )
+        cleared_ids = list(logs_to_clear.values_list('id', flat=True))
+        updated_count = logs_to_clear.update(is_correct=None)
+
+        try:
+            from .ai_scoring.scoring_agent import _scoring_result_cache
+            for lid in cleared_ids:
+                _scoring_result_cache.pop(str(lid), None)
+        except Exception:
+            pass
+
+        return JsonResponse({
+            'success': True,
+            'message': f'已清除 {updated_count} 条批改记录（含评分缓存）',
+            'cleared_count': updated_count,
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': f'清除失败: {str(e)}'
         }, status=500)
 
 

@@ -315,6 +315,28 @@
                     <i class="fas fa-info-circle me-2"></i>
                     主观题需要老师批改，请耐心等待。
                 </div>
+                {% elif cached_score and cached_score.success %}
+                <div class="alert alert-info mt-3">
+                    <h6><i class="fas fa-robot me-2"></i>AI 评分详情</h6>
+                    <hr>
+                    {% if cached_score.ds_score is not None or cached_score.km_score is not None %}
+                    <div class="row mb-2">
+                        {% if cached_score.ds_score is not None %}
+                        <div class="col-4 text-center"><div class="border rounded p-2"><small class="text-muted">DeepSeek</small><br><strong class="text-primary">{{ cached_score.ds_score }} 分</strong></div></div>
+                        {% endif %}
+                        {% if cached_score.km_score is not None %}
+                        <div class="col-4 text-center"><div class="border rounded p-2"><small class="text-muted">Kimi</small><br><strong class="text-info">{{ cached_score.km_score }} 分</strong></div></div>
+                        {% endif %}
+                        {% if cached_score.xf_score is not None %}
+                        <div class="col-4 text-center"><div class="border rounded p-2"><small class="text-muted">讯飞星火</small><br><strong class="text-secondary">{{ cached_score.xf_score }} 分</strong></div></div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    <div class="text-center mb-2">
+                        <strong>最终得分：</strong><span class="text-warning h5">{{ cached_score.final_score }} / {{ cached_score.full_score }}</span>
+                    </div>
+                    <div class="p-2 bg-white rounded" style="max-height:200px;overflow-y:auto;font-size:0.85rem;white-space:pre-line;">{{ cached_score.process }}</div>
+                </div>
                 {% endif %}
             </div>
 
