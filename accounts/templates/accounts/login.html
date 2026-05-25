@@ -10,24 +10,6 @@
     </div>
 
     <div class="auth-body">
-
-        {% if messages %}
-        <div class="messages mb-3">
-            {% for message in messages %}
-            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                {{ message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-            {% endfor %}
-        </div>
-        {% endif %}
-
-        {% if form.non_field_errors %}
-        <div class="alert alert-danger mb-3">
-            {{ form.non_field_errors.0 }}
-        </div>
-        {% endif %}
-
         <form method="post" id="login-form">
             {% csrf_token %}
 
@@ -76,9 +58,6 @@
                 </div>
             </div>
             <p class="mb-2 mt-3">还没有账号？ <a href="{% url 'register' %}">立即注册</a></p>
-            <p class="mb-0 small text-muted">
-                忘记密码？<a href="#" class="text-muted">请联系管理员</a>
-            </p>
         </div>
     </div>
 </div>

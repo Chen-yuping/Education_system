@@ -263,7 +263,7 @@
             </div>
 
             <!-- 填空题 -->
-            {% elif answer_log.exercise.question_type == '3' or answer_log.exercise.question_type == 'fill' %}
+            {% elif answer_log.exercise.question_type == '4' %}
             <div class="mb-4">
                 <h5 class="mb-3">
                     <i class="fas fa-edit me-2"></i>答题结果
@@ -287,8 +287,8 @@
                 </div>
             </div>
 
-            <!-- 主观题 -->
-            {% elif answer_log.exercise.question_type == '4' or answer_log.exercise.question_type == 'subjective' %}
+            <!-- 简答题 -->
+            {% elif answer_log.exercise.question_type == '5' or answer_log.exercise.question_type == 'subjective' %}
             <div class="mb-4">
                 <h5 class="mb-3">
                     <i class="fas fa-file-alt me-2"></i>答题结果
@@ -341,7 +341,7 @@
             </div>
 
             <!-- 判断题 -->
-            {% elif answer_log.exercise.question_type == '5' or answer_log.exercise.question_type == 'judgment' %}
+            {% elif answer_log.exercise.question_type == '6' or answer_log.exercise.question_type == 'judgment' %}
             <div class="mb-4">
                 <div class="options-list">
                     {% for choice in answer_log.exercise.choices.all %}

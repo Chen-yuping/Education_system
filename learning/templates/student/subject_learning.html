@@ -219,9 +219,10 @@
                     {{ forloop.parentloop.counter }}.{{ forloop.counter }} 
                     {% if exercise.question_type == '1' or exercise.question_type == 'single' %}单选题
                     {% elif exercise.question_type == '2' or exercise.question_type == 'multiple' %}多选题
-                    {% elif exercise.question_type == '3' or exercise.question_type == 'fill' %}填空题
-                    {% elif exercise.question_type == '4' or exercise.question_type == 'subjective' %}主观题
-                    {% elif exercise.question_type == '5' or exercise.question_type == 'judgment' %}判断题
+                    {% elif exercise.question_type == '3' or exercise.question_type == 'fill' %}投票题
+                    {% elif exercise.question_type == '4' or exercise.question_type == 'subjective' %}填空题
+                    {% elif exercise.question_type == '5' or exercise.question_type == 'judgment' %}简答题
+                    {% elif exercise.question_type == '6' or exercise.question_type == 'judgment' %}判断题
                     {% else %}习题{% endif %}
                 </div>
             </div>
