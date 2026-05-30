@@ -135,16 +135,18 @@ AUTHENTICATION_BACKENDS = [
 LOGIN_REDIRECT_URL = '/learning/dashboard/'
 LOGOUT_REDIRECT_URL = '/accounts/login/'
 
-# LLM 配置
+# LLM 配置API
 LLM_CONFIG = {
     'provider': 'openai',  # 支持: openai, qwen, claude, deepseek
+    # API配置（用于批改）
     'api_key': os.environ.get('LLM_API_KEY', ''),
-    'model': 'gpt-3.5-turbo',  # OpenAI: gpt-3.5-turbo, gpt-4; Qwen: qwen-turbo, qwen-plus
+    'model': 'deepseek-chat',
+    'base_url': 'https://api.deepseek.com/v1',
     'temperature': 0.3,
     'max_tokens': 500,
     'timeout': 30,
     # DeepSeek配置（用于知识图谱构建的知识抽取）
-    'deepseek_api_key': os.environ.get('DEEPSEEK_API_KEY', 'XXX'),
+    'deepseek_api_key': os.environ.get('DEEPSEEK_API_KEY', ''),
     'deepseek_base_url': os.environ.get('DEEPSEEK_BASE_URL', 'https://api.deepseek.com'),
 }
 

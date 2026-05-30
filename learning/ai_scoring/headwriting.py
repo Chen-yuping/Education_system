@@ -1,3 +1,5 @@
+# 暂时没使用，手写识别
+
 import base64
 import json
 import os

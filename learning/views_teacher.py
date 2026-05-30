@@ -1228,10 +1228,10 @@ def grade_subjective(request):
         # 如果指定的科目不在授课范围内，使用第一个
         subject_id = teacher_subject_ids[0] if teacher_subject_ids else None
     
-    # 基础查询：主观题的答题记录 (question_type = '4' 或 'subjective')
+    # 基础查询：主观题的答题记录 (question_type = '5')
     answer_logs = AnswerLog.objects.filter(
         exercise__subject_id__in=teacher_subject_ids,
-        exercise__question_type__in=['4', 'subjective']
+        exercise__question_type__in=['5', 'subjective']
     ).select_related('student', 'exercise', 'exercise__subject').order_by('-submitted_at')
     
     # 按科目筛选
@@ -1251,20 +1251,20 @@ def grade_subjective(request):
     # 统计数量
     pending_count = AnswerLog.objects.filter(
         exercise__subject_id__in=teacher_subject_ids,
-        exercise__question_type__in=['4', 'subjective'],
+        exercise__question_type__in=['5', 'subjective'],
         is_correct__isnull=True
     ).count()
     
     graded_count = AnswerLog.objects.filter(
         exercise__subject_id__in=teacher_subject_ids,
-        exercise__question_type__in=['4', 'subjective'],
+        exercise__question_type__in=['5', 'subjective'],
         is_correct__isnull=False
     ).count()
     
     # 获取当前科目的所有主观题
     exercises = Exercise.objects.filter(
         subject_id=subject_id,
-        question_type__in=['4', 'subjective']
+        question_type__in=['5', 'subjective']
     ).order_by('title')
     
     # 分页

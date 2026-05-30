@@ -221,7 +221,7 @@
                     {% elif exercise.question_type == '2' %}多选题
                     {% elif exercise.question_type == '3' %}投票题
                     {% elif exercise.question_type == '4' %}填空题
-                    {% elif exercise.question_type == '5' %}简答题
+                    {% elif exercise.question_type == '5' %}主观题
                     {% else %}判断题{% endif %}
                 </h5>
                 <div class="question-content p-3 bg-light rounded" style="font-size: 1.5rem; line-height: 1.6;">
@@ -426,7 +426,7 @@ function processFillInTheBlanks() {
     if (!blanksInputArea || blankCount === 0) return;
 
     let html = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">';
-    
+
     for (let i = 1; i <= blankCount; i++) {
         html += `
             <div class="blank-item">
@@ -435,7 +435,7 @@ function processFillInTheBlanks() {
             </div>
         `;
     }
-    
+
     html += '</div>';
     blanksInputArea.innerHTML = html;
 

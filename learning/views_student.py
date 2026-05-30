@@ -376,7 +376,7 @@ def take_exercise(request, exercise_id):
         time_spent = request.POST.get('time_spent', 0)
 
         # 处理填空题答案
-        if exercise.question_type in ('3', 'fill'):
+        if exercise.question_type == '4':
             # 提取所有blank_X参数
             blank_answers = {}
             for key, value in request.POST.items():
@@ -384,7 +384,7 @@ def take_exercise(request, exercise_id):
                     blank_num = key.replace('blank_', '')
                     # 格式转换为 {"1": ["value"], "2": ["value"]} 的格式
                     blank_answers[blank_num] = [value.strip()]
-            
+
             # 将填空答案保存为JSON格式
             text_answer = json.dumps(blank_answers, ensure_ascii=False)
 
@@ -397,7 +397,7 @@ def take_exercise(request, exercise_id):
         )
 
         # 处理选择题（单选题、多选题、判断题）
-        if exercise.question_type in ['1', '2', '5', 'single', 'multiple', 'judgment']:
+        if exercise.question_type in ['1', '2', '6']:
             selected_choices = Choice.objects.filter(id__in=selected_choice_ids)
             answer_log.selected_choices.set(selected_choices)
 
@@ -405,13 +405,13 @@ def take_exercise(request, exercise_id):
             correct_choices = set(exercise.choices.filter(is_correct=True))
             selected_choices_set = set(selected_choices)
             answer_log.is_correct = correct_choices == selected_choices_set
-        
+
         # 处理填空题答案正确性判断
-        elif exercise.question_type in ('3', 'fill'):
+        elif exercise.question_type == '4':
             try:
                 student_answers = json.loads(text_answer)
                 correct_answers = json.loads(exercise.answer) if exercise.answer else {}
-                
+
                 # 比较答案 - 需要处理数组格式
                 # 将学生答案转换为与正确答案相同的格式进行比较
                 answer_log.is_correct = student_answers == correct_answers
@@ -434,11 +434,11 @@ def take_exercise(request, exercise_id):
     session_key = f'recommended_exercises_{subject.id}'
     recommended_exercises = []
     current_exercise_index = -1
-    
+
     if not single_mode and session_key in request.session:
         exercise_ids = request.session[session_key]
         current_exercise_index = exercise_ids.index(exercise_id) if exercise_id in exercise_ids else -1
-        
+
         # 获取所有推荐习题对象
         if current_exercise_index >= 0:
             recommended_exercises = Exercise.objects.filter(id__in=exercise_ids).order_by(
