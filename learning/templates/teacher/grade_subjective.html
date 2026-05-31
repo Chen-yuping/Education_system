@@ -1,5 +1,3 @@
-{#老师批改作业页面#}
-
 {% extends 'teacher/course_management_base.html' %}
 {% load static %}
 
@@ -117,9 +115,9 @@
                                 {% endif %}
                             </td>
                             <td>
-                                <button type="button" class="btn btn-sm btn-primary" 
+                                <button type="button" class="btn btn-sm btn-primary"
                                         onclick="showGradeModal({{ log.id }})">
-                                    <i class="fas fa-pen"></i> 
+                                    <i class="fas fa-pen"></i>
                                     {% if log.is_correct is None %}批改{% else %}查看{% endif %}
                                 </button>
                             </td>
@@ -135,7 +133,7 @@
                 <ul class="pagination justify-content-center">
                     {% if answer_logs.has_previous %}
                     <li class="page-item">
-                        <a class="page-link" href="?page={{ answer_logs.previous_page_number }}{% if current_subject %}&subject={{ current_subject }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}">
+                        <a class="page-link" href="?page={{ answer_logs.previous_page_number }}{% if current_subject %}&subject_id={{ current_subject }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}">
                             <i class="fas fa-chevron-left"></i>
                         </a>
                     </li>
@@ -144,7 +142,7 @@
                     {% for num in answer_logs.paginator.page_range %}
                         {% if num >= answer_logs.number|add:"-2" and num <= answer_logs.number|add:"2" %}
                             <li class="page-item {% if answer_logs.number == num %}active{% endif %}">
-                                <a class="page-link" href="?page={{ num }}{% if current_subject %}&subject={{ current_subject }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}">
+                                <a class="page-link" href="?page={{ num }}{% if current_subject %}&subject_id={{ current_subject }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}">
                                     {{ num }}
                                 </a>
                             </li>
@@ -153,7 +151,7 @@
 
                     {% if answer_logs.has_next %}
                     <li class="page-item">
-                        <a class="page-link" href="?page={{ answer_logs.next_page_number }}{% if current_subject %}&subject={{ current_subject }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}">
+                        <a class="page-link" href="?page={{ answer_logs.next_page_number }}{% if current_subject %}&subject_id={{ current_subject }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}">
                             <i class="fas fa-chevron-right"></i>
                         </a>
                     </li>
@@ -193,9 +191,6 @@
             <div class="modal-footer" id="gradeModalFooter" style="display: none;">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
                 <span id="aiGradeBtns">
-                    <button type="button" class="btn btn-info" onclick="requestAIGrade()">
-                        <i class="fas fa-brain me-1"></i>AI评分建议
-                    </button>
                     <button type="button" class="btn btn-warning" onclick="requestAgentScore()">
                         <i class="fas fa-robot me-1"></i>智能体评分
                     </button>
@@ -220,13 +215,14 @@ let currentLogId = null;
 
 function showGradeModal(logId) {
     currentLogId = logId;
+    lastAIScore = null;
     const modal = new bootstrap.Modal(document.getElementById('gradeModal'));
     modal.show();
-    
+
     // 加载详情
     const bodyDiv = document.getElementById('gradeModalBody');
     const footerDiv = document.getElementById('gradeModalFooter');
-    
+
     bodyDiv.innerHTML = `
         <div class="text-center py-5">
             <div class="spinner-border text-primary" role="status">
@@ -235,7 +231,7 @@ function showGradeModal(logId) {
         </div>
     `;
     footerDiv.style.display = 'none';
-    
+
     fetch(`/learning/teacher/api/answer/${logId}/`)
         .then(response => response.json())
         .then(data => {
@@ -272,7 +268,7 @@ function renderGradeContent(log, cachedScore) {
         if (manualBtns) manualBtns.style.display = 'none';
         if (aiBtns) aiBtns.style.display = 'none';
     }
-    
+
     bodyDiv.innerHTML = `
         <div class="mb-4">
             <div class="d-flex justify-content-between align-items-center mb-2">
@@ -280,11 +276,11 @@ function renderGradeContent(log, cachedScore) {
                 ${statusBadge}
             </div>
             <small class="text-muted">
-                <i class="fas fa-book me-1"></i>${log.subject_name} | 
+                <i class="fas fa-book me-1"></i>${log.subject_name} |
                 <i class="fas fa-clock me-1"></i>${log.submitted_at}
             </small>
         </div>
-        
+
         <div class="mb-4">
             <h6><i class="fas fa-question-circle me-1"></i> 题目</h6>
             <div class="border rounded p-3 bg-light">
@@ -293,14 +289,14 @@ function renderGradeContent(log, cachedScore) {
                 ${log.exercise_content.replace(/\n/g, '<br>')}
             </div>
         </div>
-        
+
         <div class="mb-4">
             <h6><i class="fas fa-edit me-1"></i> 学生答案</h6>
             <div class="border rounded p-3 bg-info bg-opacity-10">
                 ${log.text_answer ? log.text_answer.replace(/\n/g, '<br>') : '<span class="text-muted">学生未作答</span>'}
             </div>
         </div>
-        
+
         ${log.exercise_answer ? `
         <div class="mb-4">
             <h6><i class="fas fa-check-circle me-1"></i> 参考答案</h6>
@@ -309,7 +305,7 @@ function renderGradeContent(log, cachedScore) {
             </div>
         </div>
         ` : ''}
-        
+
         ${log.exercise_solution ? `
         <div class="mb-4">
             <h6><i class="fas fa-lightbulb me-1"></i> 答案解析</h6>
@@ -318,7 +314,7 @@ function renderGradeContent(log, cachedScore) {
             </div>
         </div>
         ` : ''}
-        
+
         <div id="aiGradingResult" style="display: none;"></div>
     `;
 
@@ -340,7 +336,7 @@ function renderGradeContent(log, cachedScore) {
 function requestAIGrade() {
     const bodyDiv = document.getElementById('gradeModalBody');
     const resultDiv = document.getElementById('aiGradingResult');
-    
+
     // Show loading state
     resultDiv.innerHTML = `
         <div class="alert alert-info mt-4">
@@ -353,7 +349,7 @@ function requestAIGrade() {
         </div>
     `;
     resultDiv.style.display = 'block';
-    
+
     fetch(`/learning/teacher/api/answer/${currentLogId}/ai-grade/`, {
         method: 'POST',
         headers: {
@@ -389,7 +385,7 @@ function displayAIGradingResult(grading, resultDiv) {
     const feedback = grading.feedback;
     const reasoning = grading.reasoning;
     const confidence = (grading.confidence * 100).toFixed(0);
-    
+
     let correctBadge = '';
     if (isCorrect === true) {
         correctBadge = '<span class="badge bg-success">正确</span>';
@@ -398,21 +394,21 @@ function displayAIGradingResult(grading, resultDiv) {
     } else {
         correctBadge = '<span class="badge bg-secondary">不确定</span>';
     }
-    
+
     let confidenceColor = 'success';
     if (confidence < 60) {
         confidenceColor = 'warning';
     } else if (confidence < 40) {
         confidenceColor = 'danger';
     }
-    
+
     resultDiv.innerHTML = `
         <div class="alert alert-primary mt-4">
             <h6 class="alert-heading">
                 <i class="fas fa-brain me-2"></i>AI评分建议
             </h6>
             <hr>
-            
+
             <div class="row mb-3">
                 <div class="col-md-6">
                     <div class="mb-2">
@@ -424,12 +420,12 @@ function displayAIGradingResult(grading, resultDiv) {
                 </div>
                 <div class="col-md-6">
                     <div class="mb-2">
-                        <strong>置信度：</strong> 
+                        <strong>置信度：</strong>
                         <span class="badge bg-${confidenceColor}">${confidence}%</span>
                     </div>
                 </div>
             </div>
-            
+
             ${feedback ? `
             <div class="mb-3">
                 <strong>反馈：</strong>
@@ -438,7 +434,7 @@ function displayAIGradingResult(grading, resultDiv) {
                 </div>
             </div>
             ` : ''}
-            
+
             ${reasoning ? `
             <div class="mb-3">
                 <strong>评分理由：</strong>
@@ -447,7 +443,7 @@ function displayAIGradingResult(grading, resultDiv) {
                 </div>
             </div>
             ` : ''}
-            
+
             <div class="alert alert-warning mt-3 mb-0">
                 <small>
                     <i class="fas fa-info-circle me-1"></i>
@@ -463,8 +459,11 @@ let lastAIScore = null;
 
 function confirmScore() {
     if (!currentLogId) return;
-    const score = lastAIScore !== null ? lastAIScore : 0;
-    submitManualScore(score);
+    if (lastAIScore === null) {
+        alert('请先点击智能体评分，或使用“修改分数”手动输入分值。');
+        return;
+    }
+    submitManualScore(lastAIScore);
 }
 
 function modifyScore() {

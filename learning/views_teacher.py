@@ -1333,7 +1333,7 @@ def get_answer_detail(request, log_id):
     except Exception as e:
         return JsonResponse({'success': False, 'message': str(e)})
 
-
+# 1. 手动评分（最核心的写回接口）
 @login_required
 @user_passes_test(is_teacher)
 @require_POST
@@ -1364,6 +1364,11 @@ def grade_answer(request, log_id):
         full_score = float(log.exercise.score)
         threshold = full_score * 0.6 if full_score > 0 else 0
         log.is_correct = manual_score >= threshold
+        log.score = manual_score
+        log.feedback = 'Manual score: {}/{}'.format(manual_score, full_score)
+        log.graded_at = timezone.now()
+        log.graded_by = request.user
+        log.grading_confidence = None
         log.save()
 
         # 缓存评分结果（保留已有 AI 评分详情）
@@ -1452,7 +1457,7 @@ def ai_grade_answer(request, log_id):
             'message': f'AI评分服务出错: {str(e)}'
         }, status=500)
 
-
+# 2. 智能体评分（三模型仲裁）
 @login_required
 @user_passes_test(is_teacher)
 @require_POST
@@ -1479,6 +1484,11 @@ def ai_agent_score(request, log_id):
         score = result['final_score']
         threshold = full * 0.6 if full > 0 else 0
         log.is_correct = score >= threshold
+        log.score = score
+        log.ai_feedback = result.get('process', '')
+        log.graded_at = timezone.now()
+        log.graded_by = request.user
+        log.grading_confidence = 0.85
         log.save()
 
         return JsonResponse({
@@ -1505,7 +1515,7 @@ def ai_agent_score(request, log_id):
             'message': f'智能体评分出错: {str(e)}'
         }, status=500)
 
-
+# 3. 批量评分
 @login_required
 @user_passes_test(is_teacher)
 @require_POST
@@ -1547,6 +1557,11 @@ def batch_ai_agent_score(request):
                 score = result['final_score']
                 threshold = full * 0.6 if full > 0 else 0
                 log.is_correct = score >= threshold
+                log.score = score
+                log.ai_feedback = result.get('process', '')
+                log.graded_at = timezone.now()
+                log.graded_by = request.user
+                log.grading_confidence = 0.85
                 log.save()
                 success_count += 1
                 results.append({
@@ -1605,7 +1620,15 @@ def clear_grading_records(request):
             is_correct__isnull=False,
         )
         cleared_ids = list(logs_to_clear.values_list('id', flat=True))
-        updated_count = logs_to_clear.update(is_correct=None)
+        updated_count = logs_to_clear.update(
+            is_correct=None,
+            score=None,
+            ai_feedback='',
+            feedback='',
+            graded_at=None,
+            graded_by=None,
+            grading_confidence=None,
+        )
 
         try:
             from .ai_scoring.scoring_agent import _scoring_result_cache
