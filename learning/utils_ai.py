@@ -24,6 +24,80 @@ from django.db import transaction
 from learning.models import Subject, TeacherSubject, Exercise, Choice, KnowledgePoint, QMatrix
 
 
+def parse_fill_in_blanks(content, answer_text=None):
+    """
+    检测文本中的填空占位符（如 ____、___、（）等），替换为 [填空1]、[填空2]...，
+    并解析对应的答案映射。
+
+    Args:
+        content: 原始题目文本
+        answer_text: 原始答案文本（可选）
+
+    Returns:
+        (processed_content, blank_count, blank_answers_json)
+        - processed_content: [填空N] 标记后的文本
+        - blank_count: 检测到的填空数量
+        - blank_answers_json: JSON 字符串 {"1": ["答案1"], "2": ["答案2"]}
+    """
+    if not content:
+        return content, 0, '{}'
+
+    # 如果已经包含 [填空N] 标记，说明已处理过，跳过
+    if re.search(r'\[填空\d+\]', content):
+        return content, 0, '{}'
+
+    # 匹配各种填空占位符（按优先级排列）
+    blank_patterns = [
+        r'_{3,}',              # ___ 或更长的下划线
+        r'（\s*_{0,5}\s*）',   # （ ）、（____）等中文括号
+        r'\(\s*_{0,5}\s*\)',   # ( )、(____)等英文括号
+        r'【\s*】',             # 【】空方括号
+        r'\[\s*\]',             # []空方括号
+    ]
+
+    combined_pattern = '|'.join(blank_patterns)
+
+    count = 0
+    blank_answers = {}
+
+    def replace_blank(match):
+        nonlocal count
+        count += 1
+        return f'[填空{count}]'
+
+    processed_content = re.sub(combined_pattern, replace_blank, content)
+
+    if count == 0:
+        # 进一步检测单个 _（有时会用 _ 表示填空）
+        single_underscore = re.findall(r'(?<!\w)_(?!\w)', processed_content)
+        if single_underscore:
+            count = len(single_underscore)
+            processed_content = re.sub(r'(?<!\w)_(?!\w)', lambda m: f'[填空{count}]' if count == 0 else '', processed_content)
+
+        if count == 0:
+            return content, 0, '{}'
+
+    # 解析答案文本，尝试分割并映射到每个填空
+    if answer_text and count > 0:
+        parts = re.split(r'[，,、;；\s]+', answer_text.strip())
+        parts = [p.strip() for p in parts if p.strip()]
+
+        if len(parts) == count:
+            for i, part in enumerate(parts):
+                blank_answers[str(i + 1)] = [part]
+        elif count == 1:
+            blank_answers['1'] = [answer_text.strip()]
+        else:
+            # 答案数量不匹配时，逐个匹配
+            for i in range(min(count, len(parts))):
+                blank_answers[str(i + 1)] = [parts[i]]
+            # 剩余填空填空白
+            for i in range(len(parts), count):
+                blank_answers[str(i + 1)] = ['']
+
+    return processed_content, count, json.dumps(blank_answers, ensure_ascii=False)
+
+
 def get_deepseek_client():
     """获取 DeepSeek OpenAI 兼容客户端"""
     config = getattr(settings, 'LLM_CONFIG', {})
@@ -551,14 +625,27 @@ def llm_extract_exercises_from_text(extracted_text, subject, teacher):
                     opt_dict = item.get('options', {}) or {}
                     full_option_text = repr(opt_dict) if opt_dict else ""
 
+                    # 对填空题进行填空占位符解析
+                    content_text = item.get('content', '')
+                    answer_text = item.get('answer', '略')
+                    if q_type == '4':
+                        processed_content, blank_count, blank_answers_json = parse_fill_in_blanks(content_text, answer_text if answer_text != '略' else None)
+                        if blank_count > 0:
+                            content_text = processed_content
+                            if blank_answers_json != '{}':
+                                answer_text = blank_answers_json
+                        else:
+                            # 即使未检测到填空占位符，也保留原内容
+                            pass
+
                     exercise = Exercise.objects.create(
                         subject=subject,
-                        title=item.get('content', '')[:200],
-                        content=item.get('content', ''),
+                        title=content_text[:200],
+                        content=content_text,
                         question_type=q_type,
                         creator=teacher,
                         option_text=full_option_text,
-                        answer=item.get('answer', '略'),
+                        answer=answer_text,
                         solution=item.get('solution', ''),
                         problemsets="LLM提取导入",
                         created_at=timezone.now()
@@ -1029,15 +1116,25 @@ def generate_exercises_from_textbook(text, subject, teacher):
                     q_type = {'single': '1', 'multiple': '2', 'vote': '3', 'fill': '4', 'subjective': '5', 'judgment': '6'}.get(_raw_type, _raw_type)
                     if q_type == '6':
                         opt_dict = {'A': '正确', 'B': '错误'} if not opt_dict else opt_dict
-                    
+
+                    # 对填空题进行填空占位符解析
+                    content_text = ex_data.get('content', '')
+                    answer_text = ex_data.get('answer', 'A')
+                    if q_type == '4':
+                        processed_content, blank_count, blank_answers_json = parse_fill_in_blanks(content_text, answer_text if answer_text != 'A' else None)
+                        if blank_count > 0:
+                            content_text = processed_content
+                            if blank_answers_json != '{}':
+                                answer_text = blank_answers_json
+
                     exercise = Exercise.objects.create(
                         subject=subject,
                         title=ex_data.get('title', '')[:200],
-                        content=ex_data.get('content', ''),
+                        content=content_text,
                         question_type=q_type,
                         creator=teacher,
                         option_text=full_option_text,
-                        answer=ex_data.get('answer', 'A'),
+                        answer=answer_text,
                         solution=ex_data.get('solution', ''),
                         problemsets="课本快速构建",
                         created_at=timezone.now()

@@ -7,6 +7,7 @@ from django.contrib import messages
 from .forms import ExerciseForm
 from django.db.models import Count, Q
 from django.db import transaction
+from .utils_ai import parse_fill_in_blanks
 import csv
 import json
 from datetime import datetime
@@ -841,6 +842,14 @@ def exercise_add_json(request):
                 full_option_text = ""
 
             # 创建习题
+            # 对填空题进行填空占位符解析
+            if question_type == '4':
+                processed_content, blank_count, blank_answers_json = parse_fill_in_blanks(content, answer)
+                if blank_count > 0:
+                    content = processed_content
+                    if blank_answers_json != '{}':
+                        answer = blank_answers_json
+
             exercise = Exercise.objects.create(
                 subject_id=int(subject_id),
                 title=title,
@@ -951,6 +960,17 @@ def exercise_add(request):
                         # 处理填空题和主观题
                         text_answer = form.cleaned_data.get('text_answer', '')
                         exercise.answer = text_answer
+
+                        # 对填空题进行填空占位符解析
+                        if question_type == '4':
+                            processed_content, blank_count, blank_answers_json = parse_fill_in_blanks(
+                                exercise.content, exercise.answer
+                            )
+                            if blank_count > 0:
+                                exercise.content = processed_content
+                                if blank_answers_json != '{}':
+                                    exercise.answer = blank_answers_json
+
                         exercise.save()
 
                     # 处理知识点关联
