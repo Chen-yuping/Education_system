@@ -174,7 +174,7 @@ def teacher_create_subject(request):
         TeacherSubject.objects.get_or_create(teacher=request.user, subject=subject)
 
         messages.success(request, f'课程《{name}》创建成功！')
-        return redirect(reverse('upload_exercise') + f'?subject_id={subject.id}')
+        return redirect(reverse('upload_resource') + f'?subject_id={subject.id}')
 
     return redirect('teacher_course_management')
 
