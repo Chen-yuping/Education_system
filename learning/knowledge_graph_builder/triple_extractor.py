@@ -102,7 +102,7 @@ def _identify_scope(lines, client) -> set:
 
 
 def _extract_batch(text_batch, scope_keywords, subject_name, client) -> list:
-    system_prompt = "你是一个严谨的在线教育知识图谱专家。请严格按JSON格式抽取五元组。"
+    system_prompt = "你是一个严谨的在线教育知识图谱专家。请严格按JSON格式抽取知识三元组，并评估每条三元组的置信度。"
 
     user_prompt = f"""
     ### 任务指令
@@ -113,8 +113,15 @@ def _extract_batch(text_batch, scope_keywords, subject_name, client) -> list:
     2. 忠实原文：严禁编造原文中不存在的通用常识。
     3. 关系类型：知识点之间的关系为：隶属、关联、前置、相似，根据上下文准确判断。
 
+    ### 置信度要求（重要）
+    4. 对每一条三元组，请评估其准确性和可靠性：
+       - 如果**完全确信**知识点名称准确、关系类型正确、内容与原文高度一致，输出"高"
+       - 如果**有任何不确定**（如实体名称可能有歧义、关系类型判断依据不足、原文中信息不明显等），输出"低"
+       - 宁缺毋滥：不确定就标"低"，不要勉强标"高"
+
     ### 输出格式
-    {{"data": [["头实体", "头类型", "关系", "尾实体", "尾类型", "头实体描述", "尾实体描述"], ...]}}
+    {{"data": [["头实体", "头类型", "关系", "尾实体", "尾类型", "头实体描述", "尾实体描述", "置信度"], ...]}}
+    置信度只能为"高"或"低"。
 
     ### 待处理文本
     {text_batch}
@@ -135,6 +142,7 @@ def _extract_batch(text_batch, scope_keywords, subject_name, client) -> list:
         results = []
         for item in items:
             if isinstance(item, list) and len(item) >= 5:
+                confidence = item[7].strip() if len(item) > 7 and item[7] in ("高", "低") else "高"
                 results.append({
                     "subject": item[0].strip(),
                     "sub_type": item[1].strip() if len(item) > 1 else "概念",
@@ -143,6 +151,7 @@ def _extract_batch(text_batch, scope_keywords, subject_name, client) -> list:
                     "obj_type": item[4].strip() if len(item) > 4 else "概念",
                     "subject_desc": item[5].strip() if len(item) > 5 and item[5] else "",
                     "object_desc": item[6].strip() if len(item) > 6 and item[6] else "",
+                    "confidence": confidence,
                 })
         return results
     except Exception as e:

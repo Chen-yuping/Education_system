@@ -66,6 +66,23 @@ class KnowledgeGraphPipeline:
                 result["success"] = True
                 return result
 
+            # 构建置信度映射（用于后续决定哪些需要人工审核）
+            kp_confidence = {}  # entity_name -> "高" or "低"
+            rel_confidence = {}  # (subj, obj, pred) -> "高" or "低"
+            for t in triples:
+                # 知识点置信度：取该实体在所有三元组中的最低置信度
+                for name in (t["subject"], t["object"]):
+                    if name not in kp_confidence:
+                        kp_confidence[name] = t.get("confidence", "高")
+                    elif t.get("confidence", "高") == "低":
+                        kp_confidence[name] = "低"
+                # 关系置信度
+                rkey = (t["subject"], t["object"], t.get("predicate", "关联"))
+                if rkey not in rel_confidence:
+                    rel_confidence[rkey] = t.get("confidence", "高")
+            result["kp_confidence"] = kp_confidence
+            result["rel_confidence"] = rel_confidence
+
             # ===== Step 3: 构建别名映射 =====
             print("\n" + "=" * 50)
             print("Step 3/5: 构建别名映射")

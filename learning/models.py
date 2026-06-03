@@ -713,6 +713,7 @@ class ResourceReviewKnowledgePoint(models.Model):
     is_approved = models.BooleanField(default=False, verbose_name="是否通过审核")
     review_notes = models.TextField(blank=True, verbose_name="审核备注")
     reviewed_at = models.DateTimeField(null=True, blank=True, verbose_name="审核时间")
+    confidence = models.CharField(max_length=2, choices=[('高', '高'), ('低', '低')], default='高', verbose_name="LLM置信度")
 
     class Meta:
         verbose_name = "资源知识点审核"
@@ -735,6 +736,7 @@ class ResourceReviewRelationship(models.Model):
     is_rejected = models.BooleanField(default=False, verbose_name="是否被拒绝")
     review_notes = models.TextField(blank=True, verbose_name="审核备注")
     reviewed_at = models.DateTimeField(null=True, blank=True, verbose_name="审核时间")
+    confidence = models.CharField(max_length=2, choices=[('高', '高'), ('低', '低')], default='高', verbose_name="LLM置信度")
 
     class Meta:
         verbose_name = "资源关系审核"

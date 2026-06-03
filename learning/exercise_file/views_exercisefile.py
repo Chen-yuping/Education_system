@@ -261,20 +261,56 @@ def upload_resource(request):
                                             kp_count=kp_count,
                                             rel_count=rel_count,
                                         )
+                                        # 获取置信度映射
+                                        kp_confidence = pipeline_result.get('kp_confidence', {})
+                                        rel_confidence = pipeline_result.get('rel_confidence', {})
+
+                                        auto_kp_count = 0
+                                        pending_kp_count = 0
                                         for kp in pipeline_result.get('created_kps', []):
+                                            conf = kp_confidence.get(kp.name, '高')
+                                            is_high_conf = (conf == '高')
                                             ResourceReviewKnowledgePoint.objects.create(
                                                 extraction=extraction,
                                                 knowledge_point=kp,
                                                 original_name=kp.name,
+                                                confidence=conf,
+                                                is_approved=is_high_conf,
+                                                reviewed_at=timezone.now() if is_high_conf else None,
                                             )
+                                            if is_high_conf:
+                                                auto_kp_count += 1
+                                            else:
+                                                pending_kp_count += 1
+
+                                        auto_rel_count = 0
+                                        pending_rel_count = 0
                                         for rel in pipeline_result.get('created_rels', []):
+                                            rkey = (rel.source.name, rel.target.name, rel.relationship_type)
+                                            conf = rel_confidence.get(rkey, '高')
+                                            is_high_conf = (conf == '高')
                                             ResourceReviewRelationship.objects.create(
                                                 extraction=extraction,
                                                 from_knowledge_point=rel.source,
                                                 to_knowledge_point=rel.target,
                                                 relationship_type=rel.relationship_type,
+                                                confidence=conf,
+                                                is_approved=is_high_conf,
+                                                reviewed_at=timezone.now() if is_high_conf else None,
                                             )
-                                        messages.success(request, f'✅ 知识图谱构建成功：{kp_count}个知识点，{rel_count}条关系，请进行审核。')
+                                            if is_high_conf:
+                                                auto_rel_count += 1
+                                            else:
+                                                pending_rel_count += 1
+
+                                        msg = f'✅ 知识图谱构建成功：{kp_count}个知识点，{rel_count}条关系。'
+                                        if auto_kp_count > 0 or auto_rel_count > 0:
+                                            msg += f' 已自动通过 {auto_kp_count} 个知识点、{auto_rel_count} 条关系。'
+                                        if pending_kp_count > 0 or pending_rel_count > 0:
+                                            msg += f' 还有 {pending_kp_count} 个知识点、{pending_rel_count} 条关系待人工审核。'
+                                        else:
+                                            msg += ' 所有提取结果均已自动通过审核。'
+                                        messages.success(request, msg)
                                     else:
                                         messages.warning(request, '⚠️ 知识抽取完成但未提取到有效知识点和关系，请检查资料内容是否包含足够的专业知识点。')
                                 else:
@@ -736,13 +772,20 @@ def resource_extraction_review(request, extraction_id):
     kp_reviews = ResourceReviewKnowledgePoint.objects.filter(extraction=extraction)
     rel_reviews = ResourceReviewRelationship.objects.filter(extraction=extraction)
 
+    auto_approved_kps = kp_reviews.filter(confidence='高').count()
+    auto_approved_rels = rel_reviews.filter(confidence='高').count()
+
     stats = {
         'total_kps': kp_reviews.count(),
         'reviewed_kps': kp_reviews.filter(reviewed_at__isnull=False).count(),
         'approved_kps': kp_reviews.filter(is_approved=True).count(),
+        'auto_approved_kps': auto_approved_kps,
+        'pending_kps': kp_reviews.filter(confidence='低', reviewed_at__isnull=True).count(),
         'total_rels': rel_reviews.count(),
         'reviewed_rels': rel_reviews.filter(reviewed_at__isnull=False).count(),
         'approved_rels': rel_reviews.filter(is_approved=True).count(),
+        'auto_approved_rels': auto_approved_rels,
+        'pending_rels': rel_reviews.filter(confidence='低', reviewed_at__isnull=True).count(),
     }
 
     return render(request, 'teacher/resource_review_dashboard.html', {
