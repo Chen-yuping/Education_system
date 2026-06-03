@@ -486,7 +486,7 @@ def llm_extract_exercises_from_text(extracted_text, subject, teacher):
 
 要求：
 1. 识别每道题的完整内容
-2. 判断题型：single(单选题) / multiple(多选题) / fill(填空题) / subjective(主观题/简答题) / judgment(判断题)
+2. 判断题型：single(单选题) / multiple(多选题) / vote(投票题) / fill(填空题) / subjective(主观题/简答题) / judgment(判断题)
 3. 提取选项（如果有）
 4. 给出参考答案
 5. 给出答案解析
@@ -504,7 +504,7 @@ def llm_extract_exercises_from_text(extracted_text, subject, teacher):
         {{
             "title": "题目标题（简短）",
             "content": "完整的题目内容",
-            "question_type": "1(单选题) 或 2(多选题) 或 4(填空题) 或 5(主观题) 或 6(判断题)",
+            "question_type": "1(单选题) 或 2(多选题) 或 3(投票题) 或 4(填空题) 或 5(主观题) 或 6(判断题)",
             "options": {{"A": "选项A", "B": "选项B", "C": "选项C", "D": "选项D"}},
             "answer": "参考答案",
             "solution": "详细答案解析",
@@ -516,8 +516,9 @@ def llm_extract_exercises_from_text(extracted_text, subject, teacher):
 格式说明：
 - 单选题、多选题必须有 options 字段
 - 判断题 options 固定为 {{"A": "正确", "B": "错误"}}
+- 投票题 options 设计为 A~J 依次对应 1~10 分
 - 填空题、主观题不需要 options 字段
-- answer：单选题填选项字母如"A"，多选题填字母组合如"AB"，判断题填"A"或"B"，填空题/主观题填参考答案文本
+- answer：单选题填选项字母如"A"，多选题填字母组合如"AB"，判断题填"A"或"B"，投票题填对应分数，填空题/主观题填参考答案文本
 - 没有明确答案时 answer 填"略"
 - knowledge_points 必须从已有知识点列表中选择，完全匹配名称，不要新创建知识点
     """
@@ -546,7 +547,7 @@ def llm_extract_exercises_from_text(extracted_text, subject, teacher):
             for item in exercises_data:
                 try:
                     _raw_type = item.get('question_type', 'single')
-                    q_type = {'single': '1', 'multiple': '2', 'fill': '4', 'subjective': '5', 'judgment': '6'}.get(_raw_type, _raw_type)
+                    q_type = {'single': '1', 'multiple': '2', 'vote': '3', 'fill': '4', 'subjective': '5', 'judgment': '6'}.get(_raw_type, _raw_type)
                     opt_dict = item.get('options', {}) or {}
                     full_option_text = repr(opt_dict) if opt_dict else ""
 
@@ -1025,7 +1026,7 @@ def generate_exercises_from_textbook(text, subject, teacher):
                     
                     # 确定题型
                     _raw_type = ex_data.get('question_type', 'single')
-                    q_type = {'single': '1', 'multiple': '2', 'fill': '4', 'subjective': '5', 'judgment': '6'}.get(_raw_type, _raw_type)
+                    q_type = {'single': '1', 'multiple': '2', 'vote': '3', 'fill': '4', 'subjective': '5', 'judgment': '6'}.get(_raw_type, _raw_type)
                     if q_type == '6':
                         opt_dict = {'A': '正确', 'B': '错误'} if not opt_dict else opt_dict
                     
