@@ -364,7 +364,7 @@ def get_cached_score(answer_log_id):
 def batch_auto_score(subject_id=None):
     """批量评分，返回结果列表（不写数据库）"""
     logs = AnswerLog.objects.filter(
-        exercise__question_type__in=['5', 'subjective'],
+        exercise__question_type__in=['5'],
         text_answer__isnull=False,
     ).exclude(text_answer='')
     if subject_id:

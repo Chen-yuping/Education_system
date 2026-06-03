@@ -507,11 +507,12 @@ def exercise_management(request):
 
     if question_type:
         type_mapping = {
-            '1': ['1', 'single'],
-            '2': ['2', 'multiple'],
-            '3': ['3', 'fill'],
-            '4': ['4', 'subjective'],
-            '5': ['5', 'judgment'],
+            '1': ['1'],
+            '2': ['2'],
+            '3': ['3'],
+            '4': ['4'],
+            '5': ['5'],
+            '6': ['6'],
         }
         type_filter = type_mapping.get(question_type, [question_type])
         exercises = exercises.filter(question_type__in=type_filter)
@@ -642,16 +643,12 @@ def exercise_detail_json(request, exercise_id):
 
         # 手动映射题型
         question_type_mapping = {
-            'single': '单选题',
-            'multiple': '多选题',
-            'fill': '填空题',
-            'subjective': '主观题',
-            'judgment': '判断题',
             '1': '单选题',
             '2': '多选题',
-            '3': '填空题',
-            '4': '主观题',
-            '5': '判断题',
+            '3': '投票题',
+            '4': '填空题',
+            '5': '主观题',
+            '6': '判断题',
         }
 
         # 获取题型显示名称
@@ -807,7 +804,7 @@ def exercise_add_json(request):
         subject_id = request.POST.get('subject_id')
         title = request.POST.get('title', '').strip()
         content = request.POST.get('content', '').strip()
-        question_type = request.POST.get('question_type', 'single')
+        question_type = request.POST.get('question_type', '1')
         answer = request.POST.get('answer', '').strip()
         solution = request.POST.get('solution', '').strip()
         choices_json = request.POST.get('choices', '[]')
@@ -909,10 +906,10 @@ def exercise_add(request):
                     exercise.creator = request.user
 
                     # 处理不同的题型
-                    question_type = form.cleaned_data.get('question_type', 'single')
+                    question_type = form.cleaned_data.get('question_type', '1')
 
-                    if question_type in ['single', 'multiple']:
-                        # 处理选择题
+                    if question_type in ['1', '2', '3']:
+                        # 处理选择题（含投票题）
                         choices_data = request.POST.getlist('choices')
                         is_correct_data = request.POST.getlist('is_correct')
 
@@ -924,11 +921,14 @@ def exercise_add(request):
                                 if is_correct:
                                     correct_choices.append(choice_text.strip())
 
-                        if question_type == 'single' and len(correct_choices) > 1:
+                        if question_type == '1' and len(correct_choices) > 1:
                             form.add_error(None, '单选题只能有一个正确答案')
                             return render(request, 'teacher/exercise_form.html', {'form': form})
 
-                        exercise.answer = ', '.join(correct_choices)
+                        if question_type != '3':
+                            exercise.answer = ', '.join(correct_choices)
+                        else:
+                            exercise.answer = ''
                         exercise.save()
 
                         # 保存选项
@@ -941,14 +941,14 @@ def exercise_add(request):
                                     order=i
                                 )
 
-                    elif question_type == 'judgment':
+                    elif question_type == '6':
                         # 处理判断题
                         is_correct = form.cleaned_data.get('judgment_answer')
                         exercise.answer = '正确' if is_correct else '错误'
                         exercise.save()
 
-                    elif question_type == 'text':
-                        # 处理文本题
+                    elif question_type in ['4', '5']:
+                        # 处理填空题和主观题
                         text_answer = form.cleaned_data.get('text_answer', '')
                         exercise.answer = text_answer
                         exercise.save()
@@ -1109,11 +1109,12 @@ def export_exercises(request):
 
     if question_type:
         type_mapping = {
-            '1': ['1', 'single'],
-            '2': ['2', 'multiple'],
-            '3': ['3', 'fill'],
-            '4': ['4', 'subjective'],
-            '5': ['5', 'judgment'],
+            '1': ['1'],
+            '2': ['2'],
+            '3': ['3'],
+            '4': ['4'],
+            '5': ['5'],
+            '6': ['6'],
         }
         type_filter = type_mapping.get(question_type, [question_type])
         exercises = exercises.filter(question_type__in=type_filter)
@@ -1156,14 +1157,14 @@ def export_exercises(request):
     for exercise in exercises:
         # 获取选项文本
         choices_text = ""
-        if exercise.question_type in ['single', 'multiple']:
+        if exercise.question_type in ['1', '2']:
             choices = exercise.choices.all().order_by('order')
             choices_list = []
             for choice in choices:
                 prefix = "✓" if choice.is_correct else ""
                 choices_list.append(f"{prefix}{choice.content}")
             choices_text = " | ".join(choices_list)
-        elif exercise.question_type == 'judgment':
+        elif exercise.question_type == '6':
             choices_text = "正确 | 错误"
 
         # 获取答案
@@ -1231,7 +1232,7 @@ def grade_subjective(request):
     # 基础查询：主观题的答题记录 (question_type = '5')
     answer_logs = AnswerLog.objects.filter(
         exercise__subject_id__in=teacher_subject_ids,
-        exercise__question_type__in=['5', 'subjective']
+        exercise__question_type__in=['5']
     ).select_related('student', 'exercise', 'exercise__subject').order_by('-submitted_at')
     
     # 按科目筛选
@@ -1251,20 +1252,20 @@ def grade_subjective(request):
     # 统计数量
     pending_count = AnswerLog.objects.filter(
         exercise__subject_id__in=teacher_subject_ids,
-        exercise__question_type__in=['5', 'subjective'],
+        exercise__question_type__in=['5'],
         is_correct__isnull=True
     ).count()
     
     graded_count = AnswerLog.objects.filter(
         exercise__subject_id__in=teacher_subject_ids,
-        exercise__question_type__in=['5', 'subjective'],
+        exercise__question_type__in=['5'],
         is_correct__isnull=False
     ).count()
     
     # 获取当前科目的所有主观题
     exercises = Exercise.objects.filter(
         subject_id=subject_id,
-        question_type__in=['5', 'subjective']
+        question_type__in=['5']
     ).order_by('title')
     
     # 分页
@@ -1536,7 +1537,7 @@ def batch_ai_agent_score(request):
 
         pending_logs = AnswerLog.objects.filter(
             exercise__subject_id=int(subject_id),
-            exercise__question_type__in=['5', 'subjective'],
+            exercise__question_type__in=['5'],
             is_correct__isnull=True,
         ).exclude(text_answer__isnull=True).exclude(text_answer='')
 
@@ -1616,7 +1617,7 @@ def clear_grading_records(request):
 
         logs_to_clear = AnswerLog.objects.filter(
             exercise__subject_id=int(subject_id),
-            exercise__question_type__in=['5', 'subjective'],
+            exercise__question_type__in=['5'],
             is_correct__isnull=False,
         )
         cleared_ids = list(logs_to_clear.values_list('id', flat=True))

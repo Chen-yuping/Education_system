@@ -15,7 +15,7 @@ from learning.models import AnswerLog, Exercise
 from decimal import Decimal
 
 # ====================== API配置 ======================
-DEEPSEEK_API_KEY = "sk-0cb6c98144234d9db01b43de710aae28"
+DEEPSEEK_API_KEY = "sk-415c4a7273c344bdabf64d0700bdf6a9"
 KIMI_API_KEY = "sk-jn70MeNzVK3zUn7Cze5GN3VhH9YIrOkmHu7QkVi9t5GWs0BX"
 
 XUNFEI_API_URL = "https://spark-api-open.xf-yun.com/agent/v1/chat/completions"

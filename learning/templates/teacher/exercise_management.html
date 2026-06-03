@@ -33,11 +33,12 @@
                     <label for="typeFilter" class="form-label">题型</label>
                     <select class="form-select" id="typeFilter" name="question_type">
                         <option value="">全部题型</option>
-                        <option value="1" {% if request.GET.question_type == '1' or request.GET.question_type == 'single' %}selected{% endif %}>单选题</option>
-                        <option value="2" {% if request.GET.question_type == '2' or request.GET.question_type == 'multiple' %}selected{% endif %}>多选题</option>
-                        <option value="3" {% if request.GET.question_type == '3' or request.GET.question_type == 'fill' %}selected{% endif %}>填空题</option>
-                        <option value="4" {% if request.GET.question_type == '4' or request.GET.question_type == 'subjective' %}selected{% endif %}>主观题</option>
-                        <option value="5" {% if request.GET.question_type == '5' or request.GET.question_type == 'judgment' %}selected{% endif %}>判断题</option>
+                        <option value="1" {% if request.GET.question_type == '1' %}selected{% endif %}>单选题</option>
+                        <option value="2" {% if request.GET.question_type == '2' %}selected{% endif %}>多选题</option>
+                        <option value="3" {% if request.GET.question_type == '3' %}selected{% endif %}>投票题</option>
+                        <option value="4" {% if request.GET.question_type == '4' %}selected{% endif %}>填空题</option>
+                        <option value="5" {% if request.GET.question_type == '5' %}selected{% endif %}>主观题</option>
+                        <option value="6" {% if request.GET.question_type == '6' %}selected{% endif %}>判断题</option>
                     </select>
                 </div>
 
@@ -122,15 +123,17 @@
                             </td>
                             <td>{{ exercise.subject.name }}</td>
                             <td>
-                                {% if exercise.question_type == '1' or exercise.question_type == 'single' %}
+                                {% if exercise.question_type == '1' %}
                                 <span class="badge bg-primary">单选题</span>
-                                {% elif exercise.question_type == '2' or exercise.question_type == 'multiple' %}
+                                {% elif exercise.question_type == '2' %}
                                 <span class="badge bg-success">多选题</span>
-                                {% elif exercise.question_type == '3' or exercise.question_type == 'fill' %}
+                                {% elif exercise.question_type == '3' %}
+                                <span class="badge bg-dark">投票题</span>
+                                {% elif exercise.question_type == '4' %}
                                 <span class="badge bg-info">填空题</span>
-                                {% elif exercise.question_type == '4' or exercise.question_type == 'subjective' %}
+                                {% elif exercise.question_type == '5' %}
                                 <span class="badge bg-warning">主观题</span>
-                                {% elif exercise.question_type == '5' or exercise.question_type == 'judgment' %}
+                                {% elif exercise.question_type == '6' %}
                                 <span class="badge bg-info">判断题</span>
                                 {% else %}
                                 <span class="badge bg-secondary">{{ exercise.question_type }}</span>
@@ -377,11 +380,12 @@
                         <div class="mb-3">
                             <label for="add_question_type" class="form-label fw-bold">题型 *</label>
                             <select class="form-select" id="add_question_type" name="question_type" required>
-                                <option value="single">单选题</option>
-                                <option value="multiple">多选题</option>
-                                <option value="judgment">判断题</option>
-                                <option value="fill">填空题</option>
-                                <option value="subjective">主观题</option>
+                                <option value="1">单选题</option>
+                                <option value="2">多选题</option>
+                                <option value="3">投票题</option>
+                                <option value="4">填空题</option>
+                                <option value="5">主观题</option>
+                                <option value="6">判断题</option>
                             </select>
                         </div>
 
@@ -516,11 +520,12 @@ function showAddExercise() {
 // 题型英文转中文
 function getQuestionTypeName(type) {
     const map = {
-        'single': '单选题', '1': '单选题',
-        'multiple': '多选题', '2': '多选题',
-        'fill': '填空题', '3': '填空题',
-        'subjective': '主观题', '4': '主观题',
-        'judgment': '判断题', '5': '判断题',
+        '1': '单选题',
+        '2': '多选题',
+        '3': '投票题',
+        '4': '填空题',
+        '5': '主观题',
+        '6': '判断题',
     };
     return map[type] || type;
 }

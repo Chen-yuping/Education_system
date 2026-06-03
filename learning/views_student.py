@@ -396,15 +396,16 @@ def take_exercise(request, exercise_id):
             time_spent=time_spent
         )
 
-        # 处理选择题（单选题、多选题、判断题）
-        if exercise.question_type in ['1', '2', '6']:
+        # 处理选择题（单选题、多选题、投票题、判断题）
+        if exercise.question_type in ['1', '2', '3', '6']:
             selected_choices = Choice.objects.filter(id__in=selected_choice_ids)
             answer_log.selected_choices.set(selected_choices)
 
-            # 判断是否正确
-            correct_choices = set(exercise.choices.filter(is_correct=True))
-            selected_choices_set = set(selected_choices)
-            answer_log.is_correct = correct_choices == selected_choices_set
+            # 判断是否正确（投票题不判断正误）
+            if exercise.question_type != '3':
+                correct_choices = set(exercise.choices.filter(is_correct=True))
+                selected_choices_set = set(selected_choices)
+                answer_log.is_correct = correct_choices == selected_choices_set
 
         # 处理填空题答案正确性判断
         elif exercise.question_type == '4':
@@ -653,11 +654,12 @@ def subject_exercise_logs(request, subject_id):
     # 3. 题型分布统计
     type_stats = defaultdict(int)
     type_names_map = {
-        '1': '单选题', 'single': '单选题',
-        '2': '多选题', 'multiple': '多选题',
-        '3': '填空题', 'fill': '填空题',
-        '4': '主观题', 'subjective': '主观题',
-        '5': '判断题', 'judgment': '判断题',
+        '1': '单选题',
+        '2': '多选题',
+        '3': '投票题',
+        '4': '填空题',
+        '5': '主观题',
+        '6': '判断题',
     }
     
     for log in answer_logs:
@@ -715,7 +717,7 @@ def subject_exercise_logs(request, subject_id):
             options_text = [c.content for c in choices]
 
             # 对于填空题，correct_option应该是exercise.answer
-            if exercise.question_type in ('3', 'fill'):
+            if exercise.question_type == '4':
                 correct_option_value = exercise.answer if exercise.answer else ""
             else:
                 correct_option_value = " | ".join(correct_options_text) if correct_options_text else "未设置正确答案"

@@ -163,11 +163,11 @@ def handle_document_file(file_record):
         with transaction.atomic():
             for item in exercises_data:
                 try:
-                    q_type = 'single'
+                    q_type = '1'
                     if not item['options']:
-                        q_type = 'subjective'
+                        q_type = '5'
                     elif len(item['answer']) > 1:
-                        q_type = 'multiple'
+                        q_type = '2'
 
                     opt_dict = {opt['label']: opt['content'] for opt in item['options']}
                     full_option_text = repr(opt_dict) if opt_dict else ""
@@ -254,7 +254,7 @@ def handle_data_file(file_record):
                     subject=subject,
                     title=title[:50],
                     content=title.replace('undefined', '').strip(),
-                    question_type='single' if len(ans) == 1 else 'multiple',
+                    question_type='1' if len(ans) == 1 else '2',
                     creator=teacher,
                     option_text=repr(opt_dict),
                     answer=ans,
@@ -415,7 +415,7 @@ def handle_material_generation(file_record):
                         subject=subject,
                         title=item.get('title', '')[:200],
                         content=item.get('title', ''),
-                        question_type='single',
+                        question_type='1',
                         creator_id=teacher.id if teacher else 1,
                         option_text=full_option_text,
                         answer=item.get('answer', 'A'),
@@ -504,7 +504,7 @@ def llm_extract_exercises_from_text(extracted_text, subject, teacher):
         {{
             "title": "题目标题（简短）",
             "content": "完整的题目内容",
-            "question_type": "single 或 multiple 或 fill 或 subjective 或 judgment",
+            "question_type": "1(单选题) 或 2(多选题) 或 4(填空题) 或 5(主观题) 或 6(判断题)",
             "options": {{"A": "选项A", "B": "选项B", "C": "选项C", "D": "选项D"}},
             "answer": "参考答案",
             "solution": "详细答案解析",
@@ -545,7 +545,8 @@ def llm_extract_exercises_from_text(extracted_text, subject, teacher):
         with transaction.atomic():
             for item in exercises_data:
                 try:
-                    q_type = item.get('question_type', 'single')
+                    _raw_type = item.get('question_type', 'single')
+                    q_type = {'single': '1', 'multiple': '2', 'fill': '4', 'subjective': '5', 'judgment': '6'}.get(_raw_type, _raw_type)
                     opt_dict = item.get('options', {}) or {}
                     full_option_text = repr(opt_dict) if opt_dict else ""
 
@@ -565,7 +566,7 @@ def llm_extract_exercises_from_text(extracted_text, subject, teacher):
                     # 创建选项
                     for idx, (label, content) in enumerate(opt_dict.items()):
                         is_correct = False
-                        if q_type == 'judgment':
+                        if q_type == '6':
                             is_correct = (label == 'A' and item.get('answer', '') == 'A') or \
                                          (label == 'B' and item.get('answer', '') == 'B')
                         else:
@@ -979,7 +980,7 @@ def generate_exercises_from_textbook(text, subject, teacher):
             {{
                 "title": "习题标题",
                 "content": "习题内容",
-                "question_type": "single/multiple/judgment",
+                "question_type": "1(单选题)/2(多选题)/6(判断题)",
                 "options": {{
                     "A": "选项A内容",
                     "B": "选项B内容",
@@ -1023,9 +1024,9 @@ def generate_exercises_from_textbook(text, subject, teacher):
                     full_option_text = repr(opt_dict) if opt_dict else ""
                     
                     # 确定题型
-                    q_type = ex_data.get('question_type', 'single')
-                    if q_type == 'judgment':
-                        q_type = 'judgment'
+                    _raw_type = ex_data.get('question_type', 'single')
+                    q_type = {'single': '1', 'multiple': '2', 'fill': '4', 'subjective': '5', 'judgment': '6'}.get(_raw_type, _raw_type)
+                    if q_type == '6':
                         opt_dict = {'A': '正确', 'B': '错误'} if not opt_dict else opt_dict
                     
                     exercise = Exercise.objects.create(
@@ -1044,7 +1045,7 @@ def generate_exercises_from_textbook(text, subject, teacher):
                     # 创建选项
                     for idx, (label, content) in enumerate(opt_dict.items()):
                         is_correct = False
-                        if q_type == 'judgment':
+                        if q_type == '6':
                             is_correct = (label == 'A' and ex_data.get('answer') == '正确') or \
                                        (label == 'B' and ex_data.get('answer') == '错误')
                         else:

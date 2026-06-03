@@ -485,19 +485,14 @@ def get_knowledge_point_exercises(request, kp_id):
         
         # 格式化习题类型显示
         question_type_map = {
-            'single': '单选题',
-            'multiple': '多选题',
-            'fill': '填空题',
-            'short': '简答题',
-            'essay': '论述题',
-            'subjective': '主观题',
-            'judgment': '判断题',
             '1': '单选题',
             '2': '多选题',
-            '3': '填空题',
-            '4': '主观题',
-            '5': '判断题',
+            '3': '投票题',
+            '4': '填空题',
+            '5': '主观题',
             '6': '判断题',
+            'short': '简答题',
+            'essay': '论述题',
         }
         
         exercises_list = []
