@@ -658,7 +658,7 @@ def subject_exercise_logs(request, subject_id):
         '2': '多选题',
         '3': '投票题',
         '4': '填空题',
-        '5': '主观题',
+        '5': '简答题',
         '6': '判断题',
     }
     
@@ -749,7 +749,7 @@ def subject_exercise_logs(request, subject_id):
     exercises_with_stats.sort(key=lambda x: x['total_attempts'], reverse=True)
 
     # 计算习题总数和已完成习题数
-    total_exercises = len(exercises_with_stats)
+    total_exercises = Exercise.objects.filter(subject=subject).count()
     completed_exercises = len([ex for ex in exercises_with_stats if ex['total_attempts'] > 0])
 
     # 添加分页功能 - 10题一页
