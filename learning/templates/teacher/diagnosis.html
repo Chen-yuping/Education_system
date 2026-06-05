@@ -830,8 +830,10 @@ function renderBarChart(diagnosisData, kpAverages) {
     allKps.sort((a, b) => b.mastery - a.mastery);
 
     // 3. 分别取最高10个和最低10个
-    const top10 = allKps.slice(0, 10);
-    const bottom10 = allKps.slice(-10);
+    const filteredKps = allKps.filter(kp => kp.mastery > 0);
+
+    const top10 = filteredKps.slice(0, 10);
+    const bottom10 = filteredKps.slice(-10);
 
     // 4. 合并去重：先加入 top10，再加入 bottom10 中不重复的项（以 id 判断）
     const combinedMap = new Map();
@@ -1067,7 +1069,7 @@ function renderKnowledgeGraph(diagnosisData, kpAverages) {
         .style('font-size', '12px')
         .style('font-weight', 'bold')
         .style('pointer-events', 'none')
-        .text(d => d.mastery.toFixed(0) + '%');
+        .text(d => d.mastery.toFixed(1) + '%');
     
     // 添加悬停效果
     nodeGroup.on('mouseover', function(event, d) {
@@ -1097,7 +1099,7 @@ function renderKnowledgeGraph(diagnosisData, kpAverages) {
             <div style="font-weight: bold; margin-bottom: 8px; color: ${statusColor};">${d.name}</div>
             <div><strong>平均掌握度:</strong> <span style="color: ${statusColor}; font-weight: bold;">${d.mastery.toFixed(1)}%</span></div>
             <div><strong>状态:</strong> <span style="color: ${statusColor};">${statusText}</span></div>
-            <div><strong>习题数:</strong> ${d.exercise_count}</div>
+
         `;
         
         const rect = container.getBoundingClientRect();
@@ -1258,7 +1260,9 @@ function renderStudentPage(diagnosisData) {
     const rows = pageStudents.map(student => {
         // 找出掌握度最高和最低的知识点
         const masteryEntries = Object.entries(student.knowledge_mastery || {});
-        const sortedMastery = masteryEntries.sort((a, b) => b[1] - a[1]);
+        // 过滤掉掌握度 === 0 的知识点
+        const filteredEntries = masteryEntries.filter(([_, mastery]) => mastery !== 0);
+        const sortedMastery = filteredEntries.sort((a, b) => b[1] - a[1]);
 
         const strengths = sortedMastery.slice(0, 2)
             .filter(([_, mastery]) => mastery >= 0.5)
@@ -1814,6 +1818,7 @@ function initKnowledgePointTable(knowledgeData) {
 // 工具函数
 function getMasteryColor(mastery) {
     const value = parseFloat(mastery);
+    if (value === 0) return '#aaaaaa';   // 灰色
     if (value >= 50) return '#52c41a';
     return '#f5222d';
 }

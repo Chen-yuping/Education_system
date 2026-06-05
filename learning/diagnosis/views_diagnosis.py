@@ -41,7 +41,7 @@ def diagnosis(request):
 
     return render(request, 'teacher/diagnosis.html', context)
 
-"""运行诊断分析API"""
+"""运行诊断分析API:导出训练数据、执行模型训练、推理并返回诊断结果"""
 @login_required
 @user_passes_test(is_teacher)
 @csrf_exempt
@@ -72,6 +72,7 @@ def run_diagnosis(request):
 
         from .dual_relation_ncdm import MODEL_NAMES as IRD_NCDM_MODEL_NAMES
         is_ird_ncdm_model = model_name in IRD_NCDM_MODEL_NAMES
+        # 从数据库导出训练数据到本地
         try:
             export_result = export_training_data(subject_id)
             print(f"数据导出成功: {export_result}")
@@ -79,6 +80,7 @@ def run_diagnosis(request):
             print(f"数据导出失败: {str(e)}")
             return JsonResponse({'status': 'error', 'message': f'数据导出失败: {str(e)}'}, status=500)
 
+        # 数据导出成功，就执行模型训练
         if export_result['success']:
             try:
                 run_training(subject_id, model_name)
@@ -148,7 +150,7 @@ CMD_SURVEY_PATH = os.path.join(os.path.dirname(__file__), 'CMD_survey')
 if CMD_SURVEY_PATH not in sys.path:
     sys.path.insert(0, os.path.dirname(CMD_SURVEY_PATH))
 
-# """同步执行模型训练（会阻塞直到训练完成）"""
+# """同步执行模型训练：模型训练过程"""
 def run_training(subject_id, model_name):
 
     try:
@@ -165,7 +167,6 @@ def run_training(subject_id, model_name):
         os.environ['CD_DATASET'] = str(subject_id)
 
         from .main import model_functions
-
         # 模型名称需要与 main.py 中的键匹配（大写）
         # 数据库存储的是 "IRT"、"NCDM" 等，直接使用
         if model_name in model_functions:
@@ -182,6 +183,7 @@ def run_training(subject_id, model_name):
         print(f"训练失败: {str(e)}")
         raise
 
+"""获取特定诊断结果详情（现在通过学生和科目获取）"""
 @login_required
 @user_passes_test(is_teacher)
 def get_diagnosis_result(request, diagnosis_id):
@@ -200,7 +202,7 @@ def get_diagnosis_result(request, diagnosis_id):
             'message': str(e)
         }, status=500)
 
-
+"""获取学生详细诊断数据和历史"""
 @login_required
 @user_passes_test(is_teacher)
 def get_student_diagnosis_detail(request, student_id, subject_id):
@@ -340,7 +342,7 @@ def get_student_diagnosis_detail(request, student_id, subject_id):
             'message': str(e)
         }, status=500)
 
-
+"""获取科目诊断摘要"""
 @login_required
 @user_passes_test(is_teacher)
 @csrf_exempt
