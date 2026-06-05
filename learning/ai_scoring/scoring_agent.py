@@ -17,11 +17,11 @@ COMPARISON_FILE = os.path.join(DATA_DIR, "comparison_result.xlsx")
 COMPARISON_TXT_FALLBACK = os.path.join(DATA_DIR, "comparison_result.txt")
 REFERENCE_FILE = os.path.join(DATA_DIR, "comparison.txt")
 
-DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "sk-0a90221acbdd48abaa1770896bd439cb")
-KIMI_API_KEY = os.environ.get("KIMI_API_KEY", "sk-Q7Dk4N2ZCgwkaVAqDPWmOI9YSW9se0JhvpWCbTS1tTkgdtpn")
+DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "XXX")
+KIMI_API_KEY = os.environ.get("KIMI_API_KEY", "XXX")
 
 XUNFEI_API_URL = "https://spark-api-open.xf-yun.com/agent/v1/chat/completions"
-XUNFEI_API_TOKEN = os.environ.get("XUNFEI_API_TOKEN", "jYojZHQoRCTdgXcMVCkZ:KzqqaeosNPDtgErkOMFD")
+XUNFEI_API_TOKEN = os.environ.get("XUNFEI_API_TOKEN", "XXX")
 XUNFEI_MODEL = "spark-x"
 XUNFEI_TIMEOUT = 90
 XUNFEI_MAX_RETRIES = 3
