@@ -1673,53 +1673,49 @@ def clear_grading_records(request):
 
 @login_required
 @user_passes_test(is_teacher)
+@login_required
+@user_passes_test(is_teacher)
 def export_students(request):
     """导出选课学生列表 API"""
     try:
         teacher = request.user
         subject_id = request.GET.get('subject')
-        
+
         if not subject_id:
-            return JsonResponse({
-                'success': False,
-                'message': '请指定科目'
-            })
-        
+            return JsonResponse({'success': False, 'message': '请指定科目'})
+
         # 验证教师权限
-        if not TeacherSubject.objects.filter(
-            teacher=teacher,
-            subject_id=subject_id
-        ).exists():
-            return JsonResponse({
-                'success': False,
-                'message': '您没有权限导出此科目的学生'
-            }, status=403)
-        
+        if not TeacherSubject.objects.filter(teacher=teacher, subject_id=subject_id).exists():
+            return JsonResponse({'success': False, 'message': '您没有权限导出此科目的学生'}, status=403)
+
         # 获取所有选了该科目的学生
         enrolled_students = StudentSubject.objects.filter(
             subject_id=subject_id
-        ).select_related('student', 'student__studentprofile')
-        
+        ).select_related('student')
+
         students_data = []
         for enrollment in enrolled_students:
             student = enrollment.student
+            # 安全获取 profile 信息，若不存在则返回 '-'
+            try:
+                profile = student.studentprofile
+                grade = profile.grade if profile.grade else '-'
+                school = profile.school if profile.school else '-'
+            except Exception:
+                grade = '-'
+                school = '-'
+
             students_data.append({
                 'name': f"{student.first_name}{student.last_name}" if student.first_name else student.username,
                 'email': student.email or '无邮箱',
-                'grade': student.studentprofile.grade if student.studentprofile else '-',
-                'school': student.studentprofile.school if student.studentprofile else '-'
+                'grade': grade,
+                'school': school
             })
-        
-        return JsonResponse({
-            'success': True,
-            'students': students_data
-        })
-    
+
+        return JsonResponse({'success': True, 'students': students_data})
+
     except Exception as e:
         import traceback
         print(f"导出学生列表错误: {e}")
         print(traceback.format_exc())
-        return JsonResponse({
-            'success': False,
-            'message': f'导出失败: {str(e)}'
-        }, status=500)
+        return JsonResponse({'success': False, 'message': f'导出失败: {str(e)}'}, status=500)
