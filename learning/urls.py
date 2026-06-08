@@ -2,7 +2,8 @@ from . import views_student,views_teacher,views_researcher
 from django.urls import path, include
 from .exercise_file import views_exercisefile
 from .diagnosis import views_diagnosis,views_personalized_recommendations
-from .knowledge import views_teacherknowledge,views_studentknowledge,views_teacherknowledge_management
+from .knowledge import views_teacherknowledge,views_studentknowledge,views_teacherknowledge_management,views_fusion
+from graph_fusion import views as views_graph_fusion  # 多学科图谱融合 + DeepSeek 融合评估
 
 urlpatterns = [
 
@@ -70,7 +71,15 @@ urlpatterns = [
 
     # 知识点关系图页面,知识点数据接口
     path('teacher/knowledge-graph/',views_teacherknowledge.knowledge_graph,name='teacher_knowledge_graph'),#知识点关系图
-    path('teacher/api/knowledge-points/<int:subject_id>/',views_teacherknowledge.knowledge_points_api,name='knowledge_points_api'),
+    # 多学科/多课程融合图谱（全局统一图谱）
+    path('teacher/knowledge-graph/fusion/', views_fusion.fused_knowledge_graph_page, name='fused_knowledge_graph_page'),
+    path('teacher/api/knowledge-graph/fusion/', views_fusion.fused_knowledge_graph_api,name='fused_knowledge_graph_api'),
+
+    # 多学科知识图谱融合 + 融合图谱评估（graph_fusion 包，DeepSeek 评估）
+    path('teacher/multi-graph-fusion/', views_graph_fusion.page, name='multi_graph_fusion_page'),
+    path('teacher/api/multi-graph-fusion/fuse/', views_graph_fusion.fuse_api, name='multi_graph_fusion_fuse'),
+    path('teacher/api/multi-graph-fusion/evaluate/', views_graph_fusion.evaluate_api,name='multi_graph_fusion_evaluate'),
+    path('teacher/api/knowledge-points/<int:subject_id>/', views_teacherknowledge.knowledge_points_api,name='knowledge_points_api'),
 
     # 知识点管理
     path('teacher/knowledge-points/<int:subject_id>/', views_teacherknowledge_management.knowledge_point_list, name='knowledge_point_list'),

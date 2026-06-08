@@ -27,7 +27,13 @@
                     <i class="fas fa-chalkboard-teacher"></i> 授课管理
                 </a>
             </li>
-           
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'multi_graph_fusion_page' %}active{% endif %}"
+                   href="{% url 'multi_graph_fusion_page' %}">
+                    <i class="fas fa-code-branch"></i> 多学科知识图谱融合
+                </a>
+            </li>
+
 
 
         </ul>

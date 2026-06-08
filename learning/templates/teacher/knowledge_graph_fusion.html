@@ -1,0 +1,317 @@
+{% extends 'teacher/course_management_base.html' %}
+{% load static %}
+
+{% block title %}多学科知识图谱融合 - 在线学习诊断系统{% endblock %}
+
+{% block content %}
+<style>
+    .fusion-graph-container {
+        width: 100%;
+        height: 680px;
+        border: 1px solid #e9ecef;
+        border-radius: 5px;
+        position: relative;
+        overflow: hidden;
+        background: #fbfcfe;
+    }
+    #fusionChart { width: 100%; height: 100%; }
+
+    /* 学科选择卡片 */
+    .subject-pick {
+        display: flex; align-items: center; gap: 8px;
+        padding: 8px 14px; border: 1px solid #dee2e6; border-radius: 20px;
+        cursor: pointer; user-select: none; background: #fff;
+        transition: all 0.18s ease; font-size: 14px;
+    }
+    .subject-pick:hover { border-color: #007bff; color: #007bff; }
+    .subject-pick.selected {
+        background: #007bff; color: #fff; border-color: #007bff;
+        box-shadow: 0 2px 6px rgba(0,123,255,0.3);
+    }
+    .subject-pick input { display: none; }
+
+    /* 融合成效统计卡片 */
+    .fusion-stat-card {
+        border: none; border-radius: 10px; color: #fff;
+        box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+    }
+    .fusion-stat-card .num { font-size: 28px; font-weight: 700; line-height: 1; }
+    .fusion-stat-card .lbl { font-size: 13px; opacity: 0.92; }
+
+    .tooltip-fusion {
+        position: absolute; background: rgba(0,0,0,0.85); color: #fff;
+        padding: 10px 15px; border-radius: 6px; font-size: 13px;
+        pointer-events: none; z-index: 100; max-width: 340px;
+        box-shadow: 0 3px 10px rgba(0,0,0,0.3); display: none;
+    }
+    .tooltip-fusion h6 { margin: 0 0 6px 0; color: #ffcc00; font-weight: bold; }
+    .tooltip-fusion p { margin: 2px 0; }
+    .cross-badge {
+        display:inline-block; background:#10b981; color:#fff; font-size:11px;
+        padding:1px 7px; border-radius:10px; margin-left:6px;
+    }
+</style>
+
+<!-- 标题 -->
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; flex-wrap:wrap; gap:10px;">
+    <h4 style="margin:0;">
+        <i class="fas fa-code-branch me-2"></i>多学科知识图谱融合
+    </h4>
+    <a href="{% url 'teacher_knowledge_graph' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="fas fa-arrow-left me-1"></i> 返回单科图谱
+    </a>
+</div>
+
+<!-- 学科选择区 -->
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="mb-0"><i class="fas fa-check-square me-2 text-primary"></i>选择参与融合的学科</h6>
+            <div>
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllSubjects(true)">全选</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllSubjects(false)">清空</button>
+            </div>
+        </div>
+        {% if subjects %}
+        <div id="subjectPickList" style="display:flex; flex-wrap:wrap; gap:10px;">
+            {% for s in subjects %}
+            <label class="subject-pick selected" data-id="{{ s.id }}">
+                <input type="checkbox" value="{{ s.id }}" checked>
+                <i class="fas fa-book"></i> {{ s.name }}
+            </label>
+            {% endfor %}
+        </div>
+        <div class="mt-3">
+            <button type="button" class="btn btn-primary" id="fuseBtn" onclick="runFusion()">
+                <i class="fas fa-project-diagram me-2"></i>开始融合
+            </button>
+            <span class="text-muted small ms-2">已选 <span id="selectedCount">{{ subject_count }}</span> / {{ subject_count }} 个学科</span>
+        </div>
+        {% else %}
+        <div class="alert alert-warning mb-0">
+            <i class="fas fa-exclamation-triangle me-2"></i>您还没有授课的学科，无法进行融合。请先在「授课管理」中添加学科。
+        </div>
+        {% endif %}
+    </div>
+</div>
+<!-- PLACEHOLDER_STATS_AND_GRAPH -->
+
+<!-- 融合成效统计 -->
+<div id="fusionStats" class="row g-3 mb-3" style="display:none;">
+    <div class="col-6 col-md-3">
+        <div class="card fusion-stat-card" style="background:linear-gradient(135deg,#4e73df,#224abe);">
+            <div class="card-body py-3 text-center">
+                <div class="num" id="statSubjects">0</div>
+                <div class="lbl"><i class="fas fa-layer-group me-1"></i>融合学科数</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card fusion-stat-card" style="background:linear-gradient(135deg,#1cc88a,#13855c);">
+            <div class="card-body py-3 text-center">
+                <div class="num" id="statNodes">0</div>
+                <div class="lbl"><i class="fas fa-circle-nodes me-1"></i>全局知识点</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card fusion-stat-card" style="background:linear-gradient(135deg,#f6c23e,#dda20a);">
+            <div class="card-body py-3 text-center">
+                <div class="num" id="statMerged">0</div>
+                <div class="lbl"><i class="fas fa-compress-arrows-alt me-1"></i>合并同名点</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card fusion-stat-card" style="background:linear-gradient(135deg,#36b9cc,#258391);">
+            <div class="card-body py-3 text-center">
+                <div class="num" id="statCross">0</div>
+                <div class="lbl"><i class="fas fa-share-nodes me-1"></i>跨学科节点</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 图谱容器 -->
+<div class="card">
+    <div class="card-body p-0">
+        <div id="fusionGraphContainer" class="fusion-graph-container">
+            <div id="fusionLoading" style="position:absolute; top:0; left:0; width:100%; height:100%; display:none; flex-direction:column; justify-content:center; align-items:center; background:rgba(255,255,255,0.95); z-index:1000;">
+                <div class="spinner-border text-primary" style="width:3rem; height:3rem;" role="status"></div>
+                <h5 class="mt-3 text-primary">正在融合多学科知识图谱...</h5>
+                <p id="fusionLoadingMsg" class="text-muted"></p>
+            </div>
+            <div id="fusionEmpty" style="position:absolute; top:0; left:0; width:100%; height:100%; display:flex; flex-direction:column; justify-content:center; align-items:center; color:#adb5bd;">
+                <i class="fas fa-diagram-project" style="font-size:56px;"></i>
+                <p class="mt-3">选择学科后点击「开始融合」生成全局知识图谱</p>
+            </div>
+            <div id="fusionTooltip" class="tooltip-fusion"></div>
+            <div id="fusionChart"></div>
+        </div>
+    </div>
+</div>
+
+<!-- 图例 + 提示 -->
+<div class="row mt-3">
+    <div class="col-md-7">
+        <div class="card"><div class="card-body py-2">
+            <div class="d-flex align-items-center flex-wrap" style="gap:14px;">
+                <span class="small text-muted">关系类型：</span>
+                <span class="d-flex align-items-center"><span style="width:24px;height:3px;background:#8b5cf6;display:inline-block;margin-right:4px;"></span>隶属</span>
+                <span class="d-flex align-items-center"><span style="width:24px;height:3px;background:#4e73df;display:inline-block;margin-right:4px;"></span>关联</span>
+                <span class="d-flex align-items-center"><span style="width:24px;height:3px;background:#f59e0b;display:inline-block;margin-right:4px;"></span>前置</span>
+                <span class="d-flex align-items-center"><span style="width:24px;height:3px;background:#10b981;display:inline-block;margin-right:4px;"></span>相似</span>
+                <span class="d-flex align-items-center ms-2"><span style="width:14px;height:14px;border-radius:50%;background:#10b981;display:inline-block;margin-right:4px;"></span>跨学科节点</span>
+            </div>
+        </div></div>
+    </div>
+    <div class="col-md-5">
+        <div class="card"><div class="card-body py-2 text-muted small text-md-end">
+            <i class="fas fa-mouse-pointer me-1"></i>悬停查看详情 |
+            <i class="fas fa-arrows-alt me-1"></i>拖拽节点 |
+            <i class="fas fa-search me-1"></i>滚轮缩放
+        </div></div>
+    </div>
+</div>
+
+<!-- vis-network（与单科图谱使用同一引擎，保持视觉一致） -->
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<script>
+const FUSION_API = "{% url 'fused_knowledge_graph_api' %}";
+let fusionNetwork = null;
+
+// ---------- 学科多选 ----------
+document.querySelectorAll('.subject-pick').forEach(el => {
+    el.addEventListener('click', function () {
+        const cb = this.querySelector('input');
+        cb.checked = !cb.checked;
+        this.classList.toggle('selected', cb.checked);
+        updateSelectedCount();
+    });
+});
+function selectAllSubjects(flag) {
+    document.querySelectorAll('.subject-pick').forEach(el => {
+        el.querySelector('input').checked = flag;
+        el.classList.toggle('selected', flag);
+    });
+    updateSelectedCount();
+}
+function getSelectedIds() {
+    return Array.from(document.querySelectorAll('.subject-pick input:checked')).map(c => c.value);
+}
+function updateSelectedCount() {
+    const el = document.getElementById('selectedCount');
+    if (el) el.textContent = getSelectedIds().length;
+}
+
+// ---------- 触发融合 ----------
+function runFusion() {
+    const ids = getSelectedIds();
+    if (ids.length === 0) { alert('请至少选择一个学科'); return; }
+
+    document.getElementById('fusionEmpty').style.display = 'none';
+    document.getElementById('fusionLoading').style.display = 'flex';
+    document.getElementById('fuseBtn').disabled = true;
+
+    fetch(`${FUSION_API}?subject_ids=${ids.join(',')}`)
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('fusionLoading').style.display = 'none';
+            document.getElementById('fuseBtn').disabled = false;
+            if (data.status !== 'success') {
+                alert('融合失败：' + (data.message || '未知错误'));
+                return;
+            }
+            renderFusionStats(data);
+            renderFusionGraph(data);
+        })
+        .catch(err => {
+            document.getElementById('fusionLoading').style.display = 'none';
+            document.getElementById('fuseBtn').disabled = false;
+            alert('请求失败：' + err);
+        });
+}
+
+// ---------- 统计卡片 ----------
+function renderFusionStats(data) {
+    document.getElementById('statSubjects').textContent = data.subject_count || 0;
+    document.getElementById('statNodes').textContent = data.node_count || 0;
+    document.getElementById('statMerged').textContent = data.merged_node_count || 0;
+    document.getElementById('statCross').textContent = data.cross_subject_node_count || 0;
+    document.getElementById('fusionStats').style.display = 'flex';
+}
+// PLACEHOLDER_RENDER_GRAPH
+
+// ---------- vis-network 渲染（与单科图谱同款引擎/配色） ----------
+function renderFusionGraph(data) {
+    const container = document.getElementById('fusionChart');
+    const relTypeColors = {'隶属':'#8b5cf6','关联':'#4e73df','前置':'#f59e0b','相似':'#10b981'};
+
+    const nodes = new vis.DataSet(data.nodes.map(n => {
+        const isCross = n.cross_subject;
+        return {
+            id: n.id,
+            label: n.name,
+            shape: 'dot',
+            // 跨学科节点放大并用绿色突出（融合的视觉重点）
+            size: isCross ? 30 : (20 + Math.min((n.merged_count || 1) - 1, 6) * 3),
+            font: { color:'#1a2332', size:12, face:'sans-serif', strokeWidth:3, strokeColor:'#fff', align:'center' },
+            color: isCross
+                ? { background:'#10b981', border:'#0f9d6f', highlight:{ background:'#ff5722', border:'#e64a19' } }
+                : { background:'#4e73df', border:'#2e59d9', highlight:{ background:'#ff5722', border:'#e64a19' } },
+            borderWidth: 2,
+        };
+    }));
+
+    const edges = new vis.DataSet(data.links.map(l => ({
+        from: l.source,
+        to: l.target,
+        arrows: l.arrow ? 'to' : undefined,
+        dashes: !l.arrow,
+        color: { color: relTypeColors[l.relationship_type] || '#999', highlight:'#ff5722' },
+        width: 2,
+        label: l.relationship_type || '',
+        font: { size:11, color:'#666', strokeWidth:2, strokeColor:'#fff' },
+        smooth: { type:'curvedCW', roundness:0.1 },
+    })));
+
+    const options = {
+        autoResize: true, width:'100%', height:'100%', locale:'zh-CN',
+        interaction: { hover:true, tooltipDelay:200, zoomView:true, dragView:true, dragNodes:true },
+        physics: {
+            solver:'barnesHut',
+            barnesHut:{ gravitationalConstant:-3000, centralGravity:0.3, springLength:180, springConstant:0.04, damping:0.5 },
+            stabilization:{ iterations:200 },
+        },
+        nodes: { borderWidth:2, shadow:{ enabled:true, size:4, x:2, y:2 } },
+        edges: { smooth:{ type:'curvedCW', roundness:0.1 } },
+    };
+
+    if (fusionNetwork) { fusionNetwork.destroy(); fusionNetwork = null; }
+    fusionNetwork = new vis.Network(container, { nodes, edges }, options);
+
+    // 悬停 tooltip：展示该节点跨越了哪些学科、合并了多少同名点
+    fusionNetwork.on('hoverNode', function (params) {
+        const nodeData = data.nodes.find(n => n.id === params.node);
+        if (!nodeData) return;
+        const tooltip = document.getElementById('fusionTooltip');
+        const subjects = (nodeData.subjects || []).join('、');
+        tooltip.innerHTML = `
+            <h6>${nodeData.name}${nodeData.cross_subject ? '<span class="cross-badge">跨学科</span>' : ''}</h6>
+            <p><strong>所属学科:</strong> ${subjects || '-'}</p>
+            <p><strong>合并同名点:</strong> ${nodeData.merged_count || 1} 个</p>
+            <p><strong>相关习题:</strong> ${nodeData.exercise_count || 0} 个</p>
+        `;
+        tooltip.style.display = 'block';
+    });
+    fusionNetwork.on('blurNode', function () {
+        document.getElementById('fusionTooltip').style.display = 'none';
+    });
+}
+
+// 页面加载即自动融合一次（默认全选）
+document.addEventListener('DOMContentLoaded', function () {
+    if (getSelectedIds().length > 0) runFusion();
+});
+</script>
+{% endblock %}

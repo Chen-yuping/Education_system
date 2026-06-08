@@ -1,0 +1,429 @@
+{% extends 'teacher/base.html' %}
+{% load static %}
+
+{% block title %}多学科知识图谱融合 - 在线学习诊断系统{% endblock %}
+
+{% block content %}
+<style>
+    .fusion-graph-container {
+        width: 100%; height: 640px;
+        border: 1px solid #e9ecef; border-radius: 8px;
+        position: relative; overflow: hidden; background: #fbfcfe;
+    }
+    #fusionChart { width: 100%; height: 100%; }
+
+    .subject-pick {
+        display: flex; align-items: center; gap: 8px;
+        padding: 8px 14px; border: 1px solid #dee2e6; border-radius: 20px;
+        cursor: pointer; user-select: none; background: #fff;
+        transition: all 0.18s ease; font-size: 14px;
+    }
+    .subject-pick:hover { border-color: #007bff; color: #007bff; }
+    .subject-pick.selected {
+        background: #007bff; color: #fff; border-color: #007bff;
+        box-shadow: 0 2px 6px rgba(0,123,255,0.3);
+    }
+    .subject-pick input { display: none; }
+
+    .fusion-stat-card { border: none; border-radius: 10px; color: #fff; box-shadow: 0 3px 10px rgba(0,0,0,0.08); }
+    .fusion-stat-card .num { font-size: 28px; font-weight: 700; line-height: 1; }
+    .fusion-stat-card .lbl { font-size: 13px; opacity: 0.92; }
+
+    .tooltip-fusion {
+        position: absolute; background: rgba(0,0,0,0.85); color: #fff;
+        padding: 10px 15px; border-radius: 6px; font-size: 13px;
+        pointer-events: none; z-index: 100; max-width: 340px;
+        box-shadow: 0 3px 10px rgba(0,0,0,0.3); display: none;
+    }
+    .tooltip-fusion h6 { margin: 0 0 6px 0; color: #ffcc00; font-weight: bold; }
+    .tooltip-fusion p { margin: 2px 0; }
+    .cross-badge { display:inline-block; background:#10b981; color:#fff; font-size:11px; padding:1px 7px; border-radius:10px; margin-left:6px; }
+
+    .score-ring {
+        width: 130px; height: 130px; border-radius: 50%;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        color: #fff; margin: 0 auto;
+    }
+    .score-ring .s { font-size: 38px; font-weight: 800; line-height: 1; }
+    .metric-box { background:#f8f9fa; border-radius:8px; padding:14px; text-align:center; height:100%; }
+    .metric-box .v { font-size:22px; font-weight:700; }
+    .metric-box .k { font-size:12px; color:#6c757d; }
+</style>
+<!-- 标题 + 右上角评估按钮 -->
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; flex-wrap:wrap; gap:10px;">
+    <h4 style="margin:0;"><i class="fas fa-code-branch me-2"></i>多学科知识图谱融合</h4>
+    <button type="button" class="btn btn-warning" id="evalBtn" onclick="runEvaluation()" disabled>
+        <i class="fas fa-clipboard-check me-1"></i> 融合图谱评估
+    </button>
+</div>
+
+<!-- 课程选择区 -->
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="mb-0"><i class="fas fa-check-square me-2 text-primary"></i>选择参与融合的课程</h6>
+            <div>
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllSubjects(true)">全选</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllSubjects(false)">清空</button>
+            </div>
+        </div>
+        {% if subjects %}
+        <div id="subjectPickList" style="display:flex; flex-wrap:wrap; gap:10px;">
+            {% for s in subjects %}
+            <label class="subject-pick selected" data-id="{{ s.id }}">
+                <input type="checkbox" value="{{ s.id }}" checked>
+                <i class="fas fa-book"></i> {{ s.name }}
+            </label>
+            {% endfor %}
+        </div>
+        <div class="mt-3">
+            <button type="button" class="btn btn-primary" id="fuseBtn" onclick="runFusion()">
+                <i class="fas fa-project-diagram me-2"></i>开始融合
+            </button>
+            <span class="text-muted small ms-2">已选 <span id="selectedCount">{{ subject_count }}</span> / {{ subject_count }} 门课程</span>
+        </div>
+        {% else %}
+        <div class="alert alert-warning mb-0">
+            <i class="fas fa-exclamation-triangle me-2"></i>您还没有导入任何课程，无法进行融合。请先在「授课管理」中添加课程。
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 融合成效统计 -->
+<div id="fusionStats" class="row g-3 mb-3" style="display:none;">
+    <div class="col-6 col-md-3">
+        <div class="card fusion-stat-card" style="background:linear-gradient(135deg,#4e73df,#224abe);">
+            <div class="card-body py-3 text-center">
+                <div class="num" id="statSubjects">0</div>
+                <div class="lbl"><i class="fas fa-layer-group me-1"></i>融合课程数</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card fusion-stat-card" style="background:linear-gradient(135deg,#1cc88a,#13855c);">
+            <div class="card-body py-3 text-center">
+                <div class="num" id="statNodes">0</div>
+                <div class="lbl"><i class="fas fa-circle-nodes me-1"></i>全局知识点</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card fusion-stat-card" style="background:linear-gradient(135deg,#f6c23e,#dda20a);">
+            <div class="card-body py-3 text-center">
+                <div class="num" id="statMerged">0</div>
+                <div class="lbl"><i class="fas fa-compress-arrows-alt me-1"></i>合并同名点</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card fusion-stat-card" style="background:linear-gradient(135deg,#36b9cc,#258391);">
+            <div class="card-body py-3 text-center">
+                <div class="num" id="statCross">0</div>
+                <div class="lbl"><i class="fas fa-share-nodes me-1"></i>跨学科节点</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 图谱容器 -->
+<div class="card">
+    <div class="card-body p-0">
+        <div id="fusionGraphContainer" class="fusion-graph-container">
+            <div id="fusionLoading" style="position:absolute; top:0; left:0; width:100%; height:100%; display:none; flex-direction:column; justify-content:center; align-items:center; background:rgba(255,255,255,0.95); z-index:1000;">
+                <div class="spinner-border text-primary" style="width:3rem; height:3rem;" role="status"></div>
+                <h5 class="mt-3 text-primary">正在融合多学科知识图谱...</h5>
+            </div>
+            <div id="fusionEmpty" style="position:absolute; top:0; left:0; width:100%; height:100%; display:flex; flex-direction:column; justify-content:center; align-items:center; color:#adb5bd;">
+                <i class="fas fa-diagram-project" style="font-size:56px;"></i>
+                <p class="mt-3">选择课程后点击「开始融合」生成全局知识图谱</p>
+            </div>
+            <div id="fusionTooltip" class="tooltip-fusion"></div>
+            <div id="fusionChart"></div>
+        </div>
+    </div>
+</div>
+
+<!-- 图例 -->
+<div class="card mt-3"><div class="card-body py-2">
+    <div class="d-flex align-items-center flex-wrap" style="gap:14px;">
+        <span class="small text-muted">关系类型：</span>
+        <span class="d-flex align-items-center"><span style="width:24px;height:3px;background:#8b5cf6;display:inline-block;margin-right:4px;"></span>隶属</span>
+        <span class="d-flex align-items-center"><span style="width:24px;height:3px;background:#4e73df;display:inline-block;margin-right:4px;"></span>关联</span>
+        <span class="d-flex align-items-center"><span style="width:24px;height:3px;background:#f59e0b;display:inline-block;margin-right:4px;"></span>前置</span>
+        <span class="d-flex align-items-center"><span style="width:24px;height:3px;background:#10b981;display:inline-block;margin-right:4px;"></span>相似</span>
+        <span class="d-flex align-items-center ms-2"><span style="width:14px;height:14px;border-radius:50%;background:#10b981;display:inline-block;margin-right:4px;"></span>跨学科节点</span>
+        <span class="ms-auto small text-muted"><i class="fas fa-mouse-pointer me-1"></i>悬停查看详情 · 拖拽 · 滚轮缩放</span>
+    </div>
+</div></div>
+
+<!-- 评估结果弹窗 -->
+<div class="modal fade" id="evalModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header bg-warning">
+        <h5 class="modal-title"><i class="fas fa-clipboard-check me-2"></i>融合图谱质量评估
+          <span class="badge bg-dark ms-2" id="evalModelBadge" style="font-weight:normal;"></span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="evalLoading" class="text-center py-5">
+            <div class="spinner-border text-warning" style="width:3rem;height:3rem;"></div>
+            <h5 class="mt-3 text-warning">DeepSeek 正在评估融合图谱质量...</h5>
+            <p class="text-muted">正在抽样验证跨学科关系准确性，请稍候</p>
+        </div>
+        <div id="evalContent" style="display:none;"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<script>
+const FUSE_API = "{% url 'multi_graph_fusion_fuse' %}";
+const EVAL_API = "{% url 'multi_graph_fusion_evaluate' %}";
+const CSRF = "{{ csrf_token }}";
+let fusionNetwork = null;
+let lastFusionData = null;
+
+// ---------- 课程多选 ----------
+document.querySelectorAll('.subject-pick').forEach(el => {
+    el.addEventListener('click', function () {
+        const cb = this.querySelector('input');
+        cb.checked = !cb.checked;
+        this.classList.toggle('selected', cb.checked);
+        updateSelectedCount();
+    });
+});
+function selectAllSubjects(flag) {
+    document.querySelectorAll('.subject-pick').forEach(el => {
+        el.querySelector('input').checked = flag;
+        el.classList.toggle('selected', flag);
+    });
+    updateSelectedCount();
+}
+function getSelectedIds() {
+    return Array.from(document.querySelectorAll('.subject-pick input:checked')).map(c => c.value);
+}
+function updateSelectedCount() {
+    const el = document.getElementById('selectedCount');
+    if (el) el.textContent = getSelectedIds().length;
+}
+
+// ---------- 触发融合 ----------
+function runFusion() {
+    const ids = getSelectedIds();
+    if (ids.length === 0) { alert('请至少选择一门课程'); return; }
+
+    document.getElementById('fusionEmpty').style.display = 'none';
+    document.getElementById('fusionLoading').style.display = 'flex';
+    document.getElementById('fuseBtn').disabled = true;
+    document.getElementById('evalBtn').disabled = true;
+
+    fetch(`${FUSE_API}?subject_ids=${ids.join(',')}`)
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('fusionLoading').style.display = 'none';
+            document.getElementById('fuseBtn').disabled = false;
+            if (data.status !== 'success') {
+                alert('融合失败：' + (data.message || '未知错误'));
+                return;
+            }
+            lastFusionData = data;
+            renderFusionStats(data);
+            renderFusionGraph(data);
+            // 融合成功后开放「融合图谱评估」按钮（需至少 2 门课程）
+            document.getElementById('evalBtn').disabled = (ids.length < 2);
+        })
+        .catch(err => {
+            document.getElementById('fusionLoading').style.display = 'none';
+            document.getElementById('fuseBtn').disabled = false;
+            alert('请求失败：' + err);
+        });
+}
+
+function renderFusionStats(data) {
+    document.getElementById('statSubjects').textContent = data.subject_count || 0;
+    document.getElementById('statNodes').textContent = data.node_count || 0;
+    document.getElementById('statMerged').textContent = data.merged_node_count || 0;
+    document.getElementById('statCross').textContent = data.cross_subject_node_count || 0;
+    document.getElementById('fusionStats').style.display = 'flex';
+}
+
+function renderFusionGraph(data) {
+    const container = document.getElementById('fusionChart');
+    const relTypeColors = {'隶属':'#8b5cf6','关联':'#4e73df','前置':'#f59e0b','相似':'#10b981'};
+
+    const nodes = new vis.DataSet(data.nodes.map(n => {
+        const isCross = n.cross_subject;
+        return {
+            id: n.id, label: n.name, shape: 'dot',
+            size: isCross ? 30 : (20 + Math.min((n.merged_count || 1) - 1, 6) * 3),
+            font: { color:'#1a2332', size:12, face:'sans-serif', strokeWidth:3, strokeColor:'#fff', align:'center' },
+            color: isCross
+                ? { background:'#10b981', border:'#0f9d6f', highlight:{ background:'#ff5722', border:'#e64a19' } }
+                : { background:'#4e73df', border:'#2e59d9', highlight:{ background:'#ff5722', border:'#e64a19' } },
+            borderWidth: 2,
+        };
+    }));
+
+    const edges = new vis.DataSet(data.links.map(l => ({
+        from: l.source, to: l.target,
+        arrows: l.arrow ? 'to' : undefined, dashes: !l.arrow,
+        color: { color: relTypeColors[l.relationship_type] || '#999', highlight:'#ff5722' },
+        width: 2, label: l.relationship_type || '',
+        font: { size:11, color:'#666', strokeWidth:2, strokeColor:'#fff' },
+        smooth: { type:'curvedCW', roundness:0.1 },
+    })));
+
+    const options = {
+        autoResize: true, width:'100%', height:'100%', locale:'zh-CN',
+        interaction: { hover:true, tooltipDelay:200, zoomView:true, dragView:true, dragNodes:true },
+        physics: {
+            solver:'barnesHut',
+            barnesHut:{ gravitationalConstant:-3000, centralGravity:0.3, springLength:180, springConstant:0.04, damping:0.5 },
+            stabilization:{ iterations:200 },
+        },
+        nodes: { borderWidth:2, shadow:{ enabled:true, size:4, x:2, y:2 } },
+        edges: { smooth:{ type:'curvedCW', roundness:0.1 } },
+    };
+
+    if (fusionNetwork) { fusionNetwork.destroy(); fusionNetwork = null; }
+    fusionNetwork = new vis.Network(container, { nodes, edges }, options);
+
+    fusionNetwork.on('hoverNode', function (params) {
+        const nodeData = data.nodes.find(n => n.id === params.node);
+        if (!nodeData) return;
+        const tooltip = document.getElementById('fusionTooltip');
+        const subjects = (nodeData.subjects || []).join('、');
+        tooltip.innerHTML = `
+            <h6>${nodeData.name}${nodeData.cross_subject ? '<span class="cross-badge">跨学科</span>' : ''}</h6>
+            <p><strong>所属学科:</strong> ${subjects || '-'}</p>
+            <p><strong>合并同名点:</strong> ${nodeData.merged_count || 1} 个</p>
+            <p><strong>相关习题:</strong> ${nodeData.exercise_count || 0} 个</p>`;
+        tooltip.style.display = 'block';
+    });
+    fusionNetwork.on('blurNode', function () {
+        document.getElementById('fusionTooltip').style.display = 'none';
+    });
+}
+// ---------- 融合图谱评估（DeepSeek） ----------
+function runEvaluation() {
+    const ids = getSelectedIds();
+    if (ids.length < 2) { alert('请至少选择 2 门课程才能评估融合质量'); return; }
+
+    const modal = new bootstrap.Modal(document.getElementById('evalModal'));
+    modal.show();
+    document.getElementById('evalLoading').style.display = 'block';
+    document.getElementById('evalContent').style.display = 'none';
+
+    fetch(EVAL_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify({ subject_ids: ids })
+    })
+        .then(r => r.json())
+        .then(res => {
+            document.getElementById('evalLoading').style.display = 'none';
+            if (res.status !== 'success') {
+                document.getElementById('evalContent').style.display = 'block';
+                document.getElementById('evalContent').innerHTML =
+                    `<div class="alert alert-danger">评估失败：${res.message || '未知错误'}</div>`;
+                return;
+            }
+            renderEvaluation(res.data);
+        })
+        .catch(err => {
+            document.getElementById('evalLoading').style.display = 'none';
+            document.getElementById('evalContent').style.display = 'block';
+            document.getElementById('evalContent').innerHTML =
+                `<div class="alert alert-danger">请求失败：${err}</div>`;
+        });
+}
+
+function renderEvaluation(d) {
+    const m = d.fusionMetrics, es = d.entityStats, rs = d.relationStats;
+    const lvl = m.fusionLevel;
+    document.getElementById('evalModelBadge').textContent = '模型: ' + (d.model || 'deepseek');
+
+    let typeAcc = (rs.relationTypeAccuracy || []).map(t =>
+        `<tr><td>${t.type}</td><td>${t.accuracy}%</td><td>${t.details}</td><td>${t.totalCount}</td></tr>`
+    ).join('') || '<tr><td colspan="4" class="text-muted text-center">无关系数据</td></tr>';
+
+    let dist = (rs.relationTypeDistribution || []).map(t =>
+        `<span class="badge bg-light text-dark me-1 mb-1">${t.type}: ${t.count} (${t.percentage}%)</span>`
+    ).join('') || '<span class="text-muted">无</span>';
+
+    let questionable = (rs.questionable || []).map(q =>
+        `<tr><td>${q.from}</td><td><span class="badge bg-secondary">${q.type}</span></td><td>${q.to}</td>
+         <td>${q.confidence}%</td><td class="small text-muted">${q.explanation || '-'}</td></tr>`
+    ).join('') || '<tr><td colspan="5" class="text-success text-center">DeepSeek 抽样验证未发现明显不合理的关系</td></tr>';
+
+    let suggestions = (d.suggestions || []).map(s => `<li>${s}</li>`).join('');
+
+    document.getElementById('evalContent').innerHTML = `
+      <div class="row align-items-center mb-4">
+        <div class="col-md-3 text-center">
+            <div class="score-ring" style="background:${lvl.color};">
+                <div class="s">${m.fusionScore}</div>
+                <div style="font-size:13px;">融合质量评分</div>
+            </div>
+            <div class="mt-2"><span class="badge" style="background:${lvl.color};font-size:14px;">${lvl.level}</span></div>
+            <div class="small text-muted mt-1">${lvl.description}</div>
+        </div>
+        <div class="col-md-9">
+            <div class="row g-2">
+                <div class="col-4"><div class="metric-box"><div class="v text-primary">${m.fusionRate}%</div><div class="k">融合率(去重率)</div></div></div>
+                <div class="col-4"><div class="metric-box"><div class="v text-success">${m.commonRatio}%</div><div class="k">共同节点占比</div></div></div>
+                <div class="col-4"><div class="metric-box"><div class="v text-info">${rs.overallAccuracy}%</div><div class="k">关系准确率(DeepSeek)</div></div></div>
+                <div class="col-4"><div class="metric-box"><div class="v">${m.totalEntitiesBefore} → ${m.totalEntitiesAfter}</div><div class="k">实体数(融合前→后)</div></div></div>
+                <div class="col-4"><div class="metric-box"><div class="v text-success">${es.validEntityPercentage}%</div><div class="k">有效实体占比</div></div></div>
+                <div class="col-4"><div class="metric-box"><div class="v text-warning">${m.crossSubjectNodeCount}</div><div class="k">跨学科节点数</div></div></div>
+            </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <h6 class="text-primary"><i class="fas fa-cubes me-1"></i>实体质量分布</h6>
+          <table class="table table-sm table-bordered mb-2">
+            <tbody>
+              <tr><td>高质量实体</td><td>${es.highQuality} (${es.highQualityPercentage}%)</td></tr>
+              <tr><td>中等质量实体</td><td>${es.mediumQuality} (${es.mediumQualityPercentage}%)</td></tr>
+              <tr><td>低质量实体</td><td>${es.lowQuality} (${es.lowQualityPercentage}%)</td></tr>
+              <tr><td>平均质量得分</td><td>${es.averageScore}</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="col-md-6 mb-3">
+          <h6 class="text-primary"><i class="fas fa-sitemap me-1"></i>关系类型分布</h6>
+          <div>${dist}</div>
+          <h6 class="text-primary mt-3"><i class="fas fa-percent me-1"></i>分类型准确率</h6>
+          <table class="table table-sm table-bordered">
+            <thead><tr><th>关系类型</th><th>准确率</th><th>抽样</th><th>总数</th></tr></thead>
+            <tbody>${typeAcc}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <h6 class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>DeepSeek 判定存疑的关系</h6>
+      <table class="table table-sm table-bordered">
+        <thead><tr><th>源</th><th>关系</th><th>目标</th><th>置信度</th><th>说明</th></tr></thead>
+        <tbody>${questionable}</tbody>
+      </table>
+
+      <h6 class="text-success mt-3"><i class="fas fa-lightbulb me-1"></i>融合改进建议</h6>
+      <ul>${suggestions}</ul>
+    `;
+    document.getElementById('evalContent').style.display = 'block';
+}
+
+// 页面加载即自动融合一次（默认全选）
+document.addEventListener('DOMContentLoaded', function () {
+    if (getSelectedIds().length > 0) runFusion();
+});
+</script>
+{% endblock %}
