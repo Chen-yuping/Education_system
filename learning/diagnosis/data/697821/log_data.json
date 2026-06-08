@@ -54,6 +54,727 @@
     ]
   },
   {
+    "user_id": 1,
+    "exer_id": 52,
+    "score": 0,
+    "knowledge_code": [
+      74,
+      103,
+      153
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 1,
+    "score": 0,
+    "knowledge_code": [
+      84
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 2,
+    "score": 1,
+    "knowledge_code": [
+      52,
+      142
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 3,
+    "score": 1,
+    "knowledge_code": [
+      150,
+      167
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 4,
+    "score": 1,
+    "knowledge_code": [
+      67,
+      167
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 4,
+    "score": 1,
+    "knowledge_code": [
+      67,
+      167
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 51,
+    "score": 1,
+    "knowledge_code": [
+      74,
+      75,
+      103
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 7,
+    "score": 1,
+    "knowledge_code": [
+      150,
+      167
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 2,
+    "score": 1,
+    "knowledge_code": [
+      52,
+      142
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 4,
+    "score": 1,
+    "knowledge_code": [
+      67,
+      167
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 7,
+    "score": 1,
+    "knowledge_code": [
+      150,
+      167
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 1,
+    "score": 0,
+    "knowledge_code": [
+      84
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 4,
+    "score": 1,
+    "knowledge_code": [
+      67,
+      167
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 5,
+    "score": 1,
+    "knowledge_code": [
+      167
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 53,
+    "score": 0,
+    "knowledge_code": [
+      103,
+      115
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 7,
+    "score": 1,
+    "knowledge_code": [
+      150,
+      167
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 71,
+    "score": 0,
+    "knowledge_code": [
+      45,
+      79
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 4,
+    "score": 1,
+    "knowledge_code": [
+      67,
+      167
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 9,
+    "score": 0,
+    "knowledge_code": [
+      82,
+      167
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 11,
+    "score": 0,
+    "knowledge_code": [
+      18,
+      149,
+      167
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 63,
+    "score": 1,
+    "knowledge_code": [
+      56,
+      61,
+      159
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 70,
+    "score": 0,
+    "knowledge_code": [
+      10,
+      95,
+      112
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 34,
+    "score": 1,
+    "knowledge_code": [
+      48,
+      113
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 25,
+    "score": 1,
+    "knowledge_code": [
+      123,
+      142
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 19,
+    "score": 0,
+    "knowledge_code": [
+      76,
+      113,
+      167
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 26,
+    "score": 1,
+    "knowledge_code": [
+      30,
+      46,
+      141
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 9,
+    "score": 0,
+    "knowledge_code": [
+      82,
+      167
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 11,
+    "score": 1,
+    "knowledge_code": [
+      18,
+      149,
+      167
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 63,
+    "score": 0,
+    "knowledge_code": [
+      56,
+      61,
+      159
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 109,
+    "score": 1,
+    "knowledge_code": [
+      58,
+      161
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 110,
+    "score": 1,
+    "knowledge_code": [
+      90,
+      117
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 111,
+    "score": 1,
+    "knowledge_code": [
+      33,
+      106,
+      117
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 12,
+    "score": 1,
+    "knowledge_code": [
+      18,
+      41,
+      167
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 26,
+    "score": 1,
+    "knowledge_code": [
+      30,
+      46,
+      141
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 9,
+    "score": 1,
+    "knowledge_code": [
+      82,
+      167
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 11,
+    "score": 1,
+    "knowledge_code": [
+      18,
+      149,
+      167
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 63,
+    "score": 1,
+    "knowledge_code": [
+      56,
+      61,
+      159
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 70,
+    "score": 0,
+    "knowledge_code": [
+      10,
+      95,
+      112
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 34,
+    "score": 1,
+    "knowledge_code": [
+      48,
+      113
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 25,
+    "score": 1,
+    "knowledge_code": [
+      123,
+      142
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 19,
+    "score": 1,
+    "knowledge_code": [
+      76,
+      113,
+      167
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 20,
+    "score": 0,
+    "knowledge_code": [
+      24,
+      88,
+      167
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 21,
+    "score": 1,
+    "knowledge_code": [
+      167
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 22,
+    "score": 0,
+    "knowledge_code": [
+      30,
+      40,
+      102,
+      111
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 23,
+    "score": 1,
+    "knowledge_code": [
+      3,
+      118
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 24,
+    "score": 0,
+    "knowledge_code": [
+      66
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 25,
+    "score": 0,
+    "knowledge_code": [
+      123,
+      142
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 19,
+    "score": 1,
+    "knowledge_code": [
+      76,
+      113,
+      167
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 20,
+    "score": 0,
+    "knowledge_code": [
+      24,
+      88,
+      167
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 73,
+    "score": 1,
+    "knowledge_code": [
+      79,
+      164
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 74,
+    "score": 0,
+    "knowledge_code": [
+      79,
+      160,
+      167
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 75,
+    "score": 1,
+    "knowledge_code": [
+      79,
+      169
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 76,
+    "score": 1,
+    "knowledge_code": [
+      85,
+      151
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 77,
+    "score": 0,
+    "knowledge_code": [
+      85,
+      151
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 78,
+    "score": 0,
+    "knowledge_code": [
+      14,
+      20
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 79,
+    "score": 1,
+    "knowledge_code": [
+      86,
+      95,
+      136
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 80,
+    "score": 1,
+    "knowledge_code": [
+      51,
+      166
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 81,
+    "score": 1,
+    "knowledge_code": [
+      20,
+      86,
+      113
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 90,
+    "score": 0,
+    "knowledge_code": [
+      101,
+      120
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 91,
+    "score": 0,
+    "knowledge_code": [
+      92,
+      138
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 66,
+    "score": 0,
+    "knowledge_code": [
+      10
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 59,
+    "score": 0,
+    "knowledge_code": [
+      61,
+      159,
+      172
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 121,
+    "score": 1,
+    "knowledge_code": [
+      93
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 122,
+    "score": 1,
+    "knowledge_code": [
+      47,
+      98
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 123,
+    "score": 0,
+    "knowledge_code": [
+      91,
+      163
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 124,
+    "score": 0,
+    "knowledge_code": [
+      31,
+      67,
+      128
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 125,
+    "score": 0,
+    "knowledge_code": [
+      145
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 126,
+    "score": 1,
+    "knowledge_code": [
+      73,
+      171
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 127,
+    "score": 1,
+    "knowledge_code": [
+      34,
+      124,
+      162
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 83,
+    "score": 1,
+    "knowledge_code": [
+      23
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 84,
+    "score": 1,
+    "knowledge_code": [
+      69,
+      143
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 85,
+    "score": 1,
+    "knowledge_code": [
+      9,
+      80,
+      116
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 86,
+    "score": 1,
+    "knowledge_code": [
+      63,
+      114
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 102,
+    "score": 0,
+    "knowledge_code": [
+      140
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 103,
+    "score": 1,
+    "knowledge_code": [
+      2,
+      29,
+      127
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 104,
+    "score": 1,
+    "knowledge_code": [
+      2,
+      65,
+      127
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 49,
+    "score": 0,
+    "knowledge_code": [
+      96,
+      103
+    ]
+  },
+  {
+    "user_id": 1,
+    "exer_id": 5,
+    "score": 1,
+    "knowledge_code": [
+      167
+    ]
+  },
+  {
     "user_id": 2,
     "exer_id": 8,
     "score": 0,
