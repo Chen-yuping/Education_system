@@ -35,17 +35,22 @@ _LLM_CONFIG = getattr(settings, 'LLM_CONFIG', {})
 DEEPSEEK_API_KEY = (
     os.environ.get('DEEPSEEK_API_KEY')
     or _LLM_CONFIG.get('fusion_deepseek_api_key')
-    or 'XXX'
+    or _LLM_CONFIG.get('deepseek_api_key')      # 兼容 settings.LLM_CONFIG 现有字段
+    or _LLM_CONFIG.get('api_key')               # 再退回通用 LLM key
+    or ''
 )
 DEEPSEEK_BASE_URL = (
     os.environ.get('DEEPSEEK_BASE_URL')
     or _LLM_CONFIG.get('fusion_deepseek_base_url')
+    or _LLM_CONFIG.get('deepseek_base_url')
+    or _LLM_CONFIG.get('base_url')
     or 'https://api.deepseek.com/v1'
 )
 DEEPSEEK_MODEL = (
     os.environ.get('DEEPSEEK_MODEL')
     or _LLM_CONFIG.get('fusion_deepseek_model')
-    or 'deepseek-v4-flash'
+    or _LLM_CONFIG.get('model')
+    or 'deepseek-chat'
 )
 # 中转端点不识别 deepseek-v4-flash 时的回退模型（官方可用）
 DEEPSEEK_FALLBACK_MODEL = 'deepseek-chat'
@@ -60,6 +65,11 @@ def _get_client():
     global _client
     if _client is not None:
         return _client
+    if not DEEPSEEK_API_KEY:
+        raise RuntimeError(
+            '未配置 DeepSeek API Key：请在 settings.LLM_CONFIG 设置 deepseek_api_key，'
+            '或设置环境变量 DEEPSEEK_API_KEY'
+        )
     with _client_lock:
         if _client is None:
             from openai import OpenAI

@@ -84,7 +84,7 @@ class KnowledgeGraph(models.Model):
     )
     relation_source = models.CharField(
         max_length=20,
-        choices=[('教材', '教材'), ('教案', '教案'), ('课件', '课件')],
+        choices=[('教材', '教材'), ('教案', '教案'), ('课件', '课件'), ('融合', '融合')],
         default='教材',
         verbose_name="关系来源"
     )

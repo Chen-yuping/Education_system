@@ -70,8 +70,8 @@
         {% if subjects %}
         <div id="subjectPickList" style="display:flex; flex-wrap:wrap; gap:10px;">
             {% for s in subjects %}
-            <label class="subject-pick selected" data-id="{{ s.id }}">
-                <input type="checkbox" value="{{ s.id }}" checked>
+            <label class="subject-pick" data-id="{{ s.id }}">
+                <input type="checkbox" value="{{ s.id }}">
                 <i class="fas fa-book"></i> {{ s.name }}
             </label>
             {% endfor %}
@@ -80,7 +80,7 @@
             <button type="button" class="btn btn-primary" id="fuseBtn" onclick="runFusion()">
                 <i class="fas fa-project-diagram me-2"></i>开始融合
             </button>
-            <span class="text-muted small ms-2">已选 <span id="selectedCount">{{ subject_count }}</span> / {{ subject_count }} 门课程</span>
+            <span class="text-muted small ms-2">已选 <span id="selectedCount">0</span> / {{ subject_count }} 门课程</span>
         </div>
         {% else %}
         <div class="alert alert-warning mb-0">
@@ -157,6 +157,46 @@
     </div>
 </div></div>
 
+<!-- 人工审核：融合新增的跨学科关系 -->
+<div class="card mt-3" id="reviewCard" style="display:none;">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap" style="gap:10px;">
+        <h6 class="mb-0"><i class="fas fa-user-check me-2 text-success"></i>人工审核：融合新增的跨学科关系<span class="badge bg-danger ms-2" id="reviewPendingBadge" style="display:none;">0 待审</span></h6>
+        <div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadReviewCandidates()">
+                <i class="fas fa-rotate me-1"></i>加载/刷新待审关系
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-success" onclick="markAllReview('approve')">全部通过</button>
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="markAllReview('reject')">全部拒绝</button>
+            <button type="button" class="btn btn-sm btn-primary" id="reviewSubmitBtn" onclick="submitReview()" disabled>
+                <i class="fas fa-paper-plane me-1"></i>提交审核并写回
+            </button>
+        </div>
+    </div>
+    <p class="small text-muted mb-2">
+        以下关系由四维语义对齐新发现，数据库中尚不存在。通过的关系将以「相似」类型写回知识图谱；拒绝的不写回。
+    </p>
+    <div id="reviewLoading" class="text-center py-4" style="display:none;">
+        <div class="spinner-border text-success"></div>
+        <div class="mt-2 text-success">正在生成候选关系...</div>
+    </div>
+    <div id="reviewEmpty" class="alert alert-light border text-muted mb-0" style="display:none;">
+        暂无待审的新增关系。
+    </div>
+    <div class="table-responsive" id="reviewTableWrap" style="display:none; max-height:420px; overflow:auto;">
+        <table class="table table-sm table-hover align-middle">
+            <thead class="table-light" style="position:sticky; top:0; z-index:2;">
+                <tr>
+                    <th>源知识点</th><th>目标知识点</th><th>对齐类型</th>
+                    <th>置信度</th><th>AI 特征(语义/字面)</th><th style="width:150px;">审核</th>
+                </tr>
+            </thead>
+            <tbody id="reviewTableBody"></tbody>
+        </table>
+    </div>
+  </div>
+</div>
+
 <!-- 评估结果弹窗 -->
 <div class="modal fade" id="evalModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -185,9 +225,23 @@
 <script>
 const FUSE_API = "{% url 'multi_graph_fusion_fuse' %}";
 const EVAL_API = "{% url 'multi_graph_fusion_evaluate' %}";
+const CANDIDATES_API = "{% url 'multi_graph_fusion_candidates' %}";
+const REVIEW_API = "{% url 'multi_graph_fusion_review' %}";
 const CSRF = "{{ csrf_token }}";
 let fusionNetwork = null;
 let lastFusionData = null;
+
+// 健壮解析响应：服务端异常/超时/重定向会返回 HTML，直接 r.json() 会抛
+// "Unexpected token '<'"。这里按文本读取再尝试 JSON，失败时给出真实 HTTP 状态。
+async function parseJsonSafe(r) {
+    const text = await r.text();
+    try {
+        return JSON.parse(text);
+    } catch (e) {
+        const snippet = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+        throw new Error(`服务器返回了非 JSON 响应 (HTTP ${r.status})：${snippet || '空响应'}`);
+    }
+}
 
 // ---------- 课程多选 ----------
 document.querySelectorAll('.subject-pick').forEach(el => {
@@ -224,7 +278,7 @@ function runFusion() {
     document.getElementById('evalBtn').disabled = true;
 
     fetch(`${FUSE_API}?subject_ids=${ids.join(',')}`)
-        .then(r => r.json())
+        .then(parseJsonSafe)
         .then(data => {
             document.getElementById('fusionLoading').style.display = 'none';
             document.getElementById('fuseBtn').disabled = false;
@@ -237,6 +291,12 @@ function runFusion() {
             renderFusionGraph(data);
             // 融合成功后开放「融合图谱评估」按钮（需至少 2 门课程）
             document.getElementById('evalBtn').disabled = (ids.length < 2);
+            // 同步开放人工审核卡片（跨学科关系需至少 2 门课程）
+            const reviewCard = document.getElementById('reviewCard');
+            const canReview = (ids.length >= 2);
+            reviewCard.style.display = canReview ? 'block' : 'none';
+            // 融合成功后自动加载待审关系，无需手动点「加载/刷新」
+            if (canReview) loadReviewCandidates();
         })
         .catch(err => {
             document.getElementById('fusionLoading').style.display = 'none';
@@ -325,7 +385,7 @@ function runEvaluation() {
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
         body: JSON.stringify({ subject_ids: ids })
     })
-        .then(r => r.json())
+        .then(parseJsonSafe)
         .then(res => {
             document.getElementById('evalLoading').style.display = 'none';
             if (res.status !== 'success') {
@@ -421,9 +481,144 @@ function renderEvaluation(d) {
     document.getElementById('evalContent').style.display = 'block';
 }
 
-// 页面加载即自动融合一次（默认全选）
+// ---------- 人工审核：融合新增的跨学科关系 ----------
+let reviewCandidates = [];      // 当前候选
+const reviewDecisions = {};     // review_id -> 'approve' | 'reject'
+
+function loadReviewCandidates() {
+    const ids = getSelectedIds();
+    if (ids.length < 2) { alert('请至少选择 2 门课程'); return; }
+
+    document.getElementById('reviewLoading').style.display = 'block';
+    document.getElementById('reviewEmpty').style.display = 'none';
+    document.getElementById('reviewTableWrap').style.display = 'none';
+    document.getElementById('reviewSubmitBtn').disabled = true;
+
+    fetch(CANDIDATES_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify({ subject_ids: ids })
+    })
+        .then(parseJsonSafe)
+        .then(res => {
+            document.getElementById('reviewLoading').style.display = 'none';
+            if (res.status !== 'success') { alert('加载失败：' + (res.message || '未知错误')); return; }
+            reviewCandidates = res.candidates || [];
+            renderReviewTable();
+        })
+        .catch(err => {
+            document.getElementById('reviewLoading').style.display = 'none';
+            alert('请求失败：' + err);
+        });
+}
+
+function updatePendingBadge() {
+    const pending = reviewCandidates.filter(c => c.status === 'pending').length;
+    const badge = document.getElementById('reviewPendingBadge');
+    if (!badge) return;
+    if (pending > 0) {
+        badge.textContent = `${pending} 待审`;
+        badge.style.display = '';
+    } else {
+        badge.style.display = 'none';
+    }
+}
+
+function renderReviewTable() {
+    Object.keys(reviewDecisions).forEach(k => delete reviewDecisions[k]);
+    updatePendingBadge();
+    if (!reviewCandidates.length) {
+        document.getElementById('reviewEmpty').style.display = 'block';
+        document.getElementById('reviewTableWrap').style.display = 'none';
+        return;
+    }
+    const statusBadge = c => {
+        if (c.written_back) return '<span class="badge bg-success">已写回</span>';
+        if (c.status === 'approved') return '<span class="badge bg-success">已通过</span>';
+        if (c.status === 'rejected') return '<span class="badge bg-secondary">已拒绝</span>';
+        return '';
+    };
+    const rows = reviewCandidates.map(c => {
+        const f = c.features || {};
+        const feat = `语义 ${(f.semantic != null ? (f.semantic*100).toFixed(0) : '-')}% / `
+                   + `字面 ${(f.name != null ? (f.name*100).toFixed(0) : '-')}%`;
+        const done = (c.status !== 'pending');
+        const rid = String(c.review_id);
+        const controls = done
+            ? statusBadge(c)
+            : `<div class="btn-group btn-group-sm" role="group">
+                 <input type="radio" class="btn-check" name="rv_${rid}" id="ap_${rid}"
+                        onchange="setReviewDecision('${rid}','approve')">
+                 <label class="btn btn-outline-success" for="ap_${rid}">通过</label>
+                 <input type="radio" class="btn-check" name="rv_${rid}" id="rj_${rid}"
+                        onchange="setReviewDecision('${rid}','reject')">
+                 <label class="btn btn-outline-danger" for="rj_${rid}">拒绝</label>
+               </div>`;
+        return `<tr data-review="${rid}" class="${done ? 'table-light' : ''}">
+            <td>${c.source}<div class="small text-muted">${c.source_subject}</div></td>
+            <td>${c.target}<div class="small text-muted">${c.target_subject}</div></td>
+            <td><span class="badge bg-info text-dark">${c.align_type_label}</span></td>
+            <td>${(c.confidence*100).toFixed(1)}%</td>
+            <td class="small text-muted">${feat}</td>
+            <td>${controls}</td>
+        </tr>`;
+    }).join('');
+    document.getElementById('reviewTableBody').innerHTML = rows;
+    document.getElementById('reviewTableWrap').style.display = 'block';
+    document.getElementById('reviewEmpty').style.display = 'none';
+    updateReviewSubmitState();
+}
+
+function setReviewDecision(id, decision) {
+    reviewDecisions[id] = decision;
+    updateReviewSubmitState();
+}
+
+function markAllReview(decision) {
+    reviewCandidates.forEach(c => {
+        if (c.status !== 'pending') return;
+        const rid = String(c.review_id);
+        reviewDecisions[rid] = decision;
+        const el = document.getElementById((decision === 'approve' ? 'ap_' : 'rj_') + rid);
+        if (el) el.checked = true;
+    });
+    updateReviewSubmitState();
+}
+
+function updateReviewSubmitState() {
+    const has = Object.keys(reviewDecisions).length > 0;
+    document.getElementById('reviewSubmitBtn').disabled = !has;
+}
+
+function submitReview() {
+    const approved_ids = [], rejected_ids = [];
+    Object.entries(reviewDecisions).forEach(([id, d]) => {
+        // id 为知识点对 key（形如 "123_456"），保持字符串，勿做 parseInt
+        (d === 'approve' ? approved_ids : rejected_ids).push(id);
+    });
+    if (!approved_ids.length && !rejected_ids.length) { alert('请先对关系做出通过/拒绝选择'); return; }
+
+    const btn = document.getElementById('reviewSubmitBtn');
+    btn.disabled = true;
+    fetch(REVIEW_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify({ approved_ids, rejected_ids })
+    })
+        .then(parseJsonSafe)
+        .then(res => {
+            if (res.status !== 'success') { alert('提交失败：' + (res.message || '未知错误')); btn.disabled = false; return; }
+            alert(res.message || '审核完成');
+            // 重新融合刷新图谱（新「相似」边会出现），并刷新候选列表
+            runFusion();
+            loadReviewCandidates();
+        })
+        .catch(err => { alert('请求失败：' + err); btn.disabled = false; });
+}
+
+// 页面加载只初始化已选计数，不自动融合；由用户选择科目后点击「开始融合」触发
 document.addEventListener('DOMContentLoaded', function () {
-    if (getSelectedIds().length > 0) runFusion();
+    updateSelectedCount();
 });
 </script>
 {% endblock %}

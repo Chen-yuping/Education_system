@@ -146,8 +146,25 @@ LLM_CONFIG = {
     'max_tokens': 500,
     'timeout': 30,
     # DeepSeek配置（用于知识图谱构建的知识抽取）
-    'deepseek_api_key': '',
+    'deepseek_api_key': os.environ.get('DEEPSEEK_API_KEY', ''),
     'deepseek_base_url': os.environ.get('DEEPSEEK_BASE_URL', 'https://api.deepseek.com'),
 }
+
+# 多学科图谱融合的语义相似度模型（bert-base-chinese）配置
+# - 留空/不配置：代码会用模型名 'bert-base-chinese' 从 HF 标准缓存离线加载，
+#   缓存或环境不可用时自动降级为字面相似度，不影响主流程。
+# - 缓存位置非标准（如别的机器）时，可用环境变量 BERT_MODEL_PATH 指定本地快照目录。
+BERT_MODEL_PATH = os.environ.get(
+    'BERT_MODEL_PATH',
+    os.path.join(
+        os.path.expanduser('~'),
+        '.cache', 'huggingface', 'hub',
+        'models--bert-base-chinese', 'snapshots',
+        '8f23c25b06e129b6c986331a13d8d025a92cf0ea',
+    ),
+)
+# 指向的目录不存在时回退为模型名，交由 transformers 走缓存查找
+if not os.path.isdir(BERT_MODEL_PATH):
+    BERT_MODEL_PATH = None
 
 

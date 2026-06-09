@@ -22,6 +22,7 @@ Learn 多图谱融合桥接层（四维特征实体对齐）
 import os
 import sys
 import logging
+from functools import lru_cache
 from difflib import SequenceMatcher
 
 from django.conf import settings
@@ -49,19 +50,32 @@ def _init_sim_model():
     if _sim_inited:
         return
     _sim_inited = True
+    # 强制离线：无缓存 + 坏代理的机器会立即降级，而不是卡在 huggingface 联网校验
+    os.environ.setdefault('HF_HUB_OFFLINE', '1')
+    os.environ.setdefault('TRANSFORMERS_OFFLINE', '1')
     try:
         import torch  # noqa
         from transformers import AutoTokenizer, AutoModel
-        local_path = r'C:\Users\30748\.cache\huggingface\hub\models--bert-base-chinese\snapshots\8f23c25b06e129b6c986331a13d8d025a92cf0ea'
-        name = local_path if os.path.isdir(local_path) else 'bert-base-chinese'
+        # 模型来源：settings.BERT_MODEL_PATH > 默认模型名（依赖本地缓存）
+        name = getattr(settings, 'BERT_MODEL_PATH', None) or 'bert-base-chinese'
         _sim_tokenizer = AutoTokenizer.from_pretrained(name, local_files_only=True)
         _sim_model = AutoModel.from_pretrained(name, local_files_only=True)
         _sim_model.eval()
-        logger.info("[learn_fusion] 语义相似度 BERT 加载成功")
+        logger.info("[learn_fusion] 语义相似度 BERT 加载成功: %s", name)
     except Exception as e:
         logger.warning("[learn_fusion] BERT 加载失败，语义相似度降级为字面：%s", e)
         _sim_model = None
         _sim_tokenizer = None
+
+
+@lru_cache(maxsize=8192)
+def _embed(text: str):
+    """对单段文本做 BERT [CLS] 向量编码，带 LRU 缓存避免重复前向。"""
+    import torch
+    inp = _sim_tokenizer(text, return_tensors='pt', max_length=128, truncation=True)
+    with torch.no_grad():
+        out = _sim_model(**inp)
+    return out.last_hidden_state[:, 0, :].squeeze().numpy()
 
 
 def _semantic_similarity(text1: str, text2: str) -> float:
@@ -70,17 +84,8 @@ def _semantic_similarity(text1: str, text2: str) -> float:
     if _sim_model is None or _sim_tokenizer is None:
         return SequenceMatcher(None, text1, text2).ratio()
     try:
-        import torch
-        import numpy as np
         from scipy.spatial.distance import cosine
-
-        def emb(t):
-            inp = _sim_tokenizer(t, return_tensors='pt', max_length=128, truncation=True)
-            with torch.no_grad():
-                out = _sim_model(**inp)
-            return out.last_hidden_state[:, 0, :].squeeze().numpy()
-
-        e1, e2 = emb(text1), emb(text2)
+        e1, e2 = _embed(text1), _embed(text2)
         return float(1 - cosine(e1, e2))
     except Exception as e:
         logger.debug("[learn_fusion] 语义相似度计算失败，降级：%s", e)
@@ -222,11 +227,12 @@ def align_subjects(subject_ids, max_per_subject=500):
         }
         by_subject.setdefault(kp.subject_id, []).append(rec)
 
-    # 采样限制，防止 O(n^2) 爆炸
+    # 采样限制，防止 O(n^2) 爆炸；固定种子保证同一组科目结果可复现
     import random
+    rng = random.Random(42)
     for sid, ents in by_subject.items():
         if len(ents) > max_per_subject:
-            by_subject[sid] = random.sample(ents, max_per_subject)
+            by_subject[sid] = rng.sample(ents, max_per_subject)
 
     sids = list(by_subject.keys())
     all_alignments = []

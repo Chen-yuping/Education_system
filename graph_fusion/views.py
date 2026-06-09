@@ -115,3 +115,87 @@ def evaluate_api(request):
             {'status': 'error', 'message': f'评估失败: {e}'},
             status=500, json_dumps_params={'ensure_ascii': False},
         )
+
+
+@login_required
+@user_passes_test(is_teacher)
+@require_POST
+def review_candidates_api(request):
+    """生成/刷新融合新增关系的审核候选，返回待审 + 历史列表"""
+    try:
+        try:
+            payload = json.loads(request.body.decode('utf-8') or '{}')
+        except Exception:
+            payload = {}
+
+        teacher_ids = _teacher_subject_ids(request.user)
+        subject_ids = _parse_subject_ids(payload.get('subject_ids'), teacher_ids)
+
+        if len(subject_ids) < 2:
+            return JsonResponse(
+                {'status': 'error', 'message': '至少需要选择 2 个学科才能生成跨学科关系候选'},
+                status=400, json_dumps_params={'ensure_ascii': False},
+            )
+
+        from graph_fusion.review import build_candidates
+        candidates = build_candidates(subject_ids)
+        pending = sum(1 for c in candidates if c['status'] == 'pending')
+        return JsonResponse(
+            {'status': 'success', 'candidates': candidates,
+             'total': len(candidates), 'pending': pending},
+            json_dumps_params={'ensure_ascii': False},
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse(
+            {'status': 'error', 'message': f'生成候选失败: {e}'},
+            status=500, json_dumps_params={'ensure_ascii': False},
+        )
+
+
+@login_required
+@user_passes_test(is_teacher)
+@require_POST
+def review_submit_api(request):
+    """提交审核结果：通过的关系写回 KnowledgeGraph，拒绝的仅标记"""
+    try:
+        try:
+            payload = json.loads(request.body.decode('utf-8') or '{}')
+        except Exception:
+            payload = {}
+
+        def _ids(raw):
+            # review_id 为方向归一的知识点对 key（形如 "123_456"），按字符串收集
+            if isinstance(raw, (list, tuple)):
+                return [str(x).strip() for x in raw if str(x).strip()]
+            return []
+
+        approved_ids = _ids(payload.get('approved_ids'))
+        rejected_ids = _ids(payload.get('rejected_ids'))
+        if not approved_ids and not rejected_ids:
+            return JsonResponse(
+                {'status': 'error', 'message': '没有需要提交的审核项'},
+                status=400, json_dumps_params={'ensure_ascii': False},
+            )
+
+        teacher_ids = _teacher_subject_ids(request.user)
+
+        from graph_fusion.review import apply_review
+        result = apply_review(
+            approved_ids, rejected_ids, request.user,
+            allowed_subject_ids=teacher_ids,
+        )
+        return JsonResponse(
+            {'status': 'success', **result,
+             'message': (f'审核完成：写回 {result["written_back"]} 条关系，'
+                         f'通过 {result["approved"]}，拒绝 {result["rejected"]}')},
+            json_dumps_params={'ensure_ascii': False},
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse(
+            {'status': 'error', 'message': f'提交审核失败: {e}'},
+            status=500, json_dumps_params={'ensure_ascii': False},
+        )

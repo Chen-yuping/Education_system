@@ -79,6 +79,8 @@ urlpatterns = [
     path('teacher/multi-graph-fusion/', views_graph_fusion.page, name='multi_graph_fusion_page'),
     path('teacher/api/multi-graph-fusion/fuse/', views_graph_fusion.fuse_api, name='multi_graph_fusion_fuse'),
     path('teacher/api/multi-graph-fusion/evaluate/', views_graph_fusion.evaluate_api,name='multi_graph_fusion_evaluate'),
+    path('teacher/api/multi-graph-fusion/candidates/', views_graph_fusion.review_candidates_api, name='multi_graph_fusion_candidates'),
+    path('teacher/api/multi-graph-fusion/review/', views_graph_fusion.review_submit_api, name='multi_graph_fusion_review'),
     path('teacher/api/knowledge-points/<int:subject_id>/', views_teacherknowledge.knowledge_points_api,name='knowledge_points_api'),
 
     # 知识点管理
