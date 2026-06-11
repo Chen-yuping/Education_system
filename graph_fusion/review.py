@@ -196,3 +196,57 @@ def apply_review(approved_ids, rejected_ids, user, allowed_subject_ids=None):
         'rejected': rejected,
         'skipped': skipped,
     }
+
+
+# ====================== 存疑关系：人工修改 / 删除 ======================
+VALID_RELATION_TYPES = {'隶属', '关联', '前置', '相似'}
+
+
+@transaction.atomic
+def edit_relation(relation_id, action, new_type=None, user=None, allowed_subject_ids=None):
+    """
+    对 DeepSeek 评估中判定「存疑」的某条 KnowledgeGraph 关系做人工处理。
+
+    action='update'：把 relationship_type 改成 new_type（须在 VALID_RELATION_TYPES 内）。
+    action='delete'：直接删除该关系（教师确认存疑关系不成立）。
+
+    allowed_subject_ids 不为 None 时，仅允许处理源/目标知识点属于该集合的关系（权限隔离）。
+    返回 {status, message, ...}；非法/越权抛出 ValueError / PermissionError。
+    """
+    from learning.models import KnowledgeGraph
+
+    try:
+        rel = KnowledgeGraph.objects.select_related(
+            'subject', 'source', 'target', 'source__subject', 'target__subject'
+        ).get(id=int(relation_id))
+    except (KnowledgeGraph.DoesNotExist, ValueError, TypeError):
+        raise ValueError('关系不存在或已被删除')
+
+    if allowed_subject_ids is not None:
+        allowed = set(allowed_subject_ids)
+        if (rel.source.subject_id not in allowed) and (rel.target.subject_id not in allowed):
+            raise PermissionError('无权修改该关系')
+
+    src_name, tgt_name = rel.source.name, rel.target.name
+
+    if action == 'delete':
+        rel.delete()
+        logger.info("[fusion-review] 删除存疑关系 #%s %s→%s by %s",
+                    relation_id, src_name, tgt_name, getattr(user, 'username', '-'))
+        return {'action': 'delete', 'relation_id': int(relation_id),
+                'message': f'已删除关系：{src_name} → {tgt_name}'}
+
+    if action == 'update':
+        if new_type not in VALID_RELATION_TYPES:
+            raise ValueError(f'关系类型非法，仅支持：{", ".join(sorted(VALID_RELATION_TYPES))}')
+        old_type = rel.relationship_type
+        rel.relationship_type = new_type
+        rel.save(update_fields=['relationship_type'])
+        logger.info("[fusion-review] 修改存疑关系 #%s %s→%s 类型 %s→%s by %s",
+                    relation_id, src_name, tgt_name, old_type, new_type,
+                    getattr(user, 'username', '-'))
+        return {'action': 'update', 'relation_id': int(relation_id),
+                'new_type': new_type,
+                'message': f'已将「{src_name} → {tgt_name}」关系修改为「{new_type}」'}
+
+    raise ValueError('不支持的操作类型')

@@ -227,6 +227,7 @@ const FUSE_API = "{% url 'multi_graph_fusion_fuse' %}";
 const EVAL_API = "{% url 'multi_graph_fusion_evaluate' %}";
 const CANDIDATES_API = "{% url 'multi_graph_fusion_candidates' %}";
 const REVIEW_API = "{% url 'multi_graph_fusion_review' %}";
+const EDIT_RELATION_API = "{% url 'multi_graph_fusion_edit_relation' %}";
 const CSRF = "{{ csrf_token }}";
 let fusionNetwork = null;
 let lastFusionData = null;
@@ -417,10 +418,21 @@ function renderEvaluation(d) {
         `<span class="badge bg-light text-dark me-1 mb-1">${t.type}: ${t.count} (${t.percentage}%)</span>`
     ).join('') || '<span class="text-muted">无</span>';
 
-    let questionable = (rs.questionable || []).map(q =>
-        `<tr><td>${q.from}</td><td><span class="badge bg-secondary">${q.type}</span></td><td>${q.to}</td>
-         <td>${q.confidence}%</td><td class="small text-muted">${q.explanation || '-'}</td></tr>`
-    ).join('') || '<tr><td colspan="5" class="text-success text-center">DeepSeek 抽样验证未发现明显不合理的关系</td></tr>';
+    const REL_TYPES = ['隶属', '关联', '前置', '相似'];
+    let questionable = (rs.questionable || []).map(q => {
+      const opts = REL_TYPES.map(t =>
+        `<option value="${t}" ${t === q.type ? 'selected' : ''}>${t}</option>`).join('');
+      const hasId = q.id != null;
+      const ctrl = hasId
+        ? `<select class="form-select form-select-sm d-inline-block" style="width:90px;" id="qsel_${q.id}">${opts}</select>
+           <button class="btn btn-sm btn-outline-primary ms-1" onclick="saveQuestionable(${q.id})" title="保存修改后的关系类型"><i class="fas fa-save"></i></button>
+           <button class="btn btn-sm btn-outline-danger ms-1" onclick="deleteQuestionable(${q.id})" title="删除该关系"><i class="fas fa-trash"></i></button>`
+        : '<span class="text-muted small">不可修改</span>';
+      return `<tr id="qrow_${hasId ? q.id : 'x'}"><td>${q.from}</td>
+         <td><span class="badge bg-secondary" id="qtype_${q.id}">${q.type}</span></td><td>${q.to}</td>
+         <td>${q.confidence}%</td><td class="small text-muted">${q.explanation || '-'}</td>
+         <td class="text-nowrap">${ctrl}</td></tr>`;
+    }).join('') || '<tr><td colspan="6" class="text-success text-center">DeepSeek 抽样验证未发现明显不合理的关系</td></tr>';
 
     let suggestions = (d.suggestions || []).map(s => `<li>${s}</li>`).join('');
 
@@ -469,9 +481,9 @@ function renderEvaluation(d) {
         </div>
       </div>
 
-      <h6 class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>DeepSeek 判定存疑的关系</h6>
+      <h6 class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i>DeepSeek 判定存疑的关系<small class="text-muted ms-2">（可人工修改关系类型或删除）</small></h6>
       <table class="table table-sm table-bordered">
-        <thead><tr><th>源</th><th>关系</th><th>目标</th><th>置信度</th><th>说明</th></tr></thead>
+        <thead><tr><th>源</th><th>关系</th><th>目标</th><th>置信度</th><th>说明</th><th style="width:170px;">人工修改</th></tr></thead>
         <tbody>${questionable}</tbody>
       </table>
 
@@ -479,6 +491,44 @@ function renderEvaluation(d) {
       <ul>${suggestions}</ul>
     `;
     document.getElementById('evalContent').style.display = 'block';
+}
+
+// ---------- 存疑关系：人工修改 / 删除 ----------
+function editQuestionableRelation(body) {
+    return fetch(EDIT_RELATION_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify(body)
+    }).then(parseJsonSafe);
+}
+
+function saveQuestionable(relId) {
+    const sel = document.getElementById('qsel_' + relId);
+    if (!sel) return;
+    const newType = sel.value;
+    editQuestionableRelation({ relation_id: relId, action: 'update', new_type: newType })
+        .then(res => {
+            if (res.status !== 'success') { alert('修改失败：' + (res.message || '未知错误')); return; }
+            const badge = document.getElementById('qtype_' + relId);
+            if (badge) badge.textContent = newType;
+            alert(res.message || '修改成功');
+            // 关系已变更，刷新图谱
+            if (typeof runFusion === 'function') runFusion();
+        })
+        .catch(err => alert('请求失败：' + err));
+}
+
+function deleteQuestionable(relId) {
+    if (!confirm('确认删除这条关系？删除后将从知识图谱中移除，且不可恢复。')) return;
+    editQuestionableRelation({ relation_id: relId, action: 'delete' })
+        .then(res => {
+            if (res.status !== 'success') { alert('删除失败：' + (res.message || '未知错误')); return; }
+            const row = document.getElementById('qrow_' + relId);
+            if (row) row.remove();
+            // 关系已删除，刷新图谱
+            if (typeof runFusion === 'function') runFusion();
+        })
+        .catch(err => alert('请求失败：' + err));
 }
 
 // ---------- 人工审核：融合新增的跨学科关系 ----------
