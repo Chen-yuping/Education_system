@@ -199,3 +199,54 @@ def review_submit_api(request):
             {'status': 'error', 'message': f'提交审核失败: {e}'},
             status=500, json_dumps_params={'ensure_ascii': False},
         )
+
+
+@login_required
+@user_passes_test(is_teacher)
+@require_POST
+def edit_relation_api(request):
+    """对评估中判定存疑的关系做人工修改（改关系类型）或删除"""
+    try:
+        try:
+            payload = json.loads(request.body.decode('utf-8') or '{}')
+        except Exception:
+            payload = {}
+
+        relation_id = payload.get('relation_id')
+        action = (payload.get('action') or '').strip()
+        new_type = (payload.get('new_type') or '').strip() or None
+
+        if relation_id in (None, '') or action not in ('update', 'delete'):
+            return JsonResponse(
+                {'status': 'error', 'message': '参数缺失：relation_id / action(update|delete)'},
+                status=400, json_dumps_params={'ensure_ascii': False},
+            )
+
+        teacher_ids = _teacher_subject_ids(request.user)
+
+        from graph_fusion.review import edit_relation
+        result = edit_relation(
+            relation_id, action, new_type=new_type, user=request.user,
+            allowed_subject_ids=teacher_ids,
+        )
+        return JsonResponse(
+            {'status': 'success', **result},
+            json_dumps_params={'ensure_ascii': False},
+        )
+    except PermissionError as e:
+        return JsonResponse(
+            {'status': 'error', 'message': str(e)},
+            status=403, json_dumps_params={'ensure_ascii': False},
+        )
+    except ValueError as e:
+        return JsonResponse(
+            {'status': 'error', 'message': str(e)},
+            status=400, json_dumps_params={'ensure_ascii': False},
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse(
+            {'status': 'error', 'message': f'修改关系失败: {e}'},
+            status=500, json_dumps_params={'ensure_ascii': False},
+        )

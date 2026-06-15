@@ -305,7 +305,9 @@ def _evaluate_relations(rels, sample_size):
 
     def _verify(r):
         v = verify_relation_with_deepseek(r.source.name, r.target.name, r.relationship_type or '关联')
-        return {'from': r.source.name, 'to': r.target.name,
+        return {'id': r.id, 'from': r.source.name, 'to': r.target.name,
+                'source_id': r.source_id, 'target_id': r.target_id,
+                'relation_source': r.relation_source,
                 'type': r.relationship_type or '关联', 'v': v}
 
     results = []
@@ -337,7 +339,9 @@ def _evaluate_relations(rels, sample_size):
     ]
 
     questionable = [
-        {'from': x['from'], 'to': x['to'], 'type': x['type'],
+        {'id': x['id'], 'from': x['from'], 'to': x['to'], 'type': x['type'],
+         'source_id': x['source_id'], 'target_id': x['target_id'],
+         'relation_source': x['relation_source'],
          'confidence': x['v']['confidence'], 'explanation': x['v']['explanation']}
         for x in results if not x['v']['is_valid']
     ]
