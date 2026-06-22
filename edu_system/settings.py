@@ -146,7 +146,7 @@ LLM_CONFIG = {
     'max_tokens': 500,
     'timeout': 30,
     # DeepSeek配置（用于知识图谱构建的知识抽取）
-    'deepseek_api_key': os.environ.get('DEEPSEEK_API_KEY', 'sk-68cd1be821ad456a93bd473753b67dac'),
+    'deepseek_api_key': os.environ.get('DEEPSEEK_API_KEY', 'sk-d39c8b590e6a4e39b6f99183562281bf'),
     'deepseek_base_url': os.environ.get('DEEPSEEK_BASE_URL', 'https://api.deepseek.com'),
 }
 
