@@ -595,7 +595,11 @@ def subject_exercise_logs(request, subject_id):
     answer_logs = AnswerLog.objects.filter(
         student=request.user,
         exercise__subject=subject
-    ).select_related('exercise').prefetch_related('selected_choices').order_by('-submitted_at')
+    ).select_related('exercise').prefetch_related(
+        'selected_choices',
+        'exercise__choices',
+        'exercise__qmatrix_set__knowledge_point'
+    ).order_by('-submitted_at')
 
     # 统计信息
     total_logs = answer_logs.count()
@@ -669,6 +673,107 @@ def subject_exercise_logs(request, subject_id):
     
     type_names = list(type_stats.keys())
     type_counts = list(type_stats.values())
+
+    question_type_map = {
+        '1': '单选题',
+        '2': '多选题',
+        '3': '投票题',
+        '4': '填空题',
+        '5': '简答题',
+        '6': '判断题',
+        'single': '单选题',
+        'multiple': '多选题',
+        'fill': '填空题',
+        'subjective': '简答题',
+    }
+
+    def format_seconds(seconds):
+        try:
+            seconds = int(seconds or 0)
+        except (TypeError, ValueError):
+            seconds = 0
+        minutes, remain = divmod(seconds, 60)
+        if minutes:
+            return f'{minutes}分{remain}秒' if remain else f'{minutes}分'
+        return f'{remain}秒'
+
+    def difficulty_from_score(score):
+        try:
+            value = float(score or 0)
+        except (TypeError, ValueError):
+            value = 0
+        if value <= 1:
+            return '简单'
+        if value <= 2:
+            return '中等'
+        return '困难'
+
+    def format_json_answer(raw_answer):
+        if not raw_answer:
+            return '未作答'
+        try:
+            parsed = json.loads(raw_answer)
+        except (TypeError, ValueError):
+            return raw_answer
+        if isinstance(parsed, dict):
+            parts = []
+            for key in sorted(parsed.keys(), key=lambda item: str(item)):
+                value = parsed[key]
+                if isinstance(value, list):
+                    value = '、'.join(str(item) for item in value)
+                parts.append(f'{key}: {value}')
+            return '；'.join(parts) if parts else '未作答'
+        if isinstance(parsed, list):
+            return '、'.join(str(item) for item in parsed)
+        return str(parsed)
+
+    def build_answer_log_row(log):
+        exercise = log.exercise
+        choices = list(exercise.choices.all().order_by('order', 'id'))
+        choice_letter_by_id = {
+            choice.id: chr(65 + index)
+            for index, choice in enumerate(choices)
+        }
+        selected_choices = list(log.selected_choices.all())
+        selected_letters = [
+            choice_letter_by_id.get(choice.id, choice.content)
+            for choice in selected_choices
+        ]
+        correct_letters = [
+            choice_letter_by_id.get(choice.id, choice.content)
+            for choice in choices if choice.is_correct
+        ]
+
+        if exercise.question_type in ['4', '5', 'fill', 'subjective'] or log.text_answer:
+            student_answer = format_json_answer(log.text_answer)
+        else:
+            student_answer = ''.join(selected_letters) if selected_letters else '未作答'
+
+        if exercise.question_type in ['4', '5', 'fill', 'subjective']:
+            correct_answer = format_json_answer(exercise.answer)
+        else:
+            correct_answer = ''.join(correct_letters) if correct_letters else format_json_answer(exercise.answer)
+
+        knowledge_points = [
+            item.knowledge_point.name
+            for item in exercise.qmatrix_set.all()
+            if item.knowledge_point
+        ]
+
+        return {
+            'id': log.id,
+            'question_content': exercise.content,
+            'knowledge_points': knowledge_points,
+            'question_type': question_type_map.get(exercise.question_type, exercise.question_type or '其他'),
+            'difficulty': difficulty_from_score(exercise.score),
+            'student_answer': student_answer,
+            'correct_answer': correct_answer,
+            'is_correct': log.is_correct,
+            'time_spent': format_seconds(log.time_spent),
+            'submitted_at': log.submitted_at,
+        }
+
+    answer_log_rows = [build_answer_log_row(log) for log in answer_logs]
 
     # 获取所有不重复的习题（优化性能）
     exercise_ids = answer_logs.values_list('exercise_id', flat=True).distinct()
@@ -754,7 +859,7 @@ def subject_exercise_logs(request, subject_id):
 
     # 添加分页功能 - 10题一页
     from django.core.paginator import Paginator
-    paginator = Paginator(exercises_with_stats, 10)  # 每页10题
+    paginator = Paginator(answer_log_rows, 10)  # 每页10条记录
     page_number = request.GET.get('page', 1)
     page_obj = paginator.get_page(page_number)
 
@@ -767,7 +872,8 @@ def subject_exercise_logs(request, subject_id):
         'unmarked_logs': unmarked_logs,
         'correct_rate': correct_rate,
         'has_data': total_logs > 0,
-        'exercises_with_stats': page_obj.object_list,  # 当前页的习题
+        'exercise_log_rows': page_obj.object_list,
+        'exercises_with_stats': page_obj.object_list,  # 兼容旧模板变量
         'page_obj': page_obj,  # 分页对象
         'total_exercises': total_exercises,
         'completed_exercises': completed_exercises,
