@@ -108,6 +108,54 @@
     .tag-wrong { background: #fee2e2; color: #dc2626; }
     .tag-unmarked { background: #f3f4f6; color: #4b5563; }
 
+    /* 做题记录实时分析 */
+    .insight-box,
+    .ai-analysis-box {
+        background: #f8fafc;
+        border: 1px solid #edf0f5;
+        border-radius: 8px;
+        padding: 16px;
+        height: 100%;
+    }
+
+    .insight-box h6,
+    .ai-analysis-box h6 {
+        color: #1f2937;
+        font-weight: 700;
+    }
+
+    .insight-box ul {
+        padding-left: 18px;
+        color: #374151;
+        font-size: 13px;
+        line-height: 1.9;
+    }
+
+    .ai-analysis-box {
+        background: linear-gradient(180deg, #f0f6ff 0%, #f8fafc 100%);
+    }
+
+    .ai-result {
+        color: #1f2937;
+        font-size: 13px;
+        line-height: 1.9;
+        word-break: break-word;
+    }
+
+    .ai-result p {
+        margin-bottom: 6px;
+    }
+
+    .ai-result ul,
+    .ai-result ol {
+        padding-left: 20px;
+        margin-bottom: 6px;
+    }
+
+    .ai-result strong {
+        color: #1d4ed8;
+    }
+
     @media (max-width: 768px) {
         .chart-container {
             height: 240px;
@@ -170,6 +218,50 @@
                     <h3 class="mb-0">{{ unmarked_logs }}</h3>
                     <p class="text-muted mb-0">未批改次数</p>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 做题记录实时分析 -->
+<div class="chart-card mb-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <div class="chart-title">
+            <i class="fas fa-microscope me-2 text-primary"></i>做题记录实时分析
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <small class="text-muted" id="analysisTime">更新于 {{ analysis_updated_at }}</small>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="btnRegenerate">
+                <i class="fas fa-sync-alt me-1"></i>重新生成 AI 分析
+            </button>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-lg-5 mb-3">
+            <div class="insight-box">
+                <h6><i class="fas fa-chart-simple me-1 text-primary"></i>数据洞察</h6>
+                <ul class="mb-0">
+                    {% for insight in analysis_insights %}
+                    <li>{{ insight }}</li>
+                    {% empty %}
+                    <li>暂无足够做题数据，继续练习后可生成更完整的分析。</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        <div class="col-lg-7 mb-3">
+            <div class="ai-analysis-box">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0"><i class="fas fa-robot me-1 text-primary"></i>AI 智能诊断与学习计划</h6>
+                    <span class="badge bg-light text-muted">错因分析 + 学习计划推荐</span>
+                </div>
+                <div id="aiAnalysisLoading" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="text-muted mt-2 mb-0">正在分析你的做题记录…</p>
+                </div>
+                <div id="aiAnalysisResult" class="ai-result" style="display:none;"></div>
+                <div id="aiAnalysisError" class="alert alert-warning py-2 mb-0" style="display:none;"></div>
             </div>
         </div>
     </div>
@@ -330,6 +422,105 @@ document.addEventListener('DOMContentLoaded', function() {
         trendChart.resize();
         pieChart.resize();
     });
+});
+</script>
+<script>
+// ===== 做题记录实时分析 =====
+function inlineMarkdown(text) {
+    return text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+}
+
+function renderMarkdown(text) {
+    const escapeHtml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    let html = '';
+    let listTag = null;
+
+    const lines = (text || '').split('\n');
+    lines.forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed) {
+            if (listTag) { html += '</' + listTag + '>'; listTag = null; }
+            return;
+        }
+
+        let m;
+        if ((m = trimmed.match(/^(#{1,6})\s+(.*)/))) {
+            if (listTag) { html += '</' + listTag + '>'; listTag = null; }
+            const level = Math.min(6, m[1].length + 2);
+            html += '<h' + level + ' class="mt-2 mb-1">' + inlineMarkdown(escapeHtml(m[2])) + '</h' + level + '>';
+        } else if ((m = trimmed.match(/^[-*•]\s+(.*)/))) {
+            if (listTag !== 'ul') {
+                if (listTag) { html += '</' + listTag + '>'; }
+                html += '<ul>';
+                listTag = 'ul';
+            }
+            html += '<li>' + inlineMarkdown(escapeHtml(m[1])) + '</li>';
+        } else if ((m = trimmed.match(/^\d+[.、]\s+(.*)/))) {
+            if (listTag !== 'ol') {
+                if (listTag) { html += '</' + listTag + '>'; }
+                html += '<ol>';
+                listTag = 'ol';
+            }
+            html += '<li>' + inlineMarkdown(escapeHtml(m[1])) + '</li>';
+        } else {
+            if (listTag) { html += '</' + listTag + '>'; listTag = null; }
+            html += '<p class="mb-1">' + inlineMarkdown(escapeHtml(trimmed)) + '</p>';
+        }
+    });
+    if (listTag) { html += '</' + listTag + '>'; }
+    return html;
+}
+
+function loadAiAnalysis(force) {
+    const loading = document.getElementById('aiAnalysisLoading');
+    const result = document.getElementById('aiAnalysisResult');
+    const errorBox = document.getElementById('aiAnalysisError');
+    const btn = document.getElementById('btnRegenerate');
+
+    loading.style.display = '';
+    result.style.display = 'none';
+    errorBox.style.display = 'none';
+    if (btn) { btn.disabled = true; }
+
+    fetch('{% url "subject_exercise_logs_analyze" subject.id %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}'
+        },
+        body: JSON.stringify({ force: !!force })
+    })
+    .then(response => response.json())
+    .then(data => {
+        loading.style.display = 'none';
+        if (btn) { btn.disabled = false; }
+        if (data.success && data.analysis) {
+            result.innerHTML = renderMarkdown(data.analysis);
+            result.style.display = '';
+            errorBox.style.display = 'none';
+            const timeEl = document.getElementById('analysisTime');
+            if (timeEl) { timeEl.textContent = '更新于 ' + new Date().toLocaleString('zh-CN'); }
+        } else {
+            errorBox.textContent = data.message || '分析生成失败，请稍后重试。';
+            errorBox.style.display = '';
+        }
+    })
+    .catch(() => {
+        loading.style.display = 'none';
+        if (btn) { btn.disabled = false; }
+        errorBox.textContent = '分析请求失败，请稍后重试。';
+        errorBox.style.display = '';
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const regenBtn = document.getElementById('btnRegenerate');
+    if (regenBtn) {
+        regenBtn.addEventListener('click', function() {
+            loadAiAnalysis(true);
+        });
+    }
+    loadAiAnalysis(false);
 });
 </script>
 {% endif %}

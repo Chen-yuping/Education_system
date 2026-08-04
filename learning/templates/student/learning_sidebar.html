@@ -55,6 +55,12 @@
                 <i class="fas fa-star"></i> 收藏夹
             </a>
         </li>
+        <li class="nav-item">
+            <a class="nav-link {% if request.resolver_match.url_name == 'subject_community' %}active{% endif %}" 
+               href="{% url 'subject_community' subject_id=subject.id %}">
+                <i class="fas fa-comments"></i> 学生社区
+            </a>
+        </li>
         {% else %}
             {% if current_subject %}
             <li class="nav-item">
@@ -79,6 +85,12 @@
                 <a class="nav-link {% if request.resolver_match.url_name == 'personalized_recommendations' %}active{% endif %}" 
                    href="{% url 'personalized_recommendations' subject_id=current_subject.id %}">
                     <i class="fas fa-magic"></i> 个性化习题推荐
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.resolver_match.url_name == 'subject_community' %}active{% endif %}" 
+                   href="{% url 'subject_community' subject_id=current_subject.id %}">
+                    <i class="fas fa-comments"></i> 学生社区
                 </a>
             </li>
             {% endif %}

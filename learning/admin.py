@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import ExerciseFile, Subject, Dataset, DiagnosisModel
+from .models import ExerciseFile, Subject, Dataset, DiagnosisModel, SubjectComment
 
 @admin.register(Subject)
 class SubjectAdmin(admin.ModelAdmin):
@@ -80,3 +80,15 @@ class DiagnosisModelAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
+
+@admin.register(SubjectComment)
+class SubjectCommentAdmin(admin.ModelAdmin):
+    list_display = ['user', 'subject', 'content_preview', 'parent', 'created_at']
+    list_filter = ['subject', 'created_at']
+    search_fields = ['user__username', 'content']
+    readonly_fields = ['created_at']
+
+    def content_preview(self, obj):
+        return obj.content[:50] + '...' if len(obj.content) > 50 else obj.content
+    content_preview.short_description = '评论内容'

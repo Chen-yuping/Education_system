@@ -19,6 +19,24 @@ class Subject(models.Model):
     def __str__(self):
         return self.name
 
+
+# 学生社区评论（课程评论区，支持回复）
+class SubjectComment(models.Model):
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='comments', verbose_name="所属课程")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='subject_comments', verbose_name="发表人")
+    content = models.TextField(verbose_name="评论内容")
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True,
+                               related_name='replies', verbose_name="回复的评论")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="发表时间")
+
+    class Meta:
+        verbose_name = "学生社区评论"
+        verbose_name_plural = "学生社区评论"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.subject.name} - {self.content[:30]}"
+
 # """教师授课关系（关联Subject=课程）"""
 class TeacherSubject(models.Model):
     teacher = models.ForeignKey(User, on_delete=models.CASCADE, related_name="teaching_subjects", verbose_name="教师")

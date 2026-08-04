@@ -863,6 +863,12 @@ def subject_exercise_logs(request, subject_id):
     page_number = request.GET.get('page', 1)
     page_obj = paginator.get_page(page_number)
 
+    # ===== 做题记录实时分析（数据洞察，无需调用 AI） =====
+    from .exercise_analysis import build_snapshot, rule_based_insights
+    analysis_snapshot = build_snapshot(subject, request.user)
+    analysis_insights = rule_based_insights(analysis_snapshot)
+    analysis_updated_at = analysis_snapshot['generated_at']
+
     context = {
         'subject': subject,
         'answer_logs': answer_logs,
@@ -885,6 +891,9 @@ def subject_exercise_logs(request, subject_id):
         'daily_counts': json.dumps(daily_counts),
         'type_names': json.dumps(type_names),
         'type_counts': json.dumps(type_counts),
+        # 实时分析
+        'analysis_insights': analysis_insights,
+        'analysis_updated_at': analysis_updated_at,
     }
 
     return render(request, 'student/subject_exercise_logs.html', context)
@@ -1524,3 +1533,122 @@ def subject_favorites(request, subject_id):
     }
     
     return render(request, 'student/subject_favorites.html', context)
+
+
+# 学生社区（课程评论区）
+@login_required
+@user_passes_test(is_student)
+def subject_community(request, subject_id):
+    """课程学生社区 - 学生评论区，支持发表评论与回复"""
+    from .models import SubjectComment
+
+    subject = get_object_or_404(Subject, id=subject_id)
+
+    if request.method == 'POST':
+        action = request.POST.get('action', 'create')
+
+        if action == 'delete':
+            comment_id = request.POST.get('comment_id')
+            comment = SubjectComment.objects.filter(id=comment_id, subject=subject).first()
+            if comment and comment.user == request.user:
+                comment.delete()
+                messages.success(request, "评论已删除")
+            elif comment:
+                messages.error(request, "只能删除自己发表的评论")
+            else:
+                messages.error(request, "评论不存在")
+            return redirect('subject_community', subject_id=subject.id)
+
+        content = (request.POST.get('content') or '').strip()
+        parent_id = request.POST.get('parent_id') or ''
+        if not content:
+            messages.error(request, "评论内容不能为空")
+        elif len(content) > 1000:
+            messages.error(request, "评论内容不能超过 1000 字")
+        else:
+            parent = None
+            if parent_id:
+                parent = SubjectComment.objects.filter(
+                    id=parent_id, subject=subject, parent__isnull=True
+                ).first()
+                if not parent:
+                    messages.error(request, "回复的评论不存在")
+                    return redirect('subject_community', subject_id=subject.id)
+            SubjectComment.objects.create(
+                subject=subject,
+                user=request.user,
+                content=content,
+                parent=parent,
+            )
+            messages.success(request, "评论发表成功")
+        return redirect('subject_community', subject_id=subject.id)
+
+    top_comments = SubjectComment.objects.filter(
+        subject=subject, parent__isnull=True
+    ).select_related('user').prefetch_related('replies__user').order_by('-created_at')[:200]
+
+    comments = []
+    for comment in top_comments:
+        replies = sorted(comment.replies.all(), key=lambda r: r.created_at)
+        comments.append({'comment': comment, 'replies': replies})
+
+    comment_count = SubjectComment.objects.filter(subject=subject).count()
+
+    return render(request, 'student/subject_community.html', {
+        'subject': subject,
+        'comments': comments,
+        'comment_count': comment_count,
+    })
+
+
+# 做题记录实时分析接口（AI 智能分析错题原因 + 学习计划）
+@login_required
+@user_passes_test(is_student)
+@require_http_methods(["POST"])
+def subject_exercise_logs_analyze(request, subject_id):
+    """根据学生做题记录实时生成 AI 分析：错题原因 + 学习计划建议"""
+    from .exercise_analysis import build_snapshot, analyze_with_llm, rule_based_insights
+
+    subject = get_object_or_404(Subject, id=subject_id)
+    snapshot = build_snapshot(subject, request.user)
+    if not snapshot['total']:
+        return JsonResponse({'success': False, 'message': '暂无做题记录，无法生成分析'})
+
+    force = False
+    if request.body:
+        try:
+            force = bool(json.loads(request.body).get('force', False))
+        except Exception:
+            force = False
+
+    insights = rule_based_insights(snapshot)
+    cache_key = f'exercise_ai_analysis_{subject.id}'
+    now = timezone.now()
+
+    # 5 分钟内复用上次结果，点击“重新生成”时强制刷新
+    cached = request.session.get(cache_key)
+    if not force and isinstance(cached, dict) and cached.get('text'):
+        age = now.timestamp() - float(cached.get('ts', 0))
+        if 0 <= age < 300:
+            return JsonResponse({
+                'success': True,
+                'analysis': cached['text'],
+                'source': 'cached',
+                'insights': insights,
+            })
+
+    text = analyze_with_llm(snapshot)
+    if text:
+        request.session[cache_key] = {'ts': now.timestamp(), 'text': text}
+        return JsonResponse({
+            'success': True,
+            'analysis': text,
+            'source': 'ai',
+            'insights': insights,
+        })
+
+    return JsonResponse({
+        'success': False,
+        'message': 'AI 分析服务暂不可用，请稍后重试（当前已展示数据洞察结论）。',
+        'insights': insights,
+    })
