@@ -54,6 +54,21 @@
                     </select>
                 </div>
 
+                <div class="col-md-3">
+                    <label for="exerciseTitleFilter" class="form-label">习题标题</label>
+                    <input type="text" class="form-control" id="exerciseTitleFilter" name="exercise_title"
+                           placeholder="输入习题标题" value="{{ request.GET.exercise_title|default:'' }}">
+                </div>
+
+                <div class="col-md-3">
+                    <label for="associationStatusFilter" class="form-label">知识点关联状态</label>
+                    <select class="form-select" id="associationStatusFilter" name="association_status">
+                        <option value="">全部</option>
+                        <option value="associated" {% if request.GET.association_status == 'associated' %}selected{% endif %}>已关联</option>
+                        <option value="unassociated" {% if request.GET.association_status == 'unassociated' %}selected{% endif %}>未关联</option>
+                    </select>
+                </div>
+
                 <div class="col-md-6">
                     <label for="searchInput" class="form-label">搜索</label>
                     <div class="input-group">
@@ -1495,7 +1510,7 @@ $(document).ready(function() {
     });
 
     // 当筛选条件改变时更新导出URL
-    $('#subjectFilter, #typeFilter, #knowledgeFilter, #creatorFilter, #searchInput, #startDate, #endDate').on('change keyup', function() {
+    $('#subjectFilter, #typeFilter, #knowledgeFilter, #exerciseTitleFilter, #associationStatusFilter, #creatorFilter, #searchInput, #startDate, #endDate').on('change keyup', function() {
         const formData = $('#filterForm').serialize();
         $('#exportBtn').attr('href', "{% url 'export_exercises' %}?" + formData);
     });

@@ -490,6 +490,8 @@ def exercise_management(request):
     subject_id = request.GET.get('subject')
     question_type = request.GET.get('question_type')
     knowledge_point_id = request.GET.get('knowledge_point')
+    exercise_title = request.GET.get('exercise_title', '').strip()
+    association_status = request.GET.get('association_status')
     creator_id = request.GET.get('creator')
     search = request.GET.get('search')
     start_date = request.GET.get('start_date')
@@ -522,6 +524,14 @@ def exercise_management(request):
         exercises = exercises.filter(
             qmatrix__knowledge_point_id=int(knowledge_point_id)
         ).distinct()
+
+    if exercise_title:
+        exercises = exercises.filter(title__icontains=exercise_title)
+
+    if association_status == 'associated':
+        exercises = exercises.filter(qmatrix__isnull=False).distinct()
+    elif association_status == 'unassociated':
+        exercises = exercises.filter(qmatrix__isnull=True)
 
     if creator_id and creator_id.isdigit():
         exercises = exercises.filter(creator_id=int(creator_id))
@@ -592,6 +602,8 @@ def exercise_management(request):
             'subject': subject_id,
             'question_type': question_type,
             'knowledge_point': knowledge_point_id,
+            'exercise_title': exercise_title,
+            'association_status': association_status,
             'creator': creator_id,
             'search': search,
             'start_date': start_date,
