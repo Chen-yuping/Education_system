@@ -108,6 +108,57 @@ def get_deepseek_client():
     return OpenAI(api_key=api_key, base_url=base_url)
 
 
+def llm_match_exercise_knowledge_points(exercises, knowledge_points):
+    """Use the configured LLM to match exercises to existing knowledge points."""
+    client = get_deepseek_client()
+    if not client:
+        raise RuntimeError('未配置大模型 API 密钥（DEEPSEEK_API_KEY）')
+
+    exercise_data = []
+    for exercise in exercises:
+        exercise_data.append({
+            'exercise_id': exercise.id,
+            'title': exercise.title,
+            'content': exercise.content,
+            'answer': exercise.answer or '',
+            'solution': exercise.solution or '',
+        })
+
+    knowledge_data = [
+        {'id': point.id, 'name': point.name}
+        for point in knowledge_points
+    ]
+    prompt = f"""
+你是一名课程题库专家。请分析每道习题考查的内容，从给定的已有知识点中选择最匹配的 1-3 个知识点。
+
+要求：
+1. 只能使用知识点列表中已有的 id，不能创建新知识点。
+2. 如果没有合适的知识点，knowledge_point_ids 返回空数组。
+3. 每个 exercise_id 必须且只能出现一次。
+4. 只返回 JSON 对象，不要返回 Markdown 或解释文字。
+
+返回格式：
+{{"associations":[{{"exercise_id":1,"knowledge_point_ids":[2,3]}}]}}
+
+已有知识点：
+{json.dumps(knowledge_data, ensure_ascii=False)}
+
+待分析习题：
+{json.dumps(exercise_data, ensure_ascii=False)}
+"""
+
+    response = client.chat.completions.create(
+        model="deepseek-chat",
+        messages=[{'role': 'user', 'content': prompt}],
+        response_format={'type': 'json_object'},
+        temperature=0.1,
+    )
+    result_text = response.choices[0].message.content.strip()
+    parsed = json.loads(result_text.replace('```json', '').replace('```', '').strip())
+    associations = parsed.get('associations', []) if isinstance(parsed, dict) else []
+    return associations if isinstance(associations, list) else []
+
+
 # ==========================================
 # 1. 核心解析函数 (原版 - 用于处理排版好的Word)
 # ==========================================

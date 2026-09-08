@@ -7,7 +7,7 @@ from django.contrib import messages
 from .forms import ExerciseForm
 from django.db.models import Count, Q
 from django.db import transaction
-from .utils_ai import parse_fill_in_blanks
+from .utils_ai import parse_fill_in_blanks, llm_match_exercise_knowledge_points
 import csv
 import json
 from datetime import datetime
@@ -575,16 +575,11 @@ def exercise_management(request):
         subject_id__in=teacher_subject_ids
     ).values('id', 'name', 'subject_id'))
 
-    # 排序和分页
+    # 排序；题库管理页使用滚动列表展示当前筛选结果
     exercises = exercises.order_by('id')  # 按ID降序，最新的在前面
 
-    # 分页 - 每页10条
-    paginator = Paginator(exercises, 10)
-    page_number = request.GET.get('page')
-    page_exercises = paginator.get_page(page_number)
-
     context = {
-        'exercises': page_exercises,
+        'exercises': exercises,
         'subjects': subjects,
         'knowledge_points': knowledge_points,
         'creators': creators,
@@ -1107,6 +1102,85 @@ def exercise_batch_delete(request):
             })
 
     return JsonResponse({'success': False, 'message': '无效的请求方法'})
+
+
+@login_required
+@user_passes_test(is_teacher)
+@require_POST
+def exercise_ai_associate(request):
+    """让大模型为教师选中的习题补充已有知识点关联。"""
+    try:
+        payload = json.loads(request.body or '{}')
+        raw_ids = payload.get('exercise_ids', [])
+        if not isinstance(raw_ids, list):
+            raise TypeError
+        exercise_ids = list(dict.fromkeys(int(item) for item in raw_ids))
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return JsonResponse({'success': False, 'message': '习题参数格式不正确'}, status=400)
+
+    if not exercise_ids:
+        return JsonResponse({'success': False, 'message': '请先选择要关联的习题'}, status=400)
+    if len(exercise_ids) > 50:
+        return JsonResponse({'success': False, 'message': '单次最多关联 50 道习题'}, status=400)
+
+    subject_ids = TeacherSubject.objects.filter(
+        teacher=request.user
+    ).values_list('subject_id', flat=True)
+    exercises = list(Exercise.objects.filter(
+        id__in=exercise_ids,
+        subject_id__in=subject_ids,
+    ).select_related('subject'))
+    if len(exercises) != len(exercise_ids):
+        return JsonResponse({'success': False, 'message': '部分习题不存在或您无权操作'}, status=403)
+
+    created_count = 0
+    matched_count = 0
+    try:
+        grouped = {}
+        for exercise in exercises:
+            grouped.setdefault(exercise.subject_id, []).append(exercise)
+
+        for subject_id, subject_exercises in grouped.items():
+            knowledge_points = list(KnowledgePoint.objects.filter(subject_id=subject_id))
+            if not knowledge_points:
+                continue
+
+            valid_exercise_ids = {exercise.id for exercise in subject_exercises}
+            valid_points = {point.id: point for point in knowledge_points}
+            associations = llm_match_exercise_knowledge_points(subject_exercises, knowledge_points)
+
+            with transaction.atomic():
+                for item in associations:
+                    try:
+                        exercise_id = int(item.get('exercise_id'))
+                    except (TypeError, ValueError):
+                        continue
+                    if exercise_id not in valid_exercise_ids:
+                        continue
+
+                    linked = False
+                    for point_id in item.get('knowledge_point_ids', [])[:3]:
+                        try:
+                            point = valid_points.get(int(point_id))
+                        except (TypeError, ValueError):
+                            point = None
+                        if point:
+                            _, created = QMatrix.objects.get_or_create(
+                                exercise_id=exercise_id,
+                                knowledge_point=point,
+                                defaults={'weight': 1.0},
+                            )
+                            created_count += int(created)
+                            linked = True
+                    matched_count += int(linked)
+    except Exception as exc:
+        logger.exception('AI 关联习题知识点失败')
+        return JsonResponse({'success': False, 'message': f'大模型关联失败：{exc}'}, status=500)
+
+    return JsonResponse({
+        'success': True,
+        'message': f'已分析 {len(exercises)} 道习题，{matched_count} 道匹配成功，新增 {created_count} 条知识点关联',
+    })
 
 """导出习题为CSV"""
 @login_required

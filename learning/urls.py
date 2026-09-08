@@ -122,6 +122,7 @@ urlpatterns = [
     path('exercise-management/detail/<int:exercise_id>/', views_teacher.exercise_detail_json,name='exercise_detail_json'),
     path('exercise-management/update/<int:exercise_id>/', views_teacher.exercise_update_json, name='exercise_update_json'),
     path('exercise-management/batch-delete/', views_teacher.exercise_batch_delete, name='exercise_batch_delete'),
+    path('exercise-management/ai-associate/', views_teacher.exercise_ai_associate, name='exercise_ai_associate'),
     path('exercise-management/export/', views_teacher.export_exercises, name='export_exercises'),
     #查看学生信息
     path('teacher/students/', views_teacher.student_info, name='student_info'),

@@ -69,6 +69,9 @@
                     <button type="button" class="btn btn-outline-secondary me-2" id="resetFilters">
                         <i class="fas fa-redo"></i> 重置筛选
                     </button>
+                    <button type="button" class="btn btn-outline-primary me-2" id="aiAssociateBtn">
+                        <i class="fas fa-wand-magic-sparkles"></i> AI 关联知识点
+                    </button>
                     <button type="button" class="btn btn-primary" onclick="showAddExercise()">
                         <i class="fas fa-plus"></i> 添加习题
                     </button>
@@ -81,8 +84,8 @@
     <div class="card shadow">
         <div class="card-body">
             {% if exercises %}
-            <div class="table-responsive">
-                <table class="table table-hover" id="exerciseTable">
+            <div class="table-responsive exercise-scroll-window">
+                <table class="table table-hover mb-0" id="exerciseTable">
                     <thead>
                         <tr>
                             <th width="50">
@@ -195,51 +198,7 @@
                 </table>
             </div>
 
-            <!-- 分页 -->
-            {% if exercises.has_other_pages %}
-            <nav aria-label="Page navigation" class="mt-4">
-                <ul class="pagination justify-content-center">
-                    {% if exercises.has_previous %}
-                    <li class="page-item">
-                        <a class="page-link"
-                           href="?page={{ exercises.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
-                            <i class="fas fa-chevron-left"></i>
-                        </a>
-                    </li>
-                    {% endif %}
-
-                    {% for num in exercises.paginator.page_range %}
-                        {% if num >= exercises.number|add:"-2" and num <= exercises.number|add:"2" %}
-                            {% if exercises.number == num %}
-                            <li class="page-item active">
-                                <span class="page-link">{{ num }}</span>
-                            </li>
-                            {% else %}
-                            <li class="page-item">
-                                <a class="page-link"
-                                   href="?page={{ num }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
-                                    {{ num }}
-                                </a>
-                            </li>
-                            {% endif %}
-                        {% endif %}
-                    {% endfor %}
-
-                    {% if exercises.has_next %}
-                    <li class="page-item">
-                        <a class="page-link"
-                           href="?page={{ exercises.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">
-                            <i class="fas fa-chevron-right"></i>
-                        </a>
-                    </li>
-                    {% endif %}
-                </ul>
-                <p class="text-center text-muted mt-2">
-                    第 {{ exercises.number }} 页，共 {{ exercises.paginator.num_pages }} 页，
-                    总共 {{ exercises.paginator.count }} 条记录
-                </p>
-            </nav>
-            {% endif %}
+            <p class="text-center text-muted mt-3 mb-0">共 {{ exercises|length }} 条记录</p>
 
             {% else %}
             <!-- 空状态 -->
@@ -1480,6 +1439,45 @@ $(document).ready(function() {
         $('#selectAll').prop('checked', allChecked);
     });
 
+    $('#aiAssociateBtn').click(function() {
+        const exerciseIds = $('.exercise-checkbox:checked').map(function() {
+            return Number(this.value);
+        }).get();
+        if (!exerciseIds.length) {
+            alert('请先勾选要关联知识点的习题。');
+            return;
+        }
+        if (!confirm(`确定让大模型分析选中的 ${exerciseIds.length} 道习题并补充知识点关联吗？`)) return;
+
+        const button = this;
+        const originalHtml = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 正在关联...';
+
+        fetch("{% url 'exercise_ai_associate' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({ exercise_ids: exerciseIds })
+        })
+        .then(async response => {
+            const data = await response.json();
+            if (!response.ok || !data.success) throw new Error(data.message || '关联失败');
+            return data;
+        })
+        .then(data => {
+            alert(data.message);
+            location.reload();
+        })
+        .catch(error => alert(error.message || '网络错误，请重试。'))
+        .finally(() => {
+            button.disabled = false;
+            button.innerHTML = originalHtml;
+        });
+    });
+
     // 重置筛选条件
     $('#resetFilters').click(function() {
         window.location.href = "{% url 'exercise_management' %}";
@@ -1507,6 +1505,17 @@ $(document).ready(function() {
 
 
 <style>
+.exercise-scroll-window {
+    max-height: 65vh;
+    overflow-y: auto;
+}
+
+.exercise-scroll-window thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
 .table th {
     font-weight: 600;
     background-color: #f8f9fa;
