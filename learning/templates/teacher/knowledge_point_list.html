@@ -505,6 +505,11 @@
             <div class="modal-body" id="aiReviewResult"></div>
             <div class="modal-footer">
                 <small class="text-muted me-auto">检查结果仅供参考，不会自动修改或删除知识点。</small>
+                <a class="btn btn-danger disabled" id="aiReviewPdfBtn"
+                   href="{% url 'export_knowledge_review_pdf' subject_id=subject.id %}"
+                   style="display: none;">
+                    <i class="fas fa-file-pdf me-1"></i>导出 PDF
+                </a>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
             </div>
         </div>
@@ -1065,7 +1070,10 @@ function reviewKnowledgePointsWithAI() {
     const button = document.getElementById('aiReviewBtn');
     const result = document.getElementById('aiReviewResult');
     const originalHtml = button.innerHTML;
+    const pdfButton = document.getElementById('aiReviewPdfBtn');
     button.disabled = true;
+    pdfButton.style.display = 'none';
+    pdfButton.classList.add('disabled');
     button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>检查中...';
     result.innerHTML = `
         <div class="text-center py-5">
@@ -1086,6 +1094,8 @@ function reviewKnowledgePointsWithAI() {
         return data;
     })
     .then(data => {
+        pdfButton.style.display = '';
+        pdfButton.classList.remove('disabled');
         if (!data.issues.length) {
             result.innerHTML = `
                 <div class="alert alert-success mb-0">

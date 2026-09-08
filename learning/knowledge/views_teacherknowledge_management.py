@@ -6,12 +6,15 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_POST, require_GET
 from django.db.models import Q, Count
 from ..models import KnowledgePoint, Subject, Exercise, QMatrix, KnowledgeGraph, TeacherSubject, ResourceFile
 from ..forms import KnowledgePointForm
 from ..utils_ai import llm_review_knowledge_points
+from django.utils import timezone
+from urllib.parse import quote
+from io import BytesIO
 
 def is_teacher(user):
     return user.user_type == 'teacher'
@@ -93,6 +96,12 @@ def review_knowledge_points_ai(request, subject_id):
                 'reason': str(item.get('reason', '')).strip(),
                 'suggested_name': str(item.get('suggested_name', '')).strip(),
             })
+        request.session[f'knowledge_review_{subject.id}'] = {
+            'subject_name': subject.name,
+            'total': len(points),
+            'issues': issues,
+            'reviewed_at': timezone.localtime().strftime('%Y-%m-%d %H:%M:%S'),
+        }
         return JsonResponse({
             'success': True,
             'total': len(points),
@@ -101,6 +110,101 @@ def review_knowledge_points_ai(request, subject_id):
         })
     except Exception as exc:
         return JsonResponse({'success': False, 'message': f'大模型检查失败：{exc}'}, status=500)
+
+
+@login_required
+@user_passes_test(is_teacher)
+@require_GET
+def export_knowledge_review_pdf(request, subject_id):
+    """导出当前教师最近一次 AI 知识点检查报告。"""
+    subject = get_object_or_404(Subject, id=subject_id)
+    if not TeacherSubject.objects.filter(teacher=request.user, subject=subject).exists():
+        return HttpResponse('您没有权限导出此科目的检查报告', status=403)
+
+    report = request.session.get(f'knowledge_review_{subject.id}')
+    if not report:
+        return HttpResponse('请先执行一次 AI 知识点检查，再导出 PDF。', status=400)
+
+    try:
+        from html import escape
+        from reportlab.lib import colors
+        from reportlab.lib.enums import TA_CENTER
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.lib.units import mm
+        from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, KeepTogether
+    except ImportError:
+        return HttpResponse('服务器缺少 PDF 生成组件 reportlab，请安装后重试。', status=500)
+
+    buffer = BytesIO()
+    pdfmetrics.registerFont(UnicodeCIDFont('STSong-Light'))
+    document = SimpleDocTemplate(
+        buffer, pagesize=A4, rightMargin=18 * mm, leftMargin=18 * mm,
+        topMargin=20 * mm, bottomMargin=18 * mm,
+        title=f'{subject.name} - AI 知识点检查报告', author=request.user.username,
+    )
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'ChineseTitle', parent=styles['Title'], fontName='STSong-Light',
+        fontSize=20, leading=28, alignment=TA_CENTER, textColor=colors.HexColor('#3730a3'),
+    )
+    body_style = ParagraphStyle(
+        'ChineseBody', parent=styles['BodyText'], fontName='STSong-Light',
+        fontSize=10.5, leading=17, textColor=colors.HexColor('#333333'),
+    )
+    heading_style = ParagraphStyle(
+        'ChineseHeading', parent=body_style, fontSize=13, leading=20,
+        textColor=colors.HexColor('#4338ca'), spaceBefore=8, spaceAfter=6,
+    )
+    issues = report.get('issues', [])
+    story = [
+        Paragraph('AI 知识点检查报告', title_style), Spacer(1, 6 * mm),
+        Paragraph(f"<b>课程：</b>{escape(str(report.get('subject_name', subject.name)))}", body_style),
+        Paragraph(f"<b>检查时间：</b>{escape(str(report.get('reviewed_at', '')))}", body_style),
+        Paragraph(f"<b>知识点总数：</b>{int(report.get('total', 0))}", body_style),
+        Paragraph(f"<b>建议关注：</b>{len(issues)} 个", body_style), Spacer(1, 6 * mm),
+    ]
+    if not issues:
+        story.extend([
+            Paragraph('检查结论', heading_style),
+            Paragraph('未发现明显需要修改或删除的知识点。', body_style),
+        ])
+    else:
+        story.append(Paragraph('检查建议', heading_style))
+        for index, issue in enumerate(issues, 1):
+            action = '建议删除' if issue.get('action') == 'delete' else '建议修改'
+            rows = [
+                [Paragraph(f"<b>{index}. {escape(str(issue.get('name', '')))}</b>", body_style), Paragraph(action, body_style)],
+                [Paragraph('<b>原因</b>', body_style), Paragraph(escape(str(issue.get('reason', '') or '模型未提供原因')), body_style)],
+            ]
+            if issue.get('action') == 'modify' and issue.get('suggested_name'):
+                rows.append([Paragraph('<b>建议名称</b>', body_style), Paragraph(escape(str(issue.get('suggested_name'))), body_style)])
+            table = Table(rows, colWidths=[38 * mm, 116 * mm])
+            table.setStyle(TableStyle([
+                ('FONTNAME', (0, 0), (-1, -1), 'STSong-Light'),
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#eef2ff')),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('LEFTPADDING', (0, 0), (-1, -1), 8), ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+                ('TOPPADDING', (0, 0), (-1, -1), 7), ('BOTTOMPADDING', (0, 0), (-1, -1), 7),
+            ]))
+            story.append(KeepTogether([table, Spacer(1, 4 * mm)]))
+    story.extend([Spacer(1, 4 * mm), Paragraph('说明：本报告由大模型生成，仅供教师审核参考，不会自动修改或删除知识点。', body_style)])
+
+    def add_page_number(canvas, doc):
+        canvas.saveState()
+        canvas.setFont('STSong-Light', 9)
+        canvas.setFillColor(colors.HexColor('#64748b'))
+        canvas.drawCentredString(A4[0] / 2, 10 * mm, f'第 {doc.page} 页')
+        canvas.restoreState()
+
+    document.build(story, onFirstPage=add_page_number, onLaterPages=add_page_number)
+    response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+    filename = f'{subject.name}-AI知识点检查报告.pdf'
+    response['Content-Disposition'] = f"attachment; filename*=UTF-8''{quote(filename)}"
+    return response
 
 # ==================== 添加知识点 ====================
 @login_required

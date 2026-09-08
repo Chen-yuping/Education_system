@@ -91,6 +91,7 @@ urlpatterns = [
     path('teacher/knowledge-points/<int:subject_id>/add/', views_teacherknowledge_management.knowledge_point_add, name='knowledge_point_add'),
     path('teacher/knowledge-points/<int:subject_id>/batch-upload/', views_teacherknowledge_management.batch_upload_knowledge_points, name='batch_upload_knowledge_points'),
     path('teacher/knowledge-points/<int:subject_id>/ai-review/', views_teacherknowledge_management.review_knowledge_points_ai, name='review_knowledge_points_ai'),
+    path('teacher/knowledge-points/<int:subject_id>/ai-review/pdf/', views_teacherknowledge_management.export_knowledge_review_pdf, name='export_knowledge_review_pdf'),
     path('teacher/knowledge-points/<int:subject_id>/<int:kp_id>/edit/', views_teacherknowledge_management.knowledge_point_edit, name='knowledge_point_edit'),
     path('teacher/knowledge-points/<int:subject_id>/<int:kp_id>/delete/', views_teacherknowledge_management.knowledge_point_delete, name='knowledge_point_delete'),
     path('teacher/knowledge-points/<int:subject_id>/<int:kp_id>/exercises/', views_teacherknowledge_management.knowledge_point_exercise_association, name='knowledge_point_exercise_association'),
