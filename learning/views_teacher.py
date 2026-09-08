@@ -1120,9 +1120,6 @@ def exercise_ai_associate(request):
 
     if not exercise_ids:
         return JsonResponse({'success': False, 'message': '请先选择要关联的习题'}, status=400)
-    if len(exercise_ids) > 50:
-        return JsonResponse({'success': False, 'message': '单次最多关联 50 道习题'}, status=400)
-
     subject_ids = TeacherSubject.objects.filter(
         teacher=request.user
     ).values_list('subject_id', flat=True)
@@ -1147,32 +1144,36 @@ def exercise_ai_associate(request):
 
             valid_exercise_ids = {exercise.id for exercise in subject_exercises}
             valid_points = {point.id: point for point in knowledge_points}
-            associations = llm_match_exercise_knowledge_points(subject_exercises, knowledge_points)
+            # 用户选择数量不设上限；分批调用以避免单次请求超过模型上下文。
+            batch_size = 20
+            for start in range(0, len(subject_exercises), batch_size):
+                batch = subject_exercises[start:start + batch_size]
+                associations = llm_match_exercise_knowledge_points(batch, knowledge_points)
 
-            with transaction.atomic():
-                for item in associations:
-                    try:
-                        exercise_id = int(item.get('exercise_id'))
-                    except (TypeError, ValueError):
-                        continue
-                    if exercise_id not in valid_exercise_ids:
-                        continue
-
-                    linked = False
-                    for point_id in item.get('knowledge_point_ids', [])[:3]:
+                with transaction.atomic():
+                    for item in associations:
                         try:
-                            point = valid_points.get(int(point_id))
+                            exercise_id = int(item.get('exercise_id'))
                         except (TypeError, ValueError):
-                            point = None
-                        if point:
-                            _, created = QMatrix.objects.get_or_create(
-                                exercise_id=exercise_id,
-                                knowledge_point=point,
-                                defaults={'weight': 1.0},
-                            )
-                            created_count += int(created)
-                            linked = True
-                    matched_count += int(linked)
+                            continue
+                        if exercise_id not in valid_exercise_ids:
+                            continue
+
+                        linked = False
+                        for point_id in item.get('knowledge_point_ids', [])[:3]:
+                            try:
+                                point = valid_points.get(int(point_id))
+                            except (TypeError, ValueError):
+                                point = None
+                            if point:
+                                _, created = QMatrix.objects.get_or_create(
+                                    exercise_id=exercise_id,
+                                    knowledge_point=point,
+                                    defaults={'weight': 1.0},
+                                )
+                                created_count += int(created)
+                                linked = True
+                        matched_count += int(linked)
     except Exception as exc:
         logger.exception('AI 关联习题知识点失败')
         return JsonResponse({'success': False, 'message': f'大模型关联失败：{exc}'}, status=500)
