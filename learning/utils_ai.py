@@ -159,6 +159,53 @@ def llm_match_exercise_knowledge_points(exercises, knowledge_points):
     return associations if isinstance(associations, list) else []
 
 
+def llm_review_knowledge_points(subject, knowledge_points):
+    """Review a subject's knowledge points and return non-destructive suggestions."""
+    client = get_deepseek_client()
+    if not client:
+        raise RuntimeError('未配置大模型 API 密钥（DEEPSEEK_API_KEY）')
+
+    points = list(knowledge_points)
+    catalog = [{'id': point.id, 'name': point.name} for point in points]
+    issues = []
+    batch_size = 100
+    for start in range(0, len(points), batch_size):
+        batch = points[start:start + batch_size]
+        review_data = [{
+            'id': point.id,
+            'name': point.name,
+            'parent': point.parent.name if point.parent else None,
+            'exercise_count': getattr(point, 'exercise_count', 0),
+        } for point in batch]
+        prompt = f"""
+你是一名本科课程知识体系专家。请检查《{subject.name}》的知识点设置是否合理。
+重点检查：名称是否含糊或过长、是否重复或高度重叠、粒度是否明显不一致、是否不像知识点、父子层级是否不合理，以及零习题关联的知识点是否可能冗余。
+
+只报告确实需要修改或删除的知识点，不要报告合理项。删除建议必须谨慎：只有明显重复、无意义或不属于本课程时才建议删除；没有关联习题不能单独作为删除理由。
+只能使用给出的知识点 id。仅返回 JSON 对象，不要返回 Markdown。
+返回格式：
+{{"issues":[{{"id":1,"action":"modify","reason":"原因","suggested_name":"建议名称"}},{{"id":2,"action":"delete","reason":"原因","suggested_name":""}}]}}
+
+本科目完整知识点目录（用于判断重复）：
+{json.dumps(catalog, ensure_ascii=False)}
+
+本批待详细检查的知识点：
+{json.dumps(review_data, ensure_ascii=False)}
+"""
+        response = client.chat.completions.create(
+            model='deepseek-chat',
+            messages=[{'role': 'user', 'content': prompt}],
+            response_format={'type': 'json_object'},
+            temperature=0.1,
+        )
+        result_text = response.choices[0].message.content.strip()
+        parsed = json.loads(result_text.replace('```json', '').replace('```', '').strip())
+        batch_issues = parsed.get('issues', []) if isinstance(parsed, dict) else []
+        if isinstance(batch_issues, list):
+            issues.extend(batch_issues)
+    return issues
+
+
 # ==========================================
 # 1. 核心解析函数 (原版 - 用于处理排版好的Word)
 # ==========================================

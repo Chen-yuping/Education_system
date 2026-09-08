@@ -9,9 +9,9 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST, require_GET
 from django.db.models import Q, Count
-from django.core.paginator import Paginator
 from ..models import KnowledgePoint, Subject, Exercise, QMatrix, KnowledgeGraph, TeacherSubject, ResourceFile
 from ..forms import KnowledgePointForm
+from ..utils_ai import llm_review_knowledge_points
 
 def is_teacher(user):
     return user.user_type == 'teacher'
@@ -43,22 +43,64 @@ def knowledge_point_list(request, subject_id):
         exercise_count=Count('qmatrix__exercise', distinct=True)
     ).order_by('id')
     
-    # 分页
-    paginator = Paginator(knowledge_points, 12)
-    page_number = request.GET.get('page', 1)
-    page_obj = paginator.get_page(page_number)
-    
     # 获取所有知识点（用于父知识点下拉菜单）
     all_knowledge_points = KnowledgePoint.objects.filter(subject=subject).order_by('id')
     
     context = {
         'subject': subject,
-        'page_obj': page_obj,
+        'page_obj': knowledge_points,
+        'knowledge_point_count': all_knowledge_points.count(),
         'search': search,
         'all_knowledge_points': all_knowledge_points,
     }
     
     return render(request, 'teacher/knowledge_point_list.html', context)
+
+
+@login_required
+@user_passes_test(is_teacher)
+@require_POST
+def review_knowledge_points_ai(request, subject_id):
+    """调用大模型检查知识点质量，只返回建议，不修改数据。"""
+    subject = get_object_or_404(Subject, id=subject_id)
+    if not TeacherSubject.objects.filter(teacher=request.user, subject=subject).exists():
+        return JsonResponse({'success': False, 'message': '您没有权限检查此科目的知识点'}, status=403)
+
+    points = list(KnowledgePoint.objects.filter(subject=subject).select_related('parent').annotate(
+        exercise_count=Count('qmatrix__exercise', distinct=True)
+    ).order_by('id'))
+    if not points:
+        return JsonResponse({'success': False, 'message': '本科目暂无知识点'}, status=400)
+
+    try:
+        raw_issues = llm_review_knowledge_points(subject, points)
+        point_map = {point.id: point for point in points}
+        issues = []
+        seen_ids = set()
+        for item in raw_issues:
+            try:
+                point_id = int(item.get('id'))
+            except (AttributeError, TypeError, ValueError):
+                continue
+            action = item.get('action')
+            if point_id not in point_map or point_id in seen_ids or action not in ('modify', 'delete'):
+                continue
+            seen_ids.add(point_id)
+            issues.append({
+                'id': point_id,
+                'name': point_map[point_id].name,
+                'action': action,
+                'reason': str(item.get('reason', '')).strip(),
+                'suggested_name': str(item.get('suggested_name', '')).strip(),
+            })
+        return JsonResponse({
+            'success': True,
+            'total': len(points),
+            'issues': issues,
+            'message': '未发现明显问题' if not issues else f'发现 {len(issues)} 个建议关注的知识点',
+        })
+    except Exception as exc:
+        return JsonResponse({'success': False, 'message': f'大模型检查失败：{exc}'}, status=500)
 
 # ==================== 添加知识点 ====================
 @login_required
