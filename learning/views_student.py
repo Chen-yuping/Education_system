@@ -595,7 +595,11 @@ def subject_exercise_logs(request, subject_id):
     answer_logs = AnswerLog.objects.filter(
         student=request.user,
         exercise__subject=subject
-    ).select_related('exercise').prefetch_related('selected_choices').order_by('-submitted_at')
+    ).select_related('exercise').prefetch_related(
+        'selected_choices',
+        'exercise__choices',
+        'exercise__qmatrix_set__knowledge_point'
+    ).order_by('-submitted_at')
 
     # 统计信息
     total_logs = answer_logs.count()
@@ -669,6 +673,107 @@ def subject_exercise_logs(request, subject_id):
     
     type_names = list(type_stats.keys())
     type_counts = list(type_stats.values())
+
+    question_type_map = {
+        '1': '单选题',
+        '2': '多选题',
+        '3': '投票题',
+        '4': '填空题',
+        '5': '简答题',
+        '6': '判断题',
+        'single': '单选题',
+        'multiple': '多选题',
+        'fill': '填空题',
+        'subjective': '简答题',
+    }
+
+    def format_seconds(seconds):
+        try:
+            seconds = int(seconds or 0)
+        except (TypeError, ValueError):
+            seconds = 0
+        minutes, remain = divmod(seconds, 60)
+        if minutes:
+            return f'{minutes}分{remain}秒' if remain else f'{minutes}分'
+        return f'{remain}秒'
+
+    def difficulty_from_score(score):
+        try:
+            value = float(score or 0)
+        except (TypeError, ValueError):
+            value = 0
+        if value <= 1:
+            return '简单'
+        if value <= 2:
+            return '中等'
+        return '困难'
+
+    def format_json_answer(raw_answer):
+        if not raw_answer:
+            return '未作答'
+        try:
+            parsed = json.loads(raw_answer)
+        except (TypeError, ValueError):
+            return raw_answer
+        if isinstance(parsed, dict):
+            parts = []
+            for key in sorted(parsed.keys(), key=lambda item: str(item)):
+                value = parsed[key]
+                if isinstance(value, list):
+                    value = '、'.join(str(item) for item in value)
+                parts.append(f'{key}: {value}')
+            return '；'.join(parts) if parts else '未作答'
+        if isinstance(parsed, list):
+            return '、'.join(str(item) for item in parsed)
+        return str(parsed)
+
+    def build_answer_log_row(log):
+        exercise = log.exercise
+        choices = list(exercise.choices.all().order_by('order', 'id'))
+        choice_letter_by_id = {
+            choice.id: chr(65 + index)
+            for index, choice in enumerate(choices)
+        }
+        selected_choices = list(log.selected_choices.all())
+        selected_letters = [
+            choice_letter_by_id.get(choice.id, choice.content)
+            for choice in selected_choices
+        ]
+        correct_letters = [
+            choice_letter_by_id.get(choice.id, choice.content)
+            for choice in choices if choice.is_correct
+        ]
+
+        if exercise.question_type in ['4', '5', 'fill', 'subjective'] or log.text_answer:
+            student_answer = format_json_answer(log.text_answer)
+        else:
+            student_answer = ''.join(selected_letters) if selected_letters else '未作答'
+
+        if exercise.question_type in ['4', '5', 'fill', 'subjective']:
+            correct_answer = format_json_answer(exercise.answer)
+        else:
+            correct_answer = ''.join(correct_letters) if correct_letters else format_json_answer(exercise.answer)
+
+        knowledge_points = [
+            item.knowledge_point.name
+            for item in exercise.qmatrix_set.all()
+            if item.knowledge_point
+        ]
+
+        return {
+            'id': log.id,
+            'question_content': exercise.content,
+            'knowledge_points': knowledge_points,
+            'question_type': question_type_map.get(exercise.question_type, exercise.question_type or '其他'),
+            'difficulty': difficulty_from_score(exercise.score),
+            'student_answer': student_answer,
+            'correct_answer': correct_answer,
+            'is_correct': log.is_correct,
+            'time_spent': format_seconds(log.time_spent),
+            'submitted_at': log.submitted_at,
+        }
+
+    answer_log_rows = [build_answer_log_row(log) for log in answer_logs]
 
     # 获取所有不重复的习题（优化性能）
     exercise_ids = answer_logs.values_list('exercise_id', flat=True).distinct()
@@ -754,9 +859,15 @@ def subject_exercise_logs(request, subject_id):
 
     # 添加分页功能 - 10题一页
     from django.core.paginator import Paginator
-    paginator = Paginator(exercises_with_stats, 10)  # 每页10题
+    paginator = Paginator(answer_log_rows, 10)  # 每页10条记录
     page_number = request.GET.get('page', 1)
     page_obj = paginator.get_page(page_number)
+
+    # ===== 做题记录实时分析（数据洞察，无需调用 AI） =====
+    from .exercise_analysis import build_snapshot, rule_based_insights
+    analysis_snapshot = build_snapshot(subject, request.user)
+    analysis_insights = rule_based_insights(analysis_snapshot)
+    analysis_updated_at = analysis_snapshot['generated_at']
 
     context = {
         'subject': subject,
@@ -767,7 +878,8 @@ def subject_exercise_logs(request, subject_id):
         'unmarked_logs': unmarked_logs,
         'correct_rate': correct_rate,
         'has_data': total_logs > 0,
-        'exercises_with_stats': page_obj.object_list,  # 当前页的习题
+        'exercise_log_rows': page_obj.object_list,
+        'exercises_with_stats': page_obj.object_list,  # 兼容旧模板变量
         'page_obj': page_obj,  # 分页对象
         'total_exercises': total_exercises,
         'completed_exercises': completed_exercises,
@@ -779,6 +891,9 @@ def subject_exercise_logs(request, subject_id):
         'daily_counts': json.dumps(daily_counts),
         'type_names': json.dumps(type_names),
         'type_counts': json.dumps(type_counts),
+        # 实时分析
+        'analysis_insights': analysis_insights,
+        'analysis_updated_at': analysis_updated_at,
     }
 
     return render(request, 'student/subject_exercise_logs.html', context)
@@ -1418,3 +1533,122 @@ def subject_favorites(request, subject_id):
     }
     
     return render(request, 'student/subject_favorites.html', context)
+
+
+# 学生社区（课程评论区）
+@login_required
+@user_passes_test(is_student)
+def subject_community(request, subject_id):
+    """课程学生社区 - 学生评论区，支持发表评论与回复"""
+    from .models import SubjectComment
+
+    subject = get_object_or_404(Subject, id=subject_id)
+
+    if request.method == 'POST':
+        action = request.POST.get('action', 'create')
+
+        if action == 'delete':
+            comment_id = request.POST.get('comment_id')
+            comment = SubjectComment.objects.filter(id=comment_id, subject=subject).first()
+            if comment and comment.user == request.user:
+                comment.delete()
+                messages.success(request, "评论已删除")
+            elif comment:
+                messages.error(request, "只能删除自己发表的评论")
+            else:
+                messages.error(request, "评论不存在")
+            return redirect('subject_community', subject_id=subject.id)
+
+        content = (request.POST.get('content') or '').strip()
+        parent_id = request.POST.get('parent_id') or ''
+        if not content:
+            messages.error(request, "评论内容不能为空")
+        elif len(content) > 1000:
+            messages.error(request, "评论内容不能超过 1000 字")
+        else:
+            parent = None
+            if parent_id:
+                parent = SubjectComment.objects.filter(
+                    id=parent_id, subject=subject, parent__isnull=True
+                ).first()
+                if not parent:
+                    messages.error(request, "回复的评论不存在")
+                    return redirect('subject_community', subject_id=subject.id)
+            SubjectComment.objects.create(
+                subject=subject,
+                user=request.user,
+                content=content,
+                parent=parent,
+            )
+            messages.success(request, "评论发表成功")
+        return redirect('subject_community', subject_id=subject.id)
+
+    top_comments = SubjectComment.objects.filter(
+        subject=subject, parent__isnull=True
+    ).select_related('user').prefetch_related('replies__user').order_by('-created_at')[:200]
+
+    comments = []
+    for comment in top_comments:
+        replies = sorted(comment.replies.all(), key=lambda r: r.created_at)
+        comments.append({'comment': comment, 'replies': replies})
+
+    comment_count = SubjectComment.objects.filter(subject=subject).count()
+
+    return render(request, 'student/subject_community.html', {
+        'subject': subject,
+        'comments': comments,
+        'comment_count': comment_count,
+    })
+
+
+# 做题记录实时分析接口（AI 智能分析错题原因 + 学习计划）
+@login_required
+@user_passes_test(is_student)
+@require_http_methods(["POST"])
+def subject_exercise_logs_analyze(request, subject_id):
+    """根据学生做题记录实时生成 AI 分析：错题原因 + 学习计划建议"""
+    from .exercise_analysis import build_snapshot, analyze_with_llm, rule_based_insights
+
+    subject = get_object_or_404(Subject, id=subject_id)
+    snapshot = build_snapshot(subject, request.user)
+    if not snapshot['total']:
+        return JsonResponse({'success': False, 'message': '暂无做题记录，无法生成分析'})
+
+    force = False
+    if request.body:
+        try:
+            force = bool(json.loads(request.body).get('force', False))
+        except Exception:
+            force = False
+
+    insights = rule_based_insights(snapshot)
+    cache_key = f'exercise_ai_analysis_{subject.id}'
+    now = timezone.now()
+
+    # 5 分钟内复用上次结果，点击“重新生成”时强制刷新
+    cached = request.session.get(cache_key)
+    if not force and isinstance(cached, dict) and cached.get('text'):
+        age = now.timestamp() - float(cached.get('ts', 0))
+        if 0 <= age < 300:
+            return JsonResponse({
+                'success': True,
+                'analysis': cached['text'],
+                'source': 'cached',
+                'insights': insights,
+            })
+
+    text = analyze_with_llm(snapshot)
+    if text:
+        request.session[cache_key] = {'ts': now.timestamp(), 'text': text}
+        return JsonResponse({
+            'success': True,
+            'analysis': text,
+            'source': 'ai',
+            'insights': insights,
+        })
+
+    return JsonResponse({
+        'success': False,
+        'message': 'AI 分析服务暂不可用，请稍后重试（当前已展示数据洞察结论）。',
+        'insights': insights,
+    })

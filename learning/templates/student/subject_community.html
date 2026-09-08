@@ -1,0 +1,296 @@
+{% extends 'student/learning_base.html' %}
+
+{% block title %}{{ subject.name }} - 学生社区{% endblock %}
+
+{% block extra_css %}
+<style>
+    .page-header {
+        border-bottom: 1px solid #e9ecef;
+        margin-bottom: 18px;
+        padding-bottom: 14px;
+    }
+
+    .community-panel {
+        background: #fff;
+        border: 1px solid #edf0f5;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
+        overflow: hidden;
+    }
+
+    .comment-form-box {
+        padding: 20px;
+        background: #f8fafc;
+        border-bottom: 1px solid #edf0f5;
+    }
+
+    .comment-item {
+        border-bottom: 1px solid #f1f3f7;
+        padding: 18px 20px;
+    }
+
+    .comment-item:last-child {
+        border-bottom: none;
+    }
+
+    .comment-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: #007bff;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 16px;
+        flex: 0 0 auto;
+    }
+
+    .comment-meta {
+        font-size: 13px;
+        color: #6c757d;
+    }
+
+    .comment-content {
+        margin: 8px 0 6px;
+        color: #1f2937;
+        line-height: 1.7;
+        word-break: break-word;
+        white-space: pre-wrap;
+    }
+
+    .reply-list {
+        margin-left: 52px;
+        margin-top: 12px;
+    }
+
+    .reply-item {
+        background: #f8fafc;
+        border-radius: 8px;
+        padding: 12px 14px;
+        margin-bottom: 8px;
+    }
+
+    .reply-avatar {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background: #6c757d;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        font-weight: 600;
+        flex: 0 0 auto;
+    }
+
+    .reply-form {
+        display: none;
+        margin-top: 10px;
+    }
+
+    .reply-form.show {
+        display: block;
+    }
+
+    .btn-reply {
+        font-size: 12px;
+        padding: 2px 10px;
+    }
+
+    .delete-link {
+        font-size: 12px;
+        color: #dc3545;
+        cursor: pointer;
+        background: none;
+        border: none;
+        padding: 0;
+    }
+
+    .delete-link:hover {
+        text-decoration: underline;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #999;
+    }
+
+    .empty-state i {
+        font-size: 56px;
+        margin-bottom: 16px;
+        color: #ccc;
+    }
+
+    .count-badge {
+        background: #eef2ff;
+        color: #4338ca;
+        font-size: 13px;
+        font-weight: 600;
+        border-radius: 20px;
+        padding: 4px 14px;
+    }
+
+    @media (max-width: 576px) {
+        .reply-list {
+            margin-left: 12px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <a href="{% url 'subject_learning' subject_id=subject.id %}" class="btn btn-sm btn-primary">
+        <i class="fas fa-arrow-left me-1"></i> 返回课程学习
+    </a>
+    <h2 class="h4 mb-0">
+        <i class="fas fa-comments me-2 text-primary"></i>{{ subject.name }} - 学生社区
+    </h2>
+    <span class="count-badge">共 {{ comment_count }} 条评论</span>
+</div>
+
+{% if messages %}
+    {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    {% endfor %}
+{% endif %}
+
+<div class="community-panel mb-4">
+    <!-- 发表评论 -->
+    <div class="comment-form-box">
+        <form method="post" action="{% url 'subject_community' subject_id=subject.id %}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create">
+            <div class="d-flex gap-3">
+                <div class="comment-avatar">{{ request.user.username|slice:":1"|upper }}</div>
+                <div class="flex-grow-1">
+                    <textarea name="content" class="form-control" rows="3"
+                              placeholder="和同学们分享你的学习心得、疑问或见解…" maxlength="1000" required></textarea>
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                        <small class="text-muted">文明发言，友善交流，最多 1000 字</small>
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <i class="fas fa-paper-plane me-1"></i>发表评论
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- 评论列表 -->
+    {% if comments %}
+        {% for item in comments %}
+        <div class="comment-item" id="comment-{{ item.comment.id }}">
+            <div class="d-flex gap-3">
+                <div class="comment-avatar">{{ item.comment.user.username|slice:":1"|upper }}</div>
+                <div class="flex-grow-1">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div>
+                            <span class="fw-bold text-dark">{{ item.comment.user.username }}</span>
+                            <span class="comment-meta ms-2">
+                                <i class="far fa-clock me-1"></i>{{ item.comment.created_at|date:"Y-m-d H:i" }}
+                            </span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <button type="button" class="btn btn-outline-secondary btn-reply"
+                                    onclick="toggleReplyForm('{{ item.comment.id }}')">
+                                <i class="fas fa-reply me-1"></i>回复
+                            </button>
+                            {% if item.comment.user == request.user %}
+                            <form method="post" action="{% url 'subject_community' subject_id=subject.id %}"
+                                  class="d-inline" onsubmit="return confirm('确定删除这条评论吗？');">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="comment_id" value="{{ item.comment.id }}">
+                                <button type="submit" class="delete-link">
+                                    <i class="fas fa-trash-alt me-1"></i>删除
+                                </button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="comment-content">{{ item.comment.content }}</div>
+
+                    <!-- 回复表单 -->
+                    <div class="reply-form" id="reply-form-{{ item.comment.id }}">
+                        <form method="post" action="{% url 'subject_community' subject_id=subject.id %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="create">
+                            <input type="hidden" name="parent_id" value="{{ item.comment.id }}">
+                            <div class="d-flex gap-2">
+                                <input type="text" name="content" class="form-control form-control-sm"
+                                       placeholder="回复 @{{ item.comment.user.username }}…" maxlength="1000" required>
+                                <button type="submit" class="btn btn-primary btn-sm">回复</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- 回复列表 -->
+                    {% if item.replies %}
+                    <div class="reply-list">
+                        {% for reply in item.replies %}
+                        <div class="reply-item" id="comment-{{ reply.id }}">
+                            <div class="d-flex gap-2">
+                                <div class="reply-avatar">{{ reply.user.username|slice:":1"|upper }}</div>
+                                <div class="flex-grow-1">
+                                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                        <div>
+                                            <span class="fw-bold text-dark">{{ reply.user.username }}</span>
+                                            <span class="comment-meta ms-2">
+                                                <i class="far fa-clock me-1"></i>{{ reply.created_at|date:"Y-m-d H:i" }}
+                                            </span>
+                                        </div>
+                                        {% if reply.user == request.user %}
+                                        <form method="post" action="{% url 'subject_community' subject_id=subject.id %}"
+                                              class="d-inline" onsubmit="return confirm('确定删除这条回复吗？');">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="delete">
+                                            <input type="hidden" name="comment_id" value="{{ reply.id }}">
+                                            <button type="submit" class="delete-link">
+                                                <i class="fas fa-trash-alt me-1"></i>删除
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
+                                    <div class="comment-content mb-0">{{ reply.content }}</div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+    <div class="empty-state">
+        <i class="fas fa-comments"></i>
+        <h4>还没有评论</h4>
+        <p class="mb-0">成为第一个在 {{ subject.name }} 社区发言的同学吧！</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleReplyForm(commentId) {
+    const form = document.getElementById('reply-form-' + commentId);
+    if (form) {
+        form.classList.toggle('show');
+        const input = form.querySelector('input[name="content"]');
+        if (input && form.classList.contains('show')) {
+            input.focus();
+        }
+    }
+}
+</script>
+{% endblock %}

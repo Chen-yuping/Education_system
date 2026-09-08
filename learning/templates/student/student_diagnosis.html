@@ -282,35 +282,29 @@
         <div class="card h-100">
             <div class="card-body">
                 <h6 class="card-title mb-3">掌握程度统计</h6>
-                <div class="row text-center" id="masteryStats">
-                    <div class="col-2">
-                        <div class="mastery-card p-2 rounded bg-success bg-opacity-10">
+                <div class="row text-center g-2" id="masteryStats">
+                    <div class="col-6 col-sm-3">
+                        <div class="mastery-card h-100 p-2 rounded bg-success bg-opacity-10">
                             <div class="text-success fw-bold" id="masteredCount">0</div>
-                            <small class="text-muted">已掌握</small>
+                            <small class="text-muted">相对良好</small>
                         </div>
                     </div>
-                    <div class="col-2">
-                        <div class="mastery-card p-2 rounded bg-warning bg-opacity-10">
+                    <div class="col-6 col-sm-3">
+                        <div class="mastery-card h-100 p-2 rounded bg-warning bg-opacity-10">
                             <div class="text-warning fw-bold" id="partialCount">0</div>
-                            <small class="text-muted">基本掌握</small>
+                            <small class="text-muted">相对基本</small>
                         </div>
                     </div>
-                    <div class="col-2">
-                        <div class="mastery-card p-2 rounded bg-danger bg-opacity-10">
+                    <div class="col-6 col-sm-3">
+                        <div class="mastery-card h-100 p-2 rounded bg-danger bg-opacity-10">
                             <div class="text-danger fw-bold" id="weakCount">0</div>
-                            <small class="text-muted">需要加强</small>
+                            <small class="text-muted">相对较弱</small>
                         </div>
                     </div>
-                    <div class="col-2">
-                        <div class="mastery-card p-2 rounded bg-primary bg-opacity-10">
-                            <div class="text-primary fw-bold" id="beginnerCount">0</div>
-                            <small class="text-muted">刚开始学</small>
-                        </div>
-                    </div>
-                    <div class="col-2">
-                        <div class="mastery-card p-2 rounded bg-secondary bg-opacity-10">
+                    <div class="col-6 col-sm-3">
+                        <div class="mastery-card h-100 p-2 rounded bg-secondary bg-opacity-10">
                             <div class="text-secondary fw-bold" id="noneCount">0</div>
-                            <small class="text-muted">未学习</small>
+                            <small class="text-muted">未学习/最低区间</small>
                         </div>
                     </div>
                 </div>
@@ -340,7 +334,7 @@
                 <h5 class="text-primary">知识点掌握情况分析</h5>
                 <p class="text-muted small">选择科目查看您的知识点掌握情况</p>
                 <div class="alert alert-info mt-3" style="max-width: 400px;">
-                    <small><i class="fas fa-info-circle me-2"></i>不同颜色代表不同掌握程度：绿色(已掌握)、橙色(基本掌握)、红色(需要加强)、灰色(未学习)</small>
+                    <small><i class="fas fa-info-circle me-2"></i>不同颜色代表诊断结果的相对分档：绿色(相对良好)、橙色(相对基本掌握)、红色(相对需要加强)、灰色(未学习/最低区间)</small>
                 </div>
             </div>
 
@@ -386,21 +380,21 @@
                     <div class="col-6">
                         <div class="mb-2">
                             <span class="legend-box" style="background-color: #2ecc71;"></span>
-                            <small>掌握良好 (≥80%)</small>
+                            <small>相对掌握良好 (最高25%)</small>
                         </div>
                         <div class="mb-2">
                             <span class="legend-box" style="background-color: #f39c12;"></span>
-                            <small>基本掌握 (60%-80%)</small>
+                            <small>相对基本掌握 (中高区间)</small>
                         </div>
                     </div>
                     <div class="col-6">
                         <div class="mb-2">
                             <span class="legend-box" style="background-color: #e74c3c;"></span>
-                            <small>需要加强 (40%-60%)</small>
+                            <small>相对需要加强 (中低区间)</small>
                         </div>
                         <div class="mb-2">
                             <span class="legend-box" style="background-color: #95a5a6;"></span>
-                            <small>未学习/未掌握 (<40%)</small>
+                            <small>未学习/最低区间</small>
                         </div>
                     </div>
                 </div>
@@ -557,6 +551,7 @@ function loadDiagnosisData() {
             loading.style.display = 'none';
 
             if (data.status === 'success') {
+                normalizeDiagnosisDisplay(data);
                 currentData = data;
 
                 // 更新掌握程度统计
@@ -589,13 +584,67 @@ function loadDiagnosisData() {
         });
 }
 
+function normalizeDiagnosisDisplay(data) {
+    if (!data || !Array.isArray(data.nodes)) return;
+
+    const practiced = data.nodes
+        .filter(node => (node.practice_count || 0) > 0 || (node.mastery_level || 0) > 0)
+        .map(node => node.mastery_level || 0);
+
+    const minMastery = practiced.length ? Math.min(...practiced) : 0;
+    const maxMastery = practiced.length ? Math.max(...practiced) : 0;
+    const useRelativeScale = practiced.length > 0 && (maxMastery - minMastery) < 0.2;
+
+    const stats = {
+        total: data.nodes.length,
+        mastered: 0,
+        partial: 0,
+        weak: 0,
+        beginner: 0,
+        none: 0,
+    };
+
+    data.nodes.forEach(node => {
+        const mastery = node.mastery_level || 0;
+        let displayLevel = mastery;
+
+        if ((node.practice_count || 0) === 0 && mastery === 0) {
+            displayLevel = 0;
+        } else if (useRelativeScale && maxMastery > minMastery) {
+            displayLevel = (mastery - minMastery) / (maxMastery - minMastery);
+        }
+
+        node.display_level = Number(displayLevel.toFixed(4));
+        node.display_percent = Number((displayLevel * 100).toFixed(1));
+
+        if (displayLevel >= 0.75) {
+            node.color = '#2ecc71';
+            node.mastery_label = '相对掌握良好';
+            stats.mastered += 1;
+        } else if (displayLevel >= 0.5) {
+            node.color = '#f39c12';
+            node.mastery_label = '相对基本掌握';
+            stats.partial += 1;
+        } else if (displayLevel > 0) {
+            node.color = '#e74c3c';
+            node.mastery_label = '相对需要加强';
+            stats.weak += 1;
+        } else {
+            node.color = '#95a5a6';
+            node.mastery_label = '未学习/未掌握';
+            stats.none += 1;
+        }
+    });
+
+    data.mastery_stats = stats;
+}
+
 // 更新掌握程度统计
 function updateMasteryStats(stats) {
     if (!stats) return;
     document.getElementById('masteredCount').textContent = stats.mastered || 0;
     document.getElementById('partialCount').textContent = stats.partial || 0;
     document.getElementById('weakCount').textContent = stats.weak || 0;
-    document.getElementById('beginnerCount').textContent = stats.beginner || 0;
     document.getElementById('noneCount').textContent = stats.none || 0;
 }
 
@@ -604,7 +653,6 @@ function resetStats() {
     document.getElementById('masteredCount').textContent = '0';
     document.getElementById('partialCount').textContent = '0';
     document.getElementById('weakCount').textContent = '0';
-    document.getElementById('beginnerCount').textContent = '0';
     document.getElementById('noneCount').textContent = '0';
 }
 
@@ -918,6 +966,7 @@ function renderDiagnosisGraph(data) {
         const tooltip = document.getElementById('tooltip');
         if (tooltip && currentContainer) {
             const masteryPercent = d.mastery_percent || Math.round((d.mastery_level || 0) * 100);
+            const displayPercent = d.display_percent ?? Math.round((d.display_level ?? d.mastery_level ?? 0) * 100);
             const accuracy = d.accuracy || 0;
             const practiceCount = d.practice_count || 0;
             const correctCount = d.correct_count || 0;
@@ -926,9 +975,10 @@ function renderDiagnosisGraph(data) {
                 <h6 style="margin: 0 0 8px 0; color: #ffcc00; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">
                     ${d.full_name || d.name}
                 </h6>
-                <p style="margin: 4px 0;"><strong>掌握程度:</strong> <span style="color: #4ade80; font-weight: bold;">${masteryPercent}%</span></p>
+                <p style="margin: 4px 0;"><strong>原始掌握度:</strong> <span style="color: #4ade80; font-weight: bold;">${masteryPercent}%</span></p>
+                <p style="margin: 4px 0;"><strong>显示分档:</strong> ${d.mastery_label || ''} (${displayPercent}%)</p>
                 <div style="background: rgba(255,255,255,0.1); border-radius: 3px; height: 6px; margin: 5px 0; overflow: hidden;">
-                    <div style="height: 100%; width: ${masteryPercent}%; background-color: ${d.color}; transition: width 0.3s ease;"></div>
+                    <div style="height: 100%; width: ${displayPercent}%; background-color: ${d.color}; transition: width 0.3s ease;"></div>
                 </div>
                 ${d.last_practiced ? `<p style="margin: 4px 0; font-size: 11px; color: #bbb;"><strong>最后练习:</strong> ${d.last_practiced}</p>` : ''}
             `;
@@ -980,13 +1030,15 @@ function showTooltip(event, node) {
     if (!tooltip) return;
 
     const masteryPercent = node.mastery_percent || (node.mastery_level * 100).toFixed(1);
+    const displayPercent = node.display_percent ?? ((node.display_level ?? node.mastery_level ?? 0) * 100).toFixed(1);
 
     tooltip.innerHTML = `
         <h6>${node.full_name || node.name}</h6>
-        <p><strong>掌握程度:</strong> ${masteryPercent}%</p>
+        <p><strong>原始掌握度:</strong> ${masteryPercent}%</p>
+        <p><strong>显示分档:</strong> ${node.mastery_label || ''} (${displayPercent}%)</p>
         <div class="progress progress-thin">
             <div class="progress-bar" role="progressbar"
-                 style="width: ${masteryPercent}%; background-color: ${node.color};">
+                 style="width: ${displayPercent}%; background-color: ${node.color};">
             </div>
         </div>
         <p><strong>练习次数:</strong> ${node.practice_count || 0}</p>
@@ -1034,7 +1086,6 @@ function updateMasteryStats(stats) {
     document.getElementById('masteredCount').textContent = stats.mastered || 0;
     document.getElementById('partialCount').textContent = stats.partial || 0;
     document.getElementById('weakCount').textContent = stats.weak || 0;
-    document.getElementById('beginnerCount').textContent = stats.beginner || 0;  // 新增
     document.getElementById('noneCount').textContent = stats.none || 0;
 }
 
@@ -1043,7 +1094,6 @@ function resetStats() {
     document.getElementById('masteredCount').textContent = '0';
     document.getElementById('partialCount').textContent = '0';
     document.getElementById('weakCount').textContent = '0';
-    document.getElementById('beginnerCount').textContent = '0';  // 新增
     document.getElementById('noneCount').textContent = '0';
 }
 
@@ -1133,9 +1183,9 @@ function renderBarChart(data) {
         .append('rect')
         .attr('class', 'bar')
         .attr('x', d => xScale(d.name))
-        .attr('y', d => yScale(d.mastery_level || 0))
+        .attr('y', d => yScale(d.display_level ?? d.mastery_level ?? 0))
         .attr('width', xScale.bandwidth())
-        .attr('height', d => chartHeight - yScale(d.mastery_level || 0))
+        .attr('height', d => chartHeight - yScale(d.display_level ?? d.mastery_level ?? 0))
         .attr('fill', d => d.color)
         .attr('opacity', 0.8)
         .style('cursor', 'pointer')
@@ -1151,6 +1201,7 @@ function renderBarChart(data) {
             const tooltip = document.getElementById('tooltip-bar');
             if (tooltip) {
                 const masteryPercent = Math.round((d.mastery_level || 0) * 100);
+                const displayPercent = d.display_percent ?? Math.round((d.display_level ?? d.mastery_level ?? 0) * 100);
                 const accuracy = d.accuracy || 0;
                 const practiceCount = d.practice_count || 0;
                 const correctCount = d.correct_count || 0;
@@ -1159,9 +1210,10 @@ function renderBarChart(data) {
                     <h6 style="margin: 0 0 8px 0; color: #ffcc00; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">
                         ${d.full_name || d.name}
                     </h6>
-                    <p style="margin: 4px 0;"><strong>掌握程度:</strong> <span style="color: #4ade80; font-weight: bold;">${masteryPercent}%</span></p>
+                    <p style="margin: 4px 0;"><strong>原始掌握度:</strong> <span style="color: #4ade80; font-weight: bold;">${masteryPercent}%</span></p>
+                    <p style="margin: 4px 0;"><strong>显示分档:</strong> ${d.mastery_label || ''} (${displayPercent}%)</p>
                     <div style="background: rgba(255,255,255,0.1); border-radius: 3px; height: 6px; margin: 5px 0; overflow: hidden;">
-                        <div style="height: 100%; width: ${masteryPercent}%; background-color: ${d.color}; transition: width 0.3s ease;"></div>
+                        <div style="height: 100%; width: ${displayPercent}%; background-color: ${d.color}; transition: width 0.3s ease;"></div>
                     </div>
                     <p style="margin: 4px 0;"><strong>练习次数:</strong> ${practiceCount}</p>
                     <p style="margin: 4px 0;"><strong>正确次数:</strong> ${correctCount}</p>

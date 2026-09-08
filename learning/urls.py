@@ -42,8 +42,10 @@ urlpatterns = [
     path('exercise/<int:exercise_id>/take/', views_student.take_exercise, name='take_exercise'),
     path('exercise/result/<int:log_id>/', views_student.exercise_result, name='exercise_result'),
     path('subject/<int:subject_id>/exercise-logs/', views_student.subject_exercise_logs, name='subject_exercise_logs'),# 单个科目的答题log
+    path('subject/<int:subject_id>/exercise-logs/analyze/', views_student.subject_exercise_logs_analyze, name='subject_exercise_logs_analyze'),# 做题记录实时分析
 
     path('subject/<int:subject_id>/knowledge/', views_student.knowledge_points, name='knowledge_points'),
+    path('subject/<int:subject_id>/community/', views_student.subject_community, name='subject_community'),# 学生社区
 
 #老师功能
     path('teacher/dashboard/', views_teacher.teacher_dashboard, name='teacher_dashboard'),#教师面板
