@@ -239,7 +239,8 @@ def get_prerequisite_knowledge_points(knowledge_point, subject):
         # 获取该知识点的所有前置知识点（source → target 关系中，source是前置）
         incoming_edges = KnowledgeGraph.objects.filter(
             subject=subject,
-            target=kp
+            target=kp,
+            relationship_type='先修',
         )
         
         for edge in incoming_edges:

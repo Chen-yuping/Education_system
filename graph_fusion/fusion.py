@@ -16,10 +16,10 @@ from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
-# 关系方向冲突消解优先级：前置 > 隶属 > 关联 > 相似
-_REL_PRIORITY = {'前置': 4, '隶属': 3, '关联': 2, '相似': 1}
+# 关系方向冲突消解优先级：先修 > 层级 > 相似
+_REL_PRIORITY = {'先修': 3, '层级': 2, '相似': 1}
 # 无向关系类型：融合时按无序节点对去重
-_UNDIRECTED = {'关联', '相似'}
+_UNDIRECTED = {'相似'}
 
 
 def normalize_name(name: str) -> str:
@@ -73,8 +73,8 @@ def _fuse_relations(relationships, kp_to_global):
         gt = kp_to_global.get(rel.target_id)
         if gs is None or gt is None or gs == gt:
             continue
-        rel_type = rel.relationship_type or '关联'
-        priority = _REL_PRIORITY.get(rel_type, 2)
+        rel_type = rel.relationship_type or '相似'
+        priority = _REL_PRIORITY.get(rel_type, 1)
         directed = rel_type not in _UNDIRECTED
         key = (frozenset((gs, gt)), rel_type) if not directed else (gs, gt, rel_type)
         if key not in fused:

@@ -26,11 +26,11 @@ logger = logging.getLogger(__name__)
 
 
 # 关系方向冲突消解优先级：值越大越「强」，冲突时保留强关系
-# 前置(有向、最强语义) > 隶属(有向) > 关联(无向) > 相似(无向)
-_REL_PRIORITY = {'前置': 4, '隶属': 3, '关联': 2, '相似': 1}
+# 先修(有向、最强语义) > 层级(有向) > 相似(无向)
+_REL_PRIORITY = {'先修': 3, '层级': 2, '相似': 1}
 
 # 无向关系类型：融合时按无序节点对去重，避免 A→B / B→A 重复
-_UNDIRECTED = {'关联', '相似'}
+_UNDIRECTED = {'相似'}
 
 
 def normalize_name(name: str) -> str:
@@ -96,8 +96,8 @@ def _fuse_relations(relationships, kp_to_global):
     """
     把原始关系映射到全局节点并去重。
       - 自环（合并后两端相同）丢弃
-      - 无向关系（关联/相似）按无序对去重
-      - 有向关系（前置/隶属）按有序对去重
+      - 无向关系（相似）按无序对去重
+      - 有向关系（先修/层级）按有序对去重
       - 同一对节点出现多种关系类型时，按 _REL_PRIORITY 保留语义最强的一条
     返回 links 列表（全局 id 引用）。
     """
@@ -110,8 +110,8 @@ def _fuse_relations(relationships, kp_to_global):
         if gs is None or gt is None or gs == gt:
             continue  # 缺节点或自环，跳过
 
-        rel_type = rel.relationship_type or '关联'
-        priority = _REL_PRIORITY.get(rel_type, 2)
+        rel_type = rel.relationship_type or '相似'
+        priority = _REL_PRIORITY.get(rel_type, 1)
         directed = rel_type not in _UNDIRECTED
 
         # 去重键：无向用 frozenset，有向用有序元组
@@ -270,4 +270,3 @@ def fuse_graph(subject_ids=None, semantic=True):
                     f'（同名+语义合并 {merged}，其中语义等价 {semantic_merged}），'
                     f'{len(links)} 关系（含语义软关联 {len(semantic_links)}）'),
     }
-

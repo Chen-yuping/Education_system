@@ -85,9 +85,8 @@ class KnowledgePoint(models.Model):
 #知识点关系图
 class KnowledgeGraph(models.Model):
     RELATION_CHOICES = [
-        ('隶属', '隶属'),
-        ('关联', '关联'),
-        ('前置', '前置'),
+        ('先修', '先修'),
+        ('层级', '层级'),
         ('相似', '相似'),
     ]
 
@@ -97,7 +96,7 @@ class KnowledgeGraph(models.Model):
     relationship_type = models.CharField(
         max_length=10,
         choices=RELATION_CHOICES,
-        default='关联',
+        default='相似',
         verbose_name="关系类型"
     )
     relation_source = models.CharField(

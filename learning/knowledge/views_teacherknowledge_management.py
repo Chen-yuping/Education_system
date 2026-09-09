@@ -450,7 +450,9 @@ def add_knowledge_relationship(request, subject_id):
 
         source_id = request.POST.get('source_id')
         target_id = request.POST.get('target_id')
-        rel_type = request.POST.get('relationship_type', '关联')
+        rel_type = request.POST.get('relationship_type', '相似')
+        if rel_type not in dict(KnowledgeGraph.RELATION_CHOICES):
+            return JsonResponse({'success': False, 'message': '无效的关系类型'}, status=400)
         resource_file_id = request.POST.get('resource_file_id')
 
         source = get_object_or_404(KnowledgePoint, id=source_id, subject=subject)
@@ -978,7 +980,9 @@ def add_knowledge_point_relationship_api(request, subject_id):
 
         source_id = data.get('source_id')
         target_id = data.get('target_id')
-        rel_type = data.get('relationship_type', '关联')
+        rel_type = data.get('relationship_type', '相似')
+        if rel_type not in dict(KnowledgeGraph.RELATION_CHOICES):
+            return JsonResponse({'success': False, 'message': '无效的关系类型'}, status=400)
         resource_file_id = data.get('resource_file_id')
 
         source = get_object_or_404(KnowledgePoint, id=source_id, subject=subject)

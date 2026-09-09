@@ -77,7 +77,7 @@ class KnowledgeGraphPipeline:
                     elif t.get("confidence", "高") == "低":
                         kp_confidence[name] = "低"
                 # 关系置信度
-                rkey = (t["subject"], t["object"], t.get("predicate", "关联"))
+                rkey = (t["subject"], t["object"], t.get("predicate", "相似"))
                 if rkey not in rel_confidence:
                     rel_confidence[rkey] = t.get("confidence", "高")
             result["kp_confidence"] = kp_confidence

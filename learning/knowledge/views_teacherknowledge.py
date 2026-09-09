@@ -106,28 +106,20 @@ def knowledge_points_api(request, subject_id):
         for rel in relationships:
             source_id = rel.source_id
             target_id = rel.target_id
-            pair_key = frozenset([source_id, target_id])
+            is_similar = rel.relationship_type == '相似'
+            pair_key = (
+                ('相似', frozenset([source_id, target_id]))
+                if is_similar
+                else (rel.relationship_type, source_id, target_id)
+            )
 
             if pair_key in processed_pairs:
                 continue
 
-            # 检查反向关系是否存在
-            rev_filter = {
-                'subject_id': subject_id,
-                'source_id': target_id,
-                'target_id': source_id,
-            }
-            if resource_file_id:
-                rev_filter['resource_file_id'] = resource_file_id
-            elif source_list:
-                rev_filter['relation_source__in'] = source_list
-
-            reverse_exists = KnowledgeGraph.objects.filter(**rev_filter).exists()
-
-            if reverse_exists:
+            if is_similar:
                 links.append({
-                    'source': min(source_id, target_id),
-                    'target': max(source_id, target_id),
+                    'source': source_id,
+                    'target': target_id,
                     'type': 'bidirectional',
                     'arrow': False,
                     'relationship_type': rel.relationship_type,

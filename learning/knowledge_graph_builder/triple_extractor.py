@@ -111,7 +111,7 @@ def _extract_batch(text_batch, scope_keywords, subject_name, client) -> list:
     ### 核心约束
     1. 章节聚焦：仅抽取与当前章节核心概念高度相关的实体。
     2. 忠实原文：严禁编造原文中不存在的通用常识。
-    3. 关系类型：知识点之间的关系为：隶属、关联、前置、相似，根据上下文准确判断。
+    3. 关系类型只能为：先修、层级、相似。方向规则：先修 a→b 表示先学a再学b；层级 a→b 表示a是粗粒度、b是细粒度；相似表示a与b相似。
 
     ### 置信度要求（重要）
     4. 对每一条三元组，请评估其准确性和可靠性：
@@ -142,11 +142,14 @@ def _extract_batch(text_batch, scope_keywords, subject_name, client) -> list:
         results = []
         for item in items:
             if isinstance(item, list) and len(item) >= 5:
+                predicate = item[2].strip() if len(item) > 2 else ''
+                if predicate not in {'先修', '层级', '相似'}:
+                    continue
                 confidence = item[7].strip() if len(item) > 7 and item[7] in ("高", "低") else "高"
                 results.append({
                     "subject": item[0].strip(),
                     "sub_type": item[1].strip() if len(item) > 1 else "概念",
-                    "predicate": item[2].strip() if len(item) > 2 else "关联",
+                    "predicate": predicate,
                     "object": item[3].strip(),
                     "obj_type": item[4].strip() if len(item) > 4 else "概念",
                     "subject_desc": item[5].strip() if len(item) > 5 and item[5] else "",

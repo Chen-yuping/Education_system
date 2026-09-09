@@ -287,7 +287,7 @@
                 <i class="fas fa-project-diagram"></i>
                 知识点关系管理
             </div>
-            <div class="page-subtitle">管理知识点之间的前置关系和依赖关系</div>
+            <div class="page-subtitle">管理知识点之间的先修、层级和相似关系</div>
         </div>
         <div style="display: flex; gap: 12px;">
             <a href="{% url 'knowledge_point_list' subject_id=subject.id %}" class="btn btn-secondary" style="height: fit-content;">
@@ -311,7 +311,7 @@
                 {% csrf_token %}
 
                 <div class="form-group">
-                    <label class="form-label">前置知识点（源）</label>
+                    <label class="form-label">源知识点（a）</label>
                     <select name="source_id" class="form-select" required>
                         <option value="">-- 请选择 --</option>
                         {% for kp in knowledge_points %}
@@ -321,12 +321,21 @@
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label">后续知识点（目标）</label>
+                    <label class="form-label">目标知识点（b）</label>
                     <select name="target_id" class="form-select" required>
                         <option value="">-- 请选择 --</option>
                         {% for kp in knowledge_points %}
                             <option value="{{ kp.id }}">{{ kp.name }}</option>
                         {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">关系类型</label>
+                    <select name="relationship_type" class="form-select" required>
+                        <option value="先修">先修：先学 a，再学 b</option>
+                        <option value="层级">层级：a 粗粒度，b 细粒度</option>
+                        <option value="相似">相似：a 与 b 相似</option>
                     </select>
                 </div>
 
@@ -404,7 +413,7 @@ document.getElementById('add-relationship-form').addEventListener('submit', func
     const targetId = this.querySelector('[name="target_id"]').value;
     
     if (!sourceId || !targetId) {
-        showNotification('请选择前置和后续知识点', 'error');
+        showNotification('请选择源知识点和目标知识点', 'error');
         return;
     }
     

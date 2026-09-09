@@ -9,7 +9,7 @@ KnowledgeExtractor（BERT-CRF + 规则 + 领域词典）的调用，使其可直
   1. 隔离 Learn 源码对 sys.path / 工作目录 / 本地模型路径的依赖
   2. 进程内单例（BERT 较重，初始化 ~7s，只加载一次）
   3. 把 Learn 的 (entities, relations) 转成 pipeline 期望的三元组格式
-  4. 英文关系类型 -> 当前系统 4 种中文关系（隶属/关联/前置/相似）
+  4. 英文关系类型 -> 当前系统 3 种中文关系（先修/层级/相似）
   5. 全程容错：任何失败都返回空并打日志，绝不中断上传流程
 """
 import os
@@ -30,28 +30,22 @@ if hasattr(sys.stdout, 'buffer') and sys.stdout.buffer and not sys.stdout.buffer
 
 logger = logging.getLogger(__name__)
 
-# ---------- 英文关系类型 -> 现有 4 种中文关系 ----------
-# 当前 KnowledgeGraph.RELATION_CHOICES: 隶属 / 关联 / 前置 / 相似
+# ---------- 英文关系类型 -> 当前 3 种中文关系 ----------
+# reverse=True 表示英文关系的原方向与系统规定的 a→b 方向相反。
 _REL_MAP = {
-    'HAS_PREREQUISITE': '前置',
-    'DEPENDS_ON': '前置',
-    'COMPOSED_OF': '隶属',
-    'BELONGS_TO': '隶属',
-    'SUBTYPE_OF': '隶属',
-    'RELATED_TO': '关联',
-    'COMPARED_WITH': '关联',
-    'APPLIES_TO': '关联',
-    'AFFECTS': '关联',
-    'USES': '关联',
-    'IMPLEMENTS': '关联',
-    'DEFINED_AS': '关联',
-    'DESCRIBES': '关联',
+    'HAS_PREREQUISITE': ('先修', True),
+    'DEPENDS_ON': ('先修', True),
+    'COMPOSED_OF': ('层级', False),
+    'BELONGS_TO': ('层级', True),
+    'SUBTYPE_OF': ('层级', True),
+    'RELATED_TO': ('相似', False),
+    'COMPARED_WITH': ('相似', False),
 }
 
 
-def _map_relation(rel_type: str) -> str:
-    """英文关系 -> 中文；未知一律归为'关联'"""
-    return _REL_MAP.get((rel_type or '').upper(), '关联')
+def _map_relation(rel_type: str):
+    """返回 (中文关系, 是否反转方向)；无法归类的关系不生成。"""
+    return _REL_MAP.get((rel_type or '').upper())
 
 
 # ---------- Learn backend 目录定位 ----------
@@ -128,31 +122,6 @@ def _get_extractor():
         return _extractor
 
 
-# ---------- 关系兜底：实体共现 ----------
-def _cooccurrence_relations(text, entities, existing_pairs, max_rel=60):
-    """
-    当模型/规则抽到的关系过少时，用同句共现补充'关联'关系，
-    保证图谱不至于只有孤立节点。existing_pairs 用于去重。
-    """
-    rels = []
-    sentences = re.split(r'[。！？.!?\n]', text)
-    for sent in sentences:
-        in_sent = [e for e in entities if e and e in sent]
-        for i in range(len(in_sent)):
-            for j in range(i + 1, len(in_sent)):
-                a, b = in_sent[i], in_sent[j]
-                if a == b:
-                    continue
-                key = frozenset((a, b))
-                if key in existing_pairs:
-                    continue
-                existing_pairs.add(key)
-                rels.append((a, b))
-                if len(rels) >= max_rel:
-                    return rels
-    return rels
-
-
 def extract_triples(full_text: str, subject_name: str = "", confidence_threshold: float = 0.6) -> list:
     """
     主入口：从文本抽取知识三元组（供 pipeline 调用）。
@@ -195,6 +164,12 @@ def extract_triples(full_text: str, subject_name: str = "", confidence_threshold
             s, o = r.get('source'), r.get('target')
             if not s or not o or s == o:
                 continue
+            mapped = _map_relation(r.get('relation'))
+            if not mapped:
+                continue
+            relation_type, reverse = mapped
+            if reverse:
+                s, o = o, s
             key = frozenset((s, o))
             if key in seen_pairs:
                 continue
@@ -206,23 +181,12 @@ def extract_triples(full_text: str, subject_name: str = "", confidence_threshold
                 conf_high = True
             triples.append({
                 'subject': s, 'sub_type': '概念',
-                'predicate': _map_relation(r.get('relation')),
+                'predicate': relation_type,
                 'object': o, 'obj_type': '概念',
                 'subject_desc': desc_map.get(s, ''),
                 'object_desc': desc_map.get(o, ''),
                 'confidence': '高' if conf_high else '低',
             })
-
-        # 3) 关系兜底（共现），保证有边
-        if len(triples) < max(2, len(entities) // 4):
-            for a, b in _cooccurrence_relations(full_text, entities, seen_pairs):
-                triples.append({
-                    'subject': a, 'sub_type': '概念', 'predicate': '关联',
-                    'object': b, 'obj_type': '概念',
-                    'subject_desc': desc_map.get(a, ''),
-                    'object_desc': desc_map.get(b, ''),
-                    'confidence': '低',  # 共现推断，置低待人工审核
-                })
 
         logger.info("[learn_extractor] 抽取完成：实体 %s，关系三元组 %s", len(entities), len(triples))
         return triples

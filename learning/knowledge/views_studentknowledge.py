@@ -199,7 +199,12 @@ def student_knowledge_data_api(request, subject_id):
         for rel in relationships:
             source_id = str(rel.source_id)
             target_id = str(rel.target_id)
-            pair_key = f"{min(source_id, target_id)}-{max(source_id, target_id)}"
+            is_similar = rel.relationship_type == '相似'
+            pair_key = (
+                ('相似', frozenset([source_id, target_id]))
+                if is_similar
+                else (rel.relationship_type, source_id, target_id)
+            )
 
             if pair_key in processed_pairs:
                 continue
@@ -208,13 +213,6 @@ def student_knowledge_data_api(request, subject_id):
             # 检查两个节点是否存在
             if source_id not in node_index_map or target_id not in node_index_map:
                 continue
-
-            # 检查反向关系
-            reverse_exists = KnowledgeGraph.objects.filter(
-                subject_id=subject_id,
-                source_id=rel.target_id,
-                target_id=rel.source_id
-            ).exists()
 
             # 获取掌握程度
             source_mastery = mastery_dict.get(int(source_id), {'mastery_level': 0})['mastery_level']
@@ -226,8 +224,8 @@ def student_knowledge_data_api(request, subject_id):
                 'target': node_index_map[target_id],  # 使用索引而不是ID
                 'source_id': source_id,
                 'target_id': target_id,
-                'type': 'bidirectional' if reverse_exists else 'unidirectional',
-                'bidirectional': reverse_exists,
+                'type': 'bidirectional' if is_similar else 'unidirectional',
+                'bidirectional': is_similar,
                 'avg_mastery': avg_mastery,
                 'strength': 1,
                 'relationship_type': rel.relationship_type,

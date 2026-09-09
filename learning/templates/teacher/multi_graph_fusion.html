@@ -148,9 +148,8 @@
 <div class="card mt-3"><div class="card-body py-2">
     <div class="d-flex align-items-center flex-wrap" style="gap:14px;">
         <span class="small text-muted">关系类型：</span>
-        <span class="d-flex align-items-center"><span style="width:24px;height:3px;background:#8b5cf6;display:inline-block;margin-right:4px;"></span>隶属</span>
-        <span class="d-flex align-items-center"><span style="width:24px;height:3px;background:#4e73df;display:inline-block;margin-right:4px;"></span>关联</span>
-        <span class="d-flex align-items-center"><span style="width:24px;height:3px;background:#f59e0b;display:inline-block;margin-right:4px;"></span>前置</span>
+        <span class="d-flex align-items-center"><span style="width:24px;height:3px;background:#8b5cf6;display:inline-block;margin-right:4px;"></span>层级</span>
+        <span class="d-flex align-items-center"><span style="width:24px;height:3px;background:#f59e0b;display:inline-block;margin-right:4px;"></span>先修</span>
         <span class="d-flex align-items-center"><span style="width:24px;height:3px;background:#10b981;display:inline-block;margin-right:4px;"></span>相似</span>
         <span class="d-flex align-items-center ms-2"><span style="width:14px;height:14px;border-radius:50%;background:#10b981;display:inline-block;margin-right:4px;"></span>跨学科节点</span>
         <span class="ms-auto small text-muted"><i class="fas fa-mouse-pointer me-1"></i>悬停查看详情 · 拖拽 · 滚轮缩放</span>
@@ -316,7 +315,7 @@ function renderFusionStats(data) {
 
 function renderFusionGraph(data) {
     const container = document.getElementById('fusionChart');
-    const relTypeColors = {'隶属':'#8b5cf6','关联':'#4e73df','前置':'#f59e0b','相似':'#10b981'};
+    const relTypeColors = {'层级':'#8b5cf6','先修':'#f59e0b','相似':'#10b981'};
 
     const nodes = new vis.DataSet(data.nodes.map(n => {
         const isCross = n.cross_subject;
@@ -418,7 +417,7 @@ function renderEvaluation(d) {
         `<span class="badge bg-light text-dark me-1 mb-1">${t.type}: ${t.count} (${t.percentage}%)</span>`
     ).join('') || '<span class="text-muted">无</span>';
 
-    const REL_TYPES = ['隶属', '关联', '前置', '相似'];
+    const REL_TYPES = ['层级', '先修', '相似'];
     let questionable = (rs.questionable || []).map(q => {
       const opts = REL_TYPES.map(t =>
         `<option value="${t}" ${t === q.type ? 'selected' : ''}>${t}</option>`).join('');

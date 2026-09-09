@@ -143,16 +143,12 @@
                         <small class="text-muted ms-1">方向</small>
                     </div>
                     <span class="ms-2" style="display: inline-flex; align-items: center; gap: 8px;">
-                        <span style="background: #4e73df; width: 12px; height: 3px; display: inline-block;"></span>
-                        <small>关联</small>
-                    </span>
-                    <span style="display: inline-flex; align-items: center; gap: 8px;">
                         <span style="background: #f59e0b; width: 12px; height: 3px; display: inline-block;"></span>
-                        <small>前置</small>
+                        <small>先修</small>
                     </span>
                     <span style="display: inline-flex; align-items: center; gap: 8px;">
                         <span style="background: #8b5cf6; width: 12px; height: 3px; display: inline-block;"></span>
-                        <small>隶属</small>
+                        <small>层级</small>
                     </span>
                     <span style="display: inline-flex; align-items: center; gap: 8px;">
                         <span style="background: #10b981; width: 12px; height: 3px; display: inline-block;"></span>
@@ -205,7 +201,7 @@
                                 {% csrf_token %}
 
                                 <div style="margin-bottom: 16px;">
-                                    <label style="font-weight: 700; margin-bottom: 8px; color: #1a1a1a; font-size: 13px; display: block;">前置知识点（源）</label>
+                                    <label style="font-weight: 700; margin-bottom: 8px; color: #1a1a1a; font-size: 13px; display: block;">源知识点（a）</label>
                                     <select name="source_id" class="form-select" required style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 13px;">
                                         <option value="">-- 请选择 --</option>
                                         <div id="sourceOptions"></div>
@@ -213,7 +209,7 @@
                                 </div>
 
                                 <div style="margin-bottom: 16px;">
-                                    <label style="font-weight: 700; margin-bottom: 8px; color: #1a1a1a; font-size: 13px; display: block;">后续知识点（目标）</label>
+                                    <label style="font-weight: 700; margin-bottom: 8px; color: #1a1a1a; font-size: 13px; display: block;">目标知识点（b）</label>
                                     <select name="target_id" class="form-select" required style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 13px;">
                                         <option value="">-- 请选择 --</option>
                                         <div id="targetOptions"></div>
@@ -223,9 +219,8 @@
                                 <div style="margin-bottom: 16px;">
                                     <label style="font-weight: 700; margin-bottom: 8px; color: #1a1a1a; font-size: 13px; display: block;">关系类型</label>
                                     <select name="relationship_type" class="form-select" style="width: 100%; padding: 10px 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 13px;">
-                                        <option value="关联">关联</option>
-                                        <option value="前置">前置</option>
-                                        <option value="隶属">隶属</option>
+                                        <option value="先修">先修</option>
+                                        <option value="层级">层级</option>
                                         <option value="相似">相似</option>
                                     </select>
                                 </div>
@@ -324,7 +319,7 @@ function escapeGraphAiHtml(value) {
 }
 
 function displayRelationType(type) {
-    return type === '隶属' ? '层级（隶属）' : type;
+    return type;
 }
 
 // 只读检查，不修改数据库
@@ -615,7 +610,7 @@ function renderGraphVis(data) {
     })));
 
     // 关系类型颜色映射
-    const relTypeColors = {'隶属': '#8b5cf6', '关联': '#4e73df', '前置': '#f59e0b', '相似': '#10b981'};
+    const relTypeColors = {'先修': '#f59e0b', '层级': '#8b5cf6', '相似': '#10b981'};
 
     // 转换关系格式
     const edges = new vis.DataSet(data.links.map(l => ({
@@ -625,7 +620,7 @@ function renderGraphVis(data) {
         dashes: !l.arrow,           // 双向关系用虚线
         color: { color: relTypeColors[l.relationship_type] || '#999', highlight: '#ff5722' },
         width: 2,
-        title: `<b>${l.relationship_type || '关联'}</b>`,
+        title: `<b>${l.relationship_type || '相似'}</b>`,
         label: l.relationship_type || '',
         font: { size: 11, color: '#666', strokeWidth: 2, strokeColor: '#fff' },
         smooth: { type: 'curvedCW', roundness: 0.1 },
@@ -990,14 +985,14 @@ function renderRelationshipsList(searchText = '') {
         return;
     }
 
-    const relTypeColors = {'隶属': '#8b5cf6', '关联': '#667eea', '前置': '#f59e0b', '相似': '#10b981'};
+    const relTypeColors = {'先修': '#f59e0b', '层级': '#8b5cf6', '相似': '#10b981'};
     container.innerHTML = filteredRelationships.map(rel => `
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; border: 2px solid #e0e0e0; border-radius: 8px; margin-bottom: 12px;">
             <div style="display: flex; align-items: center; gap: 8px; flex: 1; flex-wrap: wrap;">
                 <span style="background: #d1fae5; color: #065f46; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 700;">${rel.source.name}</span>
                 <span style="color: #667eea; font-weight: 700; font-size: 16px;">→</span>
                 <span style="background: #fee2e2; color: #7f1d1d; padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 700;">${rel.target.name}</span>
-                <span style="background: ${relTypeColors[rel.relationship_type] || '#666'}; color: white; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;">${rel.relationship_type || '关联'}</span>
+                <span style="background: ${relTypeColors[rel.relationship_type] || '#666'}; color: white; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600;">${rel.relationship_type || '相似'}</span>
             </div>
             <button style="padding: 8px 16px; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 12px; display: flex; align-items: center; gap: 6px;" onclick="deleteRelationshipModal(${rel.id})">
                 <i class="fas fa-trash"></i> 删除
@@ -1019,7 +1014,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const resourceFileId = this.querySelector('[name="resource_file_id"]').value;
 
             if (!sourceId || !targetId) {
-                alert('请选择前置和后续知识点');
+                alert('请选择源知识点和目标知识点');
                 return;
             }
 

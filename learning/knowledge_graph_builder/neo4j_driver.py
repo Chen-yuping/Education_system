@@ -155,7 +155,7 @@ def sync_relations(triples, subject_name, entity_map=None):
                     continue
                 seen.add(pair)
 
-                label = sanitize_rel_type(t.get("predicate", "关联"))
+                label = sanitize_rel_type(t.get("predicate", "相似"))
                 session.run(
                     """
                     MERGE (a:Concept {uid: $s_uid})
@@ -170,7 +170,7 @@ def sync_relations(triples, subject_name, entity_map=None):
                     subject=subject_name,
                     s_name=s_name, o_name=o_name,
                     s_kp_id=_kp_id(s_name), o_kp_id=_kp_id(o_name),
-                    rel_type=t.get("predicate", "关联"),
+                    rel_type=t.get("predicate", "相似"),
                 ).consume()
                 count += 1
         print(f"[INFO] Neo4j 关系镜像完成，共 {count} 条")

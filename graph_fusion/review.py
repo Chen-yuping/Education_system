@@ -199,7 +199,7 @@ def apply_review(approved_ids, rejected_ids, user, allowed_subject_ids=None):
 
 
 # ====================== 存疑关系：人工修改 / 删除 ======================
-VALID_RELATION_TYPES = {'隶属', '关联', '前置', '相似'}
+VALID_RELATION_TYPES = {'先修', '层级', '相似'}
 
 
 @transaction.atomic

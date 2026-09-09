@@ -93,9 +93,9 @@ def save_to_django(triples: list, subject: Subject, relation_source: str = '教�
             if not subj_kp or not obj_kp:
                 continue
 
-            rel_type = t.get("predicate", "关联")
+            rel_type = t.get("predicate")
             if rel_type not in dict(KnowledgeGraph.RELATION_CHOICES):
-                rel_type = "关联"
+                continue
 
             defaults = {"relationship_type": rel_type}
             if resource_file:
@@ -162,7 +162,7 @@ def save_to_neo4j(triples: list, subject_name: str, entity_map: dict = None):
 
                 s_uid = f"{subject_name}::{s_name}"
                 o_uid = f"{subject_name}::{o_name}"
-                rel_type_str = _sanitize_rel_type(t.get("predicate", "关联"))
+                rel_type_str = _sanitize_rel_type(t.get("predicate", "相似"))
 
                 session.run(
                     f"""MATCH (a:Concept {{uid: $s_uid}})

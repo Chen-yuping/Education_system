@@ -99,13 +99,9 @@ def _chat(prompt: str, temperature: float = 0.0, max_tokens: int = 400) -> str:
 
 # ====================== 关系准确性验证（DeepSeek） ======================
 _REL_DESC = {
-    '隶属': '概念A 属于/隶属于 概念B 的范畴（包含关系）',
-    '关联': '概念A 与 概念B 相关，但没有明确的包含或先后关系',
-    '前置': '概念A 是学习 概念B 的先修/前置知识',
+    '层级': '概念A是粗粒度知识点，概念B是概念A下更细粒度的知识点',
+    '先修': '先学习概念A，再学习概念B',
     '相似': '概念A 与 概念B 含义相近或高度相似',
-    'RELATED_TO': '两个概念相关',
-    'BELONGS_TO': '概念A 属于 概念B',
-    'PREREQUISITE': '概念A 是 概念B 的先修知识',
 }
 
 
@@ -288,7 +284,7 @@ def _evaluate_relations(rels, sample_size):
     # 关系类型分布
     type_counts = {}
     for r in rels:
-        t = r.relationship_type or '关联'
+        t = r.relationship_type or '相似'
         type_counts[t] = type_counts.get(t, 0) + 1
 
     distribution = [
@@ -304,11 +300,11 @@ def _evaluate_relations(rels, sample_size):
     sampled = random.sample(rels, sample_size) if total > sample_size else rels
 
     def _verify(r):
-        v = verify_relation_with_deepseek(r.source.name, r.target.name, r.relationship_type or '关联')
+        v = verify_relation_with_deepseek(r.source.name, r.target.name, r.relationship_type or '相似')
         return {'id': r.id, 'from': r.source.name, 'to': r.target.name,
                 'source_id': r.source_id, 'target_id': r.target_id,
                 'relation_source': r.relation_source,
-                'type': r.relationship_type or '关联', 'v': v}
+                'type': r.relationship_type or '相似', 'v': v}
 
     results = []
     max_workers = min(8, len(sampled)) or 1

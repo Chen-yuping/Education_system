@@ -77,7 +77,7 @@ class Command(BaseCommand):
                 for rel in rels:
                     s_uid = f"{subject.name}::{rel.source.name}"
                     o_uid = f"{subject.name}::{rel.target.name}"
-                    rel_type = rel.relationship_type or '关联'
+                    rel_type = rel.relationship_type or '相似'
                     sanitized = rel_type.upper().replace(" ", "_")
                     import re
                     sanitized = re.sub(r'[^A-Z0-9_]', '_', sanitized)

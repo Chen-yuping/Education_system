@@ -5,7 +5,7 @@ import json
 from .triple_extractor import get_llm_client
 
 
-VALID_RELATION_TYPES = {"前置", "隶属", "相似", "关联"}
+VALID_RELATION_TYPES = {"先修", "层级", "相似"}
 
 
 def _call_relation_ai(subject_name, knowledge_points, relationships, mode):
@@ -21,10 +21,9 @@ def _call_relation_ai(subject_name, knowledge_points, relationships, mode):
 
     rules = """
 关系方向和类型必须严格遵守：
-1. 前置：a -> b 表示先学 a，再学 b。
-2. 隶属（即层级关系）：a -> b 表示 a 是粗粒度知识点，b 是 a 下更细粒度的知识点；例如 函数 -> 三角函数。
+1. 先修：a -> b 表示先学 a，再学 b。
+2. 层级：a -> b 表示 a 是粗粒度知识点，b 是 a 下更细粒度的知识点；例如 函数 -> 三角函数。
 3. 相似：a 与 b 在概念或学习内容上相似。相似关系使用一个确定方向表示即可，不要同时输出 a->b 和 b->a。
-4. 关联：存在明确联系，但不属于以上三种关系。
 只能使用输入中已有的知识点 ID，不能创造新知识点，不能让节点指向自身。宁缺毋滥。
 """
 
@@ -36,8 +35,8 @@ additions 只放当前不存在且确信合理的关系。不要删除关系，�
 输出 JSON：
 {
   "summary": "简要说明",
-  "updates": [{"relationship_id": 1, "source_id": 2, "target_id": 3, "relationship_type": "前置", "reason": "原因"}],
-  "additions": [{"source_id": 2, "target_id": 4, "relationship_type": "隶属", "reason": "原因"}]
+  "updates": [{"relationship_id": 1, "source_id": 2, "target_id": 3, "relationship_type": "先修", "reason": "原因"}],
+  "additions": [{"source_id": 2, "target_id": 4, "relationship_type": "层级", "reason": "原因"}]
 }
 """
     else:
@@ -49,7 +48,7 @@ score 为 0 到 100 的整数。relationship_id 必须来自 existing_relationsh
   "overall": "总体评价",
   "score": 85,
   "issues": [{"relationship_id": 1, "severity": "高/中/低", "problem": "问题", "suggestion": "建议"}],
-  "missing_relations": [{"source_id": 2, "target_id": 4, "relationship_type": "前置", "reason": "原因"}]
+  "missing_relations": [{"source_id": 2, "target_id": 4, "relationship_type": "先修", "reason": "原因"}]
 }
 """
 

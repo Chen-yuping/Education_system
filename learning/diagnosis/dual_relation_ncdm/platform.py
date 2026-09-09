@@ -268,7 +268,8 @@ def read_subject_edges(subject_id, skill_mapping, stats):
 
     original_to_idx = {original_id: idx for idx, original_id in skill_mapping.items()}
     edges = []
-    for source_id, target_id in KnowledgeGraph.objects.filter(subject_id=subject_id).values_list("source_id", "target_id"):
+    for source_id, target_id in KnowledgeGraph.objects.filter(
+            subject_id=subject_id, relationship_type='先修').values_list("source_id", "target_id"):
         edges.append((original_to_idx.get(source_id), original_to_idx.get(target_id)))
     return edges
 
@@ -597,7 +598,8 @@ def infer_and_get_diagnosis_data(subject_id, model_id, model_name):
 
     knowledge_relations = [
         {"source": int(source_id), "target": int(target_id)}
-        for source_id, target_id in KnowledgeGraph.objects.filter(subject_id=subject_id).values_list("source_id", "target_id")
+        for source_id, target_id in KnowledgeGraph.objects.filter(
+            subject_id=subject_id, relationship_type='先修').values_list("source_id", "target_id")
     ]
 
     return {

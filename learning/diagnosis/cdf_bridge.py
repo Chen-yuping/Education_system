@@ -425,6 +425,7 @@ def _db_knowledge_relations(knowledge_points: List[KnowledgePoint], relation_kin
         subject_id=subject_id,
         source_id__in=kp_id_set,
         target_id__in=kp_id_set,
+        relationship_type='层级' if relation_kind == 'containment' else '先修',
     ).values_list("source_id", "target_id")
 
     if relation_kind == "containment":
