@@ -176,6 +176,32 @@
     </div>
 </div>
 
+<!-- AI 优化建议人工审核 -->
+<div class="modal fade" id="aiRelationshipReviewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title"><i class="fas fa-user-check me-2"></i>审核 AI 关系优化建议</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="aiRelationshipReviewSummary" class="alert alert-info"></div>
+                <p class="text-muted small">只有勾选的建议会写入数据库。未勾选的建议不会产生任何修改。</p>
+                <h6 class="fw-bold">修改已有关系</h6>
+                <div id="aiRelationshipUpdateSuggestions" class="mb-4"></div>
+                <h6 class="fw-bold">新增关系</h6>
+                <div id="aiRelationshipAdditionSuggestions"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="applyAiRelationshipReviewBtn" onclick="applyAiRelationshipReview()">
+                    <i class="fas fa-check me-1"></i>应用已勾选建议
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- 知识点关系管理模态框 -->
 <div class="modal fade" id="relationshipModal" tabindex="-1">
     <div class="modal-dialog modal-xl modal-dialog-centered">
@@ -387,14 +413,16 @@ function aiCheckRelationships() {
     });
 }
 
-// 修正已有关系并新增缺失关系，结果直接写入 KnowledgeGraph 表
+let pendingAiRelationshipReview = {updates: [], additions: []};
+
+// 无关系时自动初始化；已有关系时仅生成待审核建议
 function aiOptimizeRelationships() {
     const subjectId = getGraphSubjectId();
     if (!subjectId) {
         alert('无法获取当前科目');
         return;
     }
-    if (!confirm('AI 将检查并修改已有关系，还可能新增缺失关系。结果会直接保存到知识点关系表，确定继续吗？')) return;
+    if (!confirm('AI 将分析当前科目的知识点关系。若当前没有关系会自动初始化；若已有关系则会先展示建议供人工审核。确定继续吗？')) return;
 
     const button = document.getElementById('aiOptimizeRelationshipBtn');
     button.disabled = true;
@@ -410,6 +438,10 @@ function aiOptimizeRelationships() {
         return data;
     })
     .then(data => {
+        if (data.requires_review) {
+            showAiRelationshipReview(data);
+            return;
+        }
         let message = data.message;
         if (data.summary) message += `\n\n${data.summary}`;
         if (data.skipped && data.skipped.length) message += `\n\n跳过 ${data.skipped.length} 项无效或重复建议。`;
@@ -420,6 +452,95 @@ function aiOptimizeRelationships() {
     .finally(() => {
         button.disabled = false;
         button.innerHTML = '<i class="fas fa-wand-magic-sparkles me-1"></i> AI 优化关系';
+    });
+}
+
+function showAiRelationshipReview(data) {
+    pendingAiRelationshipReview = {
+        updates: data.updates || [],
+        additions: data.additions || [],
+    };
+    document.getElementById('aiRelationshipReviewSummary').textContent = data.summary || data.message;
+
+    const updatesContainer = document.getElementById('aiRelationshipUpdateSuggestions');
+    updatesContainer.innerHTML = pendingAiRelationshipReview.updates.length
+        ? pendingAiRelationshipReview.updates.map((item, index) => `
+            <label class="d-block border rounded p-3 mb-2">
+                <div class="form-check">
+                    <input class="form-check-input ai-review-update" type="checkbox" value="${index}">
+                    <span class="form-check-label fw-bold">
+                        ${escapeGraphAiHtml(item.old_source_name)} → ${escapeGraphAiHtml(item.old_target_name)}
+                        <span class="badge bg-secondary">${escapeGraphAiHtml(item.old_relationship_type)}</span>
+                        <i class="fas fa-arrow-right mx-2"></i>
+                        ${escapeGraphAiHtml(item.source_name)} → ${escapeGraphAiHtml(item.target_name)}
+                        <span class="badge bg-warning text-dark">${escapeGraphAiHtml(item.relationship_type)}</span>
+                    </span>
+                </div>
+                <div class="small text-muted ms-4 mt-1">${escapeGraphAiHtml(item.reason)}</div>
+            </label>`).join('')
+        : '<div class="text-muted border rounded p-3">没有需要修改的已有关系</div>';
+
+    const additionsContainer = document.getElementById('aiRelationshipAdditionSuggestions');
+    additionsContainer.innerHTML = pendingAiRelationshipReview.additions.length
+        ? pendingAiRelationshipReview.additions.map((item, index) => `
+            <label class="d-block border rounded p-3 mb-2">
+                <div class="form-check">
+                    <input class="form-check-input ai-review-addition" type="checkbox" value="${index}">
+                    <span class="form-check-label fw-bold">
+                        ${escapeGraphAiHtml(item.source_name)} → ${escapeGraphAiHtml(item.target_name)}
+                        <span class="badge bg-primary">${escapeGraphAiHtml(item.relationship_type)}</span>
+                    </span>
+                </div>
+                <div class="small text-muted ms-4 mt-1">${escapeGraphAiHtml(item.reason)}</div>
+            </label>`).join('')
+        : '<div class="text-muted border rounded p-3">没有建议新增的关系</div>';
+
+    new bootstrap.Modal(document.getElementById('aiRelationshipReviewModal')).show();
+}
+
+function applyAiRelationshipReview() {
+    const subjectId = getGraphSubjectId();
+    const selectedUpdates = Array.from(document.querySelectorAll('.ai-review-update:checked'))
+        .map(input => pendingAiRelationshipReview.updates[Number(input.value)])
+        .filter(Boolean);
+    const selectedAdditions = Array.from(document.querySelectorAll('.ai-review-addition:checked'))
+        .map(input => pendingAiRelationshipReview.additions[Number(input.value)])
+        .filter(Boolean);
+
+    if (!selectedUpdates.length && !selectedAdditions.length) {
+        alert('请至少勾选一条建议');
+        return;
+    }
+
+    const button = document.getElementById('applyAiRelationshipReviewBtn');
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>应用中...';
+
+    fetch(`/learning/teacher/api/knowledge-points/${subjectId}/relationships/ai-apply/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getGraphCsrfToken(),
+        },
+        body: JSON.stringify({updates: selectedUpdates, additions: selectedAdditions}),
+    })
+    .then(async response => {
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.message || '应用失败');
+        return data;
+    })
+    .then(data => {
+        let message = data.message;
+        if (data.skipped && data.skipped.length) message += `\n跳过 ${data.skipped.length} 项冲突或失效建议。`;
+        alert(message);
+        bootstrap.Modal.getInstance(document.getElementById('aiRelationshipReviewModal'))?.hide();
+        pendingAiRelationshipReview = {updates: [], additions: []};
+        loadKnowledgeGraph(subjectId);
+    })
+    .catch(error => alert(error.message))
+    .finally(() => {
+        button.disabled = false;
+        button.innerHTML = '<i class="fas fa-check me-1"></i>应用已勾选建议';
     });
 }
 

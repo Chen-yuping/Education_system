@@ -792,6 +792,70 @@ def ai_optimize_knowledge_relationships(request, subject_id):
 
         ai_result = optimize_relations(subject.name, knowledge_points, relationships)
         valid_kp_ids = {item['id'] for item in knowledge_points}
+        kp_names = {item['id']: item['name'] for item in knowledge_points}
+
+        # 已有关系时只返回建议，必须由老师逐条审核后再调用应用接口。
+        if relationships:
+            existing_by_id_data = {item['id']: item for item in relationships}
+            existing_pairs = {(item['source_id'], item['target_id']) for item in relationships}
+            review_updates = []
+            review_additions = []
+
+            for item in ai_result.get('updates', []):
+                try:
+                    relation_id = int(item.get('relationship_id'))
+                    source_id = int(item.get('source_id'))
+                    target_id = int(item.get('target_id'))
+                except (TypeError, ValueError):
+                    continue
+                if (relation_id in existing_by_id_data and source_id in valid_kp_ids and
+                        target_id in valid_kp_ids and source_id != target_id and
+                        item.get('relationship_type') in VALID_RELATION_TYPES):
+                    old = existing_by_id_data[relation_id]
+                    if (old['source_id'] == source_id and old['target_id'] == target_id and
+                            old['relationship_type'] == item.get('relationship_type')):
+                        continue
+                    review_updates.append({
+                        'relationship_id': relation_id,
+                        'old_source_name': kp_names.get(old['source_id'], ''),
+                        'old_target_name': kp_names.get(old['target_id'], ''),
+                        'old_relationship_type': old['relationship_type'],
+                        'source_id': source_id,
+                        'source_name': kp_names[source_id],
+                        'target_id': target_id,
+                        'target_name': kp_names[target_id],
+                        'relationship_type': item.get('relationship_type'),
+                        'reason': item.get('reason', ''),
+                    })
+
+            for item in ai_result.get('additions', []):
+                try:
+                    source_id = int(item.get('source_id'))
+                    target_id = int(item.get('target_id'))
+                except (TypeError, ValueError):
+                    continue
+                if (source_id in valid_kp_ids and target_id in valid_kp_ids and
+                        source_id != target_id and item.get('relationship_type') in VALID_RELATION_TYPES and
+                        (source_id, target_id) not in existing_pairs):
+                    review_additions.append({
+                        'source_id': source_id,
+                        'source_name': kp_names[source_id],
+                        'target_id': target_id,
+                        'target_name': kp_names[target_id],
+                        'relationship_type': item.get('relationship_type'),
+                        'reason': item.get('reason', ''),
+                    })
+
+            return JsonResponse({
+                'success': True,
+                'requires_review': True,
+                'mode': 'review',
+                'message': f'AI 给出 {len(review_updates)} 条修改建议、{len(review_additions)} 条新增建议，请审核后应用',
+                'summary': ai_result.get('summary', ''),
+                'updates': review_updates,
+                'additions': review_additions,
+            })
+
         existing_by_id = {
             relation.id: relation
             for relation in KnowledgeGraph.objects.filter(subject=subject)
@@ -882,7 +946,9 @@ def ai_optimize_knowledge_relationships(request, subject_id):
 
         return JsonResponse({
             'success': True,
-            'message': f'AI 优化完成：修改 {len(updated)} 条，新增 {len(created)} 条',
+            'requires_review': False,
+            'mode': 'initialize',
+            'message': f'当前科目原本没有关系，AI 已自动初始化：新增 {len(created)} 条',
             'summary': ai_result.get('summary', ''),
             'updated': updated,
             'created': created,
@@ -890,6 +956,103 @@ def ai_optimize_knowledge_relationships(request, subject_id):
         })
     except Exception as exc:
         return JsonResponse({'success': False, 'message': f'AI 优化失败：{exc}'}, status=500)
+
+
+@login_required
+@user_passes_test(is_teacher)
+@require_POST
+def apply_ai_knowledge_relationship_review(request, subject_id):
+    """应用老师在 AI 优化审核弹窗中勾选的关系建议。"""
+    subject = get_object_or_404(Subject, id=subject_id)
+    if not TeacherSubject.objects.filter(teacher=request.user, subject=subject).exists():
+        return JsonResponse({'success': False, 'message': '您没有权限管理此科目'}, status=403)
+
+    try:
+        import json
+        from ..knowledge_graph_builder.relation_ai import VALID_RELATION_TYPES
+
+        payload = json.loads(request.body or '{}')
+        updates_data = payload.get('updates', [])
+        additions_data = payload.get('additions', [])
+        if not isinstance(updates_data, list) or not isinstance(additions_data, list):
+            return JsonResponse({'success': False, 'message': '审核数据格式无效'}, status=400)
+
+        valid_kp_ids = set(KnowledgePoint.objects.filter(
+            subject=subject).values_list('id', flat=True))
+        existing_by_id = {
+            relation.id: relation
+            for relation in KnowledgeGraph.objects.filter(subject=subject)
+        }
+        updated = []
+        created = []
+        skipped = []
+
+        with transaction.atomic():
+            for item in updates_data:
+                try:
+                    relation_id = int(item.get('relationship_id'))
+                    source_id = int(item.get('source_id'))
+                    target_id = int(item.get('target_id'))
+                except (AttributeError, TypeError, ValueError):
+                    skipped.append('存在无效的修改建议')
+                    continue
+                relation = existing_by_id.get(relation_id)
+                relation_type = item.get('relationship_type')
+                if (not relation or source_id not in valid_kp_ids or target_id not in valid_kp_ids or
+                        source_id == target_id or relation_type not in VALID_RELATION_TYPES):
+                    skipped.append(f'关系 #{relation_id} 的审核数据无效')
+                    continue
+                duplicate_exists = KnowledgeGraph.objects.filter(
+                    subject=subject,
+                    source_id=source_id,
+                    target_id=target_id,
+                    relation_source=relation.relation_source,
+                ).exclude(id=relation.id).exists()
+                if duplicate_exists:
+                    skipped.append(f'关系 #{relation_id} 修改后会重复')
+                    continue
+                relation.source_id = source_id
+                relation.target_id = target_id
+                relation.relationship_type = relation_type
+                relation.save(update_fields=['source', 'target', 'relationship_type'])
+                updated.append(relation.id)
+
+            for item in additions_data:
+                try:
+                    source_id = int(item.get('source_id'))
+                    target_id = int(item.get('target_id'))
+                except (AttributeError, TypeError, ValueError):
+                    skipped.append('存在无效的新增建议')
+                    continue
+                relation_type = item.get('relationship_type')
+                if (source_id not in valid_kp_ids or target_id not in valid_kp_ids or
+                        source_id == target_id or relation_type not in VALID_RELATION_TYPES):
+                    skipped.append(f'新增关系 {source_id} → {target_id} 无效')
+                    continue
+                if KnowledgeGraph.objects.filter(
+                        subject=subject, source_id=source_id, target_id=target_id).exists():
+                    skipped.append(f'关系 {source_id} → {target_id} 已存在')
+                    continue
+                relation = KnowledgeGraph.objects.create(
+                    subject=subject,
+                    source_id=source_id,
+                    target_id=target_id,
+                    relationship_type=relation_type,
+                    relation_source='融合',
+                )
+                created.append(relation.id)
+
+        return JsonResponse({
+            'success': True,
+            'message': f'审核结果已应用：修改 {len(updated)} 条，新增 {len(created)} 条',
+            'updated_count': len(updated),
+            'created_count': len(created),
+            'skipped': skipped,
+        })
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'message': '请求数据不是有效 JSON'}, status=400)
+    except Exception as exc:
+        return JsonResponse({'success': False, 'message': f'应用审核结果失败：{exc}'}, status=500)
 
 
 @login_required
