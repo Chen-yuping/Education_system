@@ -838,6 +838,28 @@ function renderExerciseDetail(exercise) {
         knowledgePointsHtml = '<p class="text-muted">未关联知识点</p>';
     }
 
+    // 选项统一以 Choice 表返回的 choices 数据为准
+    let choicesHtml = '';
+    const choiceQuestionTypes = ['1', '2', '3', '6', 'single', 'multiple', 'vote', 'judgment'];
+    const shouldShowChoices = choiceQuestionTypes.includes(exercise.question_type_code);
+    if (shouldShowChoices && exercise.choices && exercise.choices.length > 0) {
+        const escapeHtml = value => String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+
+        choicesHtml = `
+            <div class="mt-3">
+                <strong>选项：</strong><br>
+                ${exercise.choices.map((choice, index) =>
+                    `<strong>${String.fromCharCode(65 + index)}:</strong> ${escapeHtml(choice.content)}`
+                ).join('<br>')}
+            </div>
+        `;
+    }
+
     // 生成HTML内容
     contentDiv.innerHTML = `
         <!-- 基本信息 -->
@@ -857,61 +879,8 @@ function renderExerciseDetail(exercise) {
     <!-- 显示题目内容 -->
     ${exercise.content ? exercise.content.replace(/\n/g, '<br>') : '<span class="text-muted">无内容</span>'}
 
-    <!-- 显示选项（如果存在） -->
-    ${exercise.option_text ?
-        (() => {
-            try {
-                // 首先尝试直接解析
-                const options = JSON.parse(exercise.option_text);
-                return formatOptions(options);
-            } catch (e1) {
-                try {
-                    // 如果失败，尝试替换单引号为双引号
-                    const fixedStr = exercise.option_text
-                        .replace(/'/g, '"')
-                        .replace(/(\w+):/g, '"$1":');  // 处理键名
-                    const options = JSON.parse(fixedStr);
-                    return formatOptions(options);
-                } catch (e2) {
-                    try {
-                        // 如果还是失败，尝试手动解析类似Python字典的格式
-                        const str = exercise.option_text.trim();
-                        if (str.startsWith('{') && str.endsWith('}')) {
-                            const content = str.slice(1, -1);
-                            const pairs = content.split(',');
-                            const options = {};
-                            pairs.forEach(pair => {
-                                const [key, value] = pair.split(':').map(s => s.trim());
-                                // 移除引号
-                                const cleanKey = key.replace(/['"`]/g, '');
-                                const cleanValue = value ? value.replace(/['"`]/g, '') : '';
-                                options[cleanKey] = cleanValue;
-                            });
-                            return formatOptions(options);
-                        }
-                    } catch (e3) {
-                        // 所有解析都失败，直接显示原始文本
-                        return `<div class="mt-3"><strong>选项：</strong><br>${exercise.option_text.replace(/\n/g, '<br>')}</div>`;
-                    }
-                }
-            }
-
-            // 格式化选项的辅助函数
-            function formatOptions(options) {
-                if (!options || typeof options !== 'object') {
-                    return `<div class="mt-3">${exercise.option_text.replace(/\n/g, '<br>')}</div>`;
-                }
-
-                const formattedOptions = Object.entries(options)
-                    .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
-                    .map(([key, value]) => `<strong>${key}:</strong> ${value || ''}`)
-                    .join('<br>');
-
-                return `<div class="mt-3">${formattedOptions}</div>`;
-            }
-        })()
-        : ''
-    }
+    <!-- 显示来自 Choice 表的选项（如果存在） -->
+    ${choicesHtml}
 </div>
         </div>
 

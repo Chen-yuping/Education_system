@@ -58,6 +58,12 @@
         <button type="button" class="btn btn-primary" style="display: none;" id="manageRelationshipBtn" onclick="openRelationshipModal()">
             <i class="fas fa-edit me-2"></i> 管理知识点关系
         </button>
+        <button type="button" class="btn btn-outline-info" id="aiCheckRelationshipBtn" onclick="aiCheckRelationships()">
+            <i class="fas fa-clipboard-check me-1"></i> AI 检查合理性
+        </button>
+        <button type="button" class="btn btn-warning" id="aiOptimizeRelationshipBtn" onclick="aiOptimizeRelationships()">
+            <i class="fas fa-wand-magic-sparkles me-1"></i> AI 优化关系
+        </button>
     </div>
 </div>
 
@@ -153,6 +159,22 @@
                         <small>相似</small>
                     </span>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- AI 关系合理性检查结果 -->
+<div class="modal fade" id="aiRelationshipCheckModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title"><i class="fas fa-clipboard-check me-2"></i>AI 关系合理性检查</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="aiRelationshipCheckResult"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
             </div>
         </div>
     </div>
@@ -282,6 +304,129 @@
 <script>
 // 全局变量
 let network, currentData = {};
+
+function getGraphSubjectId() {
+    return window.currentSubjectId || new URLSearchParams(window.location.search).get('subject_id');
+}
+
+function getGraphCsrfToken() {
+    const input = document.querySelector('[name=csrfmiddlewaretoken]');
+    return input ? input.value : '';
+}
+
+function escapeGraphAiHtml(value) {
+    return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function displayRelationType(type) {
+    return type === '隶属' ? '层级（隶属）' : type;
+}
+
+// 只读检查，不修改数据库
+function aiCheckRelationships() {
+    const subjectId = getGraphSubjectId();
+    if (!subjectId) {
+        alert('无法获取当前科目');
+        return;
+    }
+
+    const button = document.getElementById('aiCheckRelationshipBtn');
+    const resultContainer = document.getElementById('aiRelationshipCheckResult');
+    const modal = new bootstrap.Modal(document.getElementById('aiRelationshipCheckModal'));
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>检查中...';
+    resultContainer.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-info"></div><p class="mt-3 text-muted">AI 正在检查现有关系，不会修改数据库...</p></div>';
+    modal.show();
+
+    fetch(`/learning/teacher/api/knowledge-points/${subjectId}/relationships/ai-check/`, {
+        method: 'POST',
+        headers: {'X-CSRFToken': getGraphCsrfToken()},
+    })
+    .then(async response => {
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.message || '检查失败');
+        return data;
+    })
+    .then(data => {
+        const issuesHtml = data.issues.length
+            ? data.issues.map(item => `
+                <div class="border rounded p-3 mb-2">
+                    <div class="fw-bold">#${item.relationship_id}：${escapeGraphAiHtml(item.source_name)} → ${escapeGraphAiHtml(item.target_name)}
+                        <span class="badge bg-secondary ms-1">${escapeGraphAiHtml(displayRelationType(item.relationship_type))}</span>
+                        <span class="badge bg-warning text-dark ms-1">${escapeGraphAiHtml(item.severity)}</span>
+                    </div>
+                    <div class="mt-2"><strong>问题：</strong>${escapeGraphAiHtml(item.problem)}</div>
+                    <div><strong>建议：</strong>${escapeGraphAiHtml(item.suggestion)}</div>
+                </div>`).join('')
+            : '<div class="alert alert-success">未发现明显不合理的现有关系。</div>';
+
+        const missingHtml = data.missing_relations.length
+            ? data.missing_relations.map(item => `
+                <li class="list-group-item">
+                    <strong>${escapeGraphAiHtml(item.source_name)} → ${escapeGraphAiHtml(item.target_name)}</strong>
+                    <span class="badge bg-primary ms-1">${escapeGraphAiHtml(displayRelationType(item.relationship_type))}</span>
+                    <div class="small text-muted mt-1">${escapeGraphAiHtml(item.reason)}</div>
+                </li>`).join('')
+            : '<li class="list-group-item text-muted">未发现重要的缺失关系</li>';
+
+        resultContainer.innerHTML = `
+            <div class="d-flex align-items-center gap-3 mb-3">
+                <div class="display-6 fw-bold text-info">${data.score}</div>
+                <div><div class="fw-bold">合理性评分 / 100</div><div class="text-muted">检查了 ${data.relationship_count} 条现有关系</div></div>
+            </div>
+            <div class="alert alert-info">${escapeGraphAiHtml(data.overall)}</div>
+            <h6 class="fw-bold">现有关系问题</h6>${issuesHtml}
+            <h6 class="fw-bold mt-4">建议补充的关系</h6><ul class="list-group">${missingHtml}</ul>`;
+    })
+    .catch(error => {
+        resultContainer.innerHTML = `<div class="alert alert-danger">${escapeGraphAiHtml(error.message)}</div>`;
+    })
+    .finally(() => {
+        button.disabled = false;
+        button.innerHTML = '<i class="fas fa-clipboard-check me-1"></i> AI 检查合理性';
+    });
+}
+
+// 修正已有关系并新增缺失关系，结果直接写入 KnowledgeGraph 表
+function aiOptimizeRelationships() {
+    const subjectId = getGraphSubjectId();
+    if (!subjectId) {
+        alert('无法获取当前科目');
+        return;
+    }
+    if (!confirm('AI 将检查并修改已有关系，还可能新增缺失关系。结果会直接保存到知识点关系表，确定继续吗？')) return;
+
+    const button = document.getElementById('aiOptimizeRelationshipBtn');
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>优化中...';
+
+    fetch(`/learning/teacher/api/knowledge-points/${subjectId}/relationships/ai-optimize/`, {
+        method: 'POST',
+        headers: {'X-CSRFToken': getGraphCsrfToken()},
+    })
+    .then(async response => {
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.message || '优化失败');
+        return data;
+    })
+    .then(data => {
+        let message = data.message;
+        if (data.summary) message += `\n\n${data.summary}`;
+        if (data.skipped && data.skipped.length) message += `\n\n跳过 ${data.skipped.length} 项无效或重复建议。`;
+        alert(message);
+        loadKnowledgeGraph(subjectId);
+    })
+    .catch(error => alert(error.message))
+    .finally(() => {
+        button.disabled = false;
+        button.innerHTML = '<i class="fas fa-wand-magic-sparkles me-1"></i> AI 优化关系';
+    });
+}
 
 // 初始化函数
 function initKnowledgeGraph() {

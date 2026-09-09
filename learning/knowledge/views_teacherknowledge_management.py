@@ -8,6 +8,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_POST, require_GET
+from django.db import transaction
 from django.db.models import Q, Count
 from ..models import KnowledgePoint, Subject, Exercise, QMatrix, KnowledgeGraph, TeacherSubject, ResourceFile
 from ..forms import KnowledgePointForm
@@ -754,6 +755,214 @@ def get_knowledge_point_relationships(request, subject_id):
             'success': False,
             'message': str(e)
         }, status=500)
+
+
+def _knowledge_graph_ai_input(subject):
+    """构造只包含当前科目合法节点和边的 AI 输入。"""
+    knowledge_points = list(
+        KnowledgePoint.objects.filter(subject=subject)
+        .order_by('id')
+        .values('id', 'name')
+    )
+    relationships = list(
+        KnowledgeGraph.objects.filter(subject=subject)
+        .order_by('id')
+        .values('id', 'source_id', 'target_id', 'relationship_type')
+    )
+    return knowledge_points, relationships
+
+
+@login_required
+@user_passes_test(is_teacher)
+@require_POST
+def ai_optimize_knowledge_relationships(request, subject_id):
+    """AI 修正已有关系类型/方向并补充缺失关系。"""
+    subject = get_object_or_404(Subject, id=subject_id)
+    if not TeacherSubject.objects.filter(teacher=request.user, subject=subject).exists():
+        return JsonResponse({'success': False, 'message': '您没有权限管理此科目'}, status=403)
+
+    knowledge_points, relationships = _knowledge_graph_ai_input(subject)
+    if len(knowledge_points) < 2:
+        return JsonResponse({'success': False, 'message': '当前科目至少需要两个知识点'}, status=400)
+
+    try:
+        from ..knowledge_graph_builder.relation_ai import optimize_relations, VALID_RELATION_TYPES
+
+        ai_result = optimize_relations(subject.name, knowledge_points, relationships)
+        valid_kp_ids = {item['id'] for item in knowledge_points}
+        existing_by_id = {
+            relation.id: relation
+            for relation in KnowledgeGraph.objects.filter(subject=subject)
+        }
+        updated = []
+        created = []
+        skipped = []
+
+        with transaction.atomic():
+            for item in ai_result.get('updates', []):
+                try:
+                    relation_id = int(item.get('relationship_id'))
+                    source_id = int(item.get('source_id'))
+                    target_id = int(item.get('target_id'))
+                except (TypeError, ValueError):
+                    skipped.append('AI 返回了无效的关系 ID')
+                    continue
+
+                relation_type = item.get('relationship_type')
+                relation = existing_by_id.get(relation_id)
+                if (not relation or source_id not in valid_kp_ids or
+                        target_id not in valid_kp_ids or source_id == target_id or
+                        relation_type not in VALID_RELATION_TYPES):
+                    skipped.append(f'关系 #{relation_id} 的修改数据无效')
+                    continue
+
+                duplicate_exists = KnowledgeGraph.objects.filter(
+                    subject=subject,
+                    source_id=source_id,
+                    target_id=target_id,
+                    relation_source=relation.relation_source,
+                ).exclude(id=relation.id).exists()
+                if duplicate_exists:
+                    skipped.append(f'关系 #{relation_id} 修改后会与已有关系重复')
+                    continue
+
+                changed = (
+                    relation.source_id != source_id or
+                    relation.target_id != target_id or
+                    relation.relationship_type != relation_type
+                )
+                if changed:
+                    relation.source_id = source_id
+                    relation.target_id = target_id
+                    relation.relationship_type = relation_type
+                    relation.save(update_fields=['source', 'target', 'relationship_type'])
+                    updated.append({
+                        'id': relation.id,
+                        'source_id': source_id,
+                        'target_id': target_id,
+                        'relationship_type': relation_type,
+                        'reason': item.get('reason', ''),
+                    })
+
+            for item in ai_result.get('additions', []):
+                try:
+                    source_id = int(item.get('source_id'))
+                    target_id = int(item.get('target_id'))
+                except (TypeError, ValueError):
+                    skipped.append('AI 返回了无效的知识点 ID')
+                    continue
+
+                relation_type = item.get('relationship_type')
+                if (source_id not in valid_kp_ids or target_id not in valid_kp_ids or
+                        source_id == target_id or relation_type not in VALID_RELATION_TYPES):
+                    skipped.append(f'新增关系 {source_id} → {target_id} 的数据无效')
+                    continue
+
+                if KnowledgeGraph.objects.filter(
+                        subject=subject, source_id=source_id, target_id=target_id).exists():
+                    skipped.append(f'关系 {source_id} → {target_id} 已存在')
+                    continue
+
+                relation = KnowledgeGraph.objects.create(
+                    subject=subject,
+                    source_id=source_id,
+                    target_id=target_id,
+                    relationship_type=relation_type,
+                    relation_source='融合',
+                )
+                created.append({
+                    'id': relation.id,
+                    'source_id': source_id,
+                    'target_id': target_id,
+                    'relationship_type': relation_type,
+                    'reason': item.get('reason', ''),
+                })
+
+        return JsonResponse({
+            'success': True,
+            'message': f'AI 优化完成：修改 {len(updated)} 条，新增 {len(created)} 条',
+            'summary': ai_result.get('summary', ''),
+            'updated': updated,
+            'created': created,
+            'skipped': skipped,
+        })
+    except Exception as exc:
+        return JsonResponse({'success': False, 'message': f'AI 优化失败：{exc}'}, status=500)
+
+
+@login_required
+@user_passes_test(is_teacher)
+@require_POST
+def ai_check_knowledge_relationships(request, subject_id):
+    """只读检查当前科目已有知识点关系的合理性。"""
+    subject = get_object_or_404(Subject, id=subject_id)
+    if not TeacherSubject.objects.filter(teacher=request.user, subject=subject).exists():
+        return JsonResponse({'success': False, 'message': '您没有权限查看此科目'}, status=403)
+
+    knowledge_points, relationships = _knowledge_graph_ai_input(subject)
+    if len(knowledge_points) < 2:
+        return JsonResponse({'success': False, 'message': '当前科目至少需要两个知识点'}, status=400)
+
+    try:
+        from ..knowledge_graph_builder.relation_ai import check_relations, VALID_RELATION_TYPES
+
+        ai_result = check_relations(subject.name, knowledge_points, relationships)
+        kp_names = {item['id']: item['name'] for item in knowledge_points}
+        relation_ids = {item['id'] for item in relationships}
+        relationships_by_id = {item['id']: item for item in relationships}
+
+        issues = []
+        for item in ai_result.get('issues', []):
+            try:
+                relation_id = int(item.get('relationship_id'))
+            except (TypeError, ValueError):
+                continue
+            if relation_id in relation_ids:
+                relation = relationships_by_id[relation_id]
+                issues.append({
+                    'relationship_id': relation_id,
+                    'source_name': kp_names.get(relation['source_id'], str(relation['source_id'])),
+                    'target_name': kp_names.get(relation['target_id'], str(relation['target_id'])),
+                    'relationship_type': relation['relationship_type'],
+                    'severity': item.get('severity', '中'),
+                    'problem': item.get('problem', ''),
+                    'suggestion': item.get('suggestion', ''),
+                })
+
+        missing_relations = []
+        for item in ai_result.get('missing_relations', []):
+            try:
+                source_id = int(item.get('source_id'))
+                target_id = int(item.get('target_id'))
+            except (TypeError, ValueError):
+                continue
+            relation_type = item.get('relationship_type')
+            if (source_id in kp_names and target_id in kp_names and source_id != target_id and
+                    relation_type in VALID_RELATION_TYPES):
+                missing_relations.append({
+                    'source_id': source_id,
+                    'source_name': kp_names[source_id],
+                    'target_id': target_id,
+                    'target_name': kp_names[target_id],
+                    'relationship_type': relation_type,
+                    'reason': item.get('reason', ''),
+                })
+
+        try:
+            score = max(0, min(100, int(ai_result.get('score', 0))))
+        except (TypeError, ValueError):
+            score = 0
+
+        return JsonResponse({
+            'success': True,
+            'overall': ai_result.get('overall', ''),
+            'score': score,
+            'issues': issues,
+            'missing_relations': missing_relations,
+            'relationship_count': len(relationships),
+        })
+    except Exception as exc:
+        return JsonResponse({'success': False, 'message': f'AI 检查失败：{exc}'}, status=500)
 
 
 @login_required
