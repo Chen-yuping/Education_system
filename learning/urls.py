@@ -43,6 +43,7 @@ urlpatterns = [
     path('exercise/result/<int:log_id>/', views_student.exercise_result, name='exercise_result'),
     path('subject/<int:subject_id>/exercise-logs/', views_student.subject_exercise_logs, name='subject_exercise_logs'),# 单个科目的答题log
     path('subject/<int:subject_id>/exercise-logs/analyze/', views_student.subject_exercise_logs_analyze, name='subject_exercise_logs_analyze'),# 做题记录实时分析
+    path('subject/<int:subject_id>/exercise-logs/analysis.pdf', views_student.subject_exercise_logs_analysis_pdf, name='subject_exercise_logs_analysis_pdf'),# 导出 AI 做题诊断
 
     path('subject/<int:subject_id>/knowledge/', views_student.knowledge_points, name='knowledge_points'),
     path('subject/<int:subject_id>/community/', views_student.subject_community, name='subject_community'),# 学生社区

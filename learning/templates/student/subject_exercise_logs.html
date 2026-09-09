@@ -231,9 +231,13 @@
         </div>
         <div class="d-flex align-items-center gap-2">
             <small class="text-muted" id="analysisTime">更新于 {{ analysis_updated_at }}</small>
-            <button type="button" class="btn btn-sm btn-outline-primary" id="btnRegenerate">
-                <i class="fas fa-sync-alt me-1"></i>重新生成 AI 分析
+            <button type="button" class="btn btn-sm btn-primary" id="btnGenerateAnalysis">
+                <i class="fas fa-magic me-1"></i>生成 AI 诊断
             </button>
+            <a class="btn btn-sm btn-outline-danger disabled" id="btnExportAnalysisPdf"
+               href="{% url 'subject_exercise_logs_analysis_pdf' subject.id %}" aria-disabled="true">
+                <i class="fas fa-file-pdf me-1"></i>导出 PDF
+            </a>
         </div>
     </div>
 
@@ -256,7 +260,11 @@
                     <h6 class="mb-0"><i class="fas fa-robot me-1 text-primary"></i>AI 智能诊断与学习计划</h6>
                     <span class="badge bg-light text-muted">错因分析 + 学习计划推荐</span>
                 </div>
-                <div id="aiAnalysisLoading" class="text-center py-4">
+                <div id="aiAnalysisPrompt" class="text-center py-4 text-muted">
+                    <i class="fas fa-lightbulb fa-2x mb-2 text-warning"></i>
+                    <p class="mb-0">点击“生成 AI 诊断”，系统才会调用大模型分析做题记录。</p>
+                </div>
+                <div id="aiAnalysisLoading" class="text-center py-4" style="display:none;">
                     <div class="spinner-border text-primary" role="status"></div>
                     <p class="text-muted mt-2 mb-0">正在分析你的做题记录…</p>
                 </div>
@@ -472,11 +480,14 @@ function renderMarkdown(text) {
 }
 
 function loadAiAnalysis(force) {
+    const prompt = document.getElementById('aiAnalysisPrompt');
     const loading = document.getElementById('aiAnalysisLoading');
     const result = document.getElementById('aiAnalysisResult');
     const errorBox = document.getElementById('aiAnalysisError');
-    const btn = document.getElementById('btnRegenerate');
+    const btn = document.getElementById('btnGenerateAnalysis');
+    const exportBtn = document.getElementById('btnExportAnalysisPdf');
 
+    if (prompt) { prompt.style.display = 'none'; }
     loading.style.display = '';
     result.style.display = 'none';
     errorBox.style.display = 'none';
@@ -500,6 +511,11 @@ function loadAiAnalysis(force) {
             errorBox.style.display = 'none';
             const timeEl = document.getElementById('analysisTime');
             if (timeEl) { timeEl.textContent = '更新于 ' + new Date().toLocaleString('zh-CN'); }
+            if (btn) { btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>重新生成'; }
+            if (exportBtn) {
+                exportBtn.classList.remove('disabled');
+                exportBtn.setAttribute('aria-disabled', 'false');
+            }
         } else {
             errorBox.textContent = data.message || '分析生成失败，请稍后重试。';
             errorBox.style.display = '';
@@ -514,13 +530,20 @@ function loadAiAnalysis(force) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    const regenBtn = document.getElementById('btnRegenerate');
-    if (regenBtn) {
-        regenBtn.addEventListener('click', function() {
-            loadAiAnalysis(true);
+    let hasGenerated = false;
+    const generateBtn = document.getElementById('btnGenerateAnalysis');
+    const exportBtn = document.getElementById('btnExportAnalysisPdf');
+    if (generateBtn) {
+        generateBtn.addEventListener('click', function() {
+            loadAiAnalysis(hasGenerated);
+            hasGenerated = true;
         });
     }
-    loadAiAnalysis(false);
+    if (exportBtn) {
+        exportBtn.addEventListener('click', function(event) {
+            if (exportBtn.classList.contains('disabled')) { event.preventDefault(); }
+        });
+    }
 });
 </script>
 {% endif %}

@@ -1,7 +1,7 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.urls import reverse
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.db.models import Count, Avg, Q
 from django.contrib import messages
 from django.views.decorators.http import require_http_methods
@@ -1630,6 +1630,14 @@ def subject_exercise_logs_analyze(request, subject_id):
     if not force and isinstance(cached, dict) and cached.get('text'):
         age = now.timestamp() - float(cached.get('ts', 0))
         if 0 <= age < 300:
+            request.session[f'exercise_ai_report_{subject.id}'] = {
+                'subject_name': subject.name,
+                'student_name': request.user.get_full_name() or request.user.username,
+                'generated_at': timezone.localtime(now).strftime('%Y-%m-%d %H:%M:%S'),
+                'analysis': cached['text'],
+                'insights': insights,
+                'snapshot': snapshot,
+            }
             return JsonResponse({
                 'success': True,
                 'analysis': cached['text'],
@@ -1640,6 +1648,14 @@ def subject_exercise_logs_analyze(request, subject_id):
     text = analyze_with_llm(snapshot)
     if text:
         request.session[cache_key] = {'ts': now.timestamp(), 'text': text}
+        request.session[f'exercise_ai_report_{subject.id}'] = {
+            'subject_name': subject.name,
+            'student_name': request.user.get_full_name() or request.user.username,
+            'generated_at': timezone.localtime(now).strftime('%Y-%m-%d %H:%M:%S'),
+            'analysis': text,
+            'insights': insights,
+            'snapshot': snapshot,
+        }
         return JsonResponse({
             'success': True,
             'analysis': text,
@@ -1652,3 +1668,120 @@ def subject_exercise_logs_analyze(request, subject_id):
         'message': 'AI 分析服务暂不可用，请稍后重试（当前已展示数据洞察结论）。',
         'insights': insights,
     })
+
+
+@login_required
+@user_passes_test(is_student)
+@require_http_methods(["GET"])
+def subject_exercise_logs_analysis_pdf(request, subject_id):
+    """导出当前学生在该课程最近一次成功生成的 AI 做题诊断。"""
+    from io import BytesIO
+    from html import escape
+    from urllib.parse import quote
+
+    subject = get_object_or_404(Subject, id=subject_id)
+    report = request.session.get(f'exercise_ai_report_{subject.id}')
+    if not report:
+        return HttpResponse('请先点击“生成 AI 诊断”，生成成功后再导出 PDF。', status=400)
+
+    try:
+        from reportlab.lib import colors
+        from reportlab.lib.enums import TA_CENTER
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.lib.units import mm
+        from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    except ImportError:
+        return HttpResponse('服务器缺少 PDF 生成组件 reportlab，请安装后重试。', status=500)
+
+    buffer = BytesIO()
+    pdfmetrics.registerFont(UnicodeCIDFont('STSong-Light'))
+    document = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=18 * mm,
+        leftMargin=18 * mm,
+        topMargin=18 * mm,
+        bottomMargin=18 * mm,
+        title=f'{subject.name} - AI 智能诊断与学习计划',
+        author=request.user.username,
+    )
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'DiagnosisTitle', parent=styles['Title'], fontName='STSong-Light',
+        fontSize=20, leading=28, alignment=TA_CENTER, textColor=colors.HexColor('#1d4ed8'),
+    )
+    heading_style = ParagraphStyle(
+        'DiagnosisHeading', parent=styles['Heading2'], fontName='STSong-Light',
+        fontSize=13, leading=20, spaceBefore=8, spaceAfter=5, textColor=colors.HexColor('#1e40af'),
+    )
+    body_style = ParagraphStyle(
+        'DiagnosisBody', parent=styles['BodyText'], fontName='STSong-Light',
+        fontSize=10.5, leading=17, spaceAfter=4, textColor=colors.HexColor('#334155'),
+    )
+    list_style = ParagraphStyle(
+        'DiagnosisList', parent=body_style, leftIndent=5 * mm, firstLineIndent=-3 * mm,
+    )
+
+    snapshot = report.get('snapshot') or {}
+    summary_rows = [
+        ['课程', report.get('subject_name', subject.name), '学生', report.get('student_name', request.user.username)],
+        ['生成时间', report.get('generated_at', ''), '答题数', str(snapshot.get('total', 0))],
+        ['正确率', f"{snapshot.get('correct_rate', 0)}%", '平均用时', f"{snapshot.get('avg_time_per_question_seconds', 0)} 秒/题"],
+    ]
+    summary_data = [
+        [Paragraph(f'<b>{escape(str(cell))}</b>' if index % 2 == 0 else escape(str(cell)), body_style)
+         for index, cell in enumerate(row)]
+        for row in summary_rows
+    ]
+    summary_table = Table(summary_data, colWidths=[22 * mm, 55 * mm, 22 * mm, 55 * mm])
+    summary_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#eff6ff')),
+        ('BACKGROUND', (2, 0), (2, -1), colors.HexColor('#eff6ff')),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#bfdbfe')),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 7), ('RIGHTPADDING', (0, 0), (-1, -1), 7),
+        ('TOPPADDING', (0, 0), (-1, -1), 6), ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]))
+
+    story = [
+        Paragraph('AI 智能诊断与学习计划', title_style),
+        Spacer(1, 6 * mm), summary_table, Spacer(1, 6 * mm),
+        Paragraph('数据洞察', heading_style),
+    ]
+    for insight in report.get('insights') or []:
+        story.append(Paragraph(f'· {escape(str(insight))}', list_style))
+
+    story.append(Paragraph('AI 诊断与学习计划', heading_style))
+    for raw_line in str(report.get('analysis', '')).splitlines():
+        line = raw_line.strip()
+        if not line:
+            story.append(Spacer(1, 2 * mm))
+            continue
+        if line.startswith('#'):
+            story.append(Paragraph(escape(line.lstrip('#').strip()), heading_style))
+        elif line.startswith(('- ', '* ', '• ')):
+            story.append(Paragraph(f'· {escape(line[2:].strip())}', list_style))
+        else:
+            clean_line = line.replace('**', '')
+            story.append(Paragraph(escape(clean_line), body_style))
+
+    story.extend([
+        Spacer(1, 5 * mm),
+        Paragraph('说明：本报告由 AI 根据做题记录生成，仅作为学习参考。', body_style),
+    ])
+
+    def add_page_number(canvas, doc):
+        canvas.saveState()
+        canvas.setFont('STSong-Light', 9)
+        canvas.setFillColor(colors.HexColor('#64748b'))
+        canvas.drawCentredString(A4[0] / 2, 9 * mm, f'第 {doc.page} 页')
+        canvas.restoreState()
+
+    document.build(story, onFirstPage=add_page_number, onLaterPages=add_page_number)
+    response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+    filename = f'{subject.name}-AI智能诊断与学习计划.pdf'
+    response['Content-Disposition'] = f"attachment; filename*=UTF-8''{quote(filename)}"
+    return response
