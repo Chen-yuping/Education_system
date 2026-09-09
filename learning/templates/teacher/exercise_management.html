@@ -1122,8 +1122,17 @@ function renderExerciseEditForm(exercise) {
                 </div>
 
                 <div class="mb-3">
-                    <label class="form-label fw-bold">题型</label>
-                    <input type="text" class="form-control" value="${getQuestionTypeName(exercise.question_type) || exercise.question_type || ''}" readonly disabled style="max-width: 200px;">
+                    <label for="edit_question_type" class="form-label fw-bold">
+                        <i class="fas fa-edit text-warning me-1"></i>题型
+                    </label>
+                    <select class="form-select" id="edit_question_type" name="question_type" required style="max-width: 200px;">
+                        <option value="1" ${exercise.question_type_code === '1' ? 'selected' : ''}>单选题</option>
+                        <option value="2" ${exercise.question_type_code === '2' ? 'selected' : ''}>多选题</option>
+                        <option value="3" ${exercise.question_type_code === '3' ? 'selected' : ''}>投票题</option>
+                        <option value="4" ${exercise.question_type_code === '4' ? 'selected' : ''}>填空题</option>
+                        <option value="5" ${exercise.question_type_code === '5' ? 'selected' : ''}>主观题</option>
+                        <option value="6" ${exercise.question_type_code === '6' ? 'selected' : ''}>判断题</option>
+                    </select>
                 </div>
 
                 <hr>
@@ -1329,6 +1338,7 @@ function submitEditForm() {
     // 收集表单数据
     const formData = new FormData();
     formData.append('content', document.getElementById('edit_content').value);
+    formData.append('question_type', document.getElementById('edit_question_type').value);
 
     // 收集选项数据
     const choices = [];

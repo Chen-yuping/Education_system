@@ -734,6 +734,16 @@ def exercise_update_json(request, exercise_id):
 
         # 更新题目内容
         exercise.content = request.POST.get('content', exercise.content)
+
+        # 更新题型，仅允许系统支持的题型编码
+        question_type = request.POST.get('question_type', exercise.question_type)
+        valid_question_types = {'1', '2', '3', '4', '5', '6'}
+        if question_type not in valid_question_types:
+            return JsonResponse({
+                'success': False,
+                'message': '无效的题型。'
+            }, status=400)
+        exercise.question_type = question_type
         
         # 更新答案解析
         exercise.solution = request.POST.get('solution', exercise.solution)
