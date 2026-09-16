@@ -1,5 +1,6 @@
 # views_personalized_recommendations.py
 from django.shortcuts import render, get_object_or_404, redirect
+from django.urls import reverse
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.db.models import Q, Count
@@ -595,7 +596,8 @@ def start_recommended_exercises(request, subject_id):
     # 获取第一个题目
     if exercise_ids:
         first_exercise_id = exercise_ids[0]
-        return redirect('take_exercise', exercise_id=first_exercise_id)
+        exercise_url = reverse('take_exercise', kwargs={'exercise_id': first_exercise_id})
+        return redirect(f'{exercise_url}?source=recommendation')
     else:
         messages.warning(request, '暂无推荐习题')
         return redirect('personalized_recommendations', subject_id=subject_id)

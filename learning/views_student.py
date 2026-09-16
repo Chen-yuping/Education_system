@@ -285,7 +285,7 @@ def exercise_list(request, subject_id):
     subject = get_object_or_404(Subject, id=subject_id)
 
     # 获取该科目的所有习题
-    exercises = Exercise.objects.filter(subject_id=subject_id).order_by('title', 'id')
+    exercises = Exercise.objects.filter(subject_id=subject_id).order_by('problemsets', 'id')
 
     # 获取答题记录
     answer_logs = AnswerLog.objects.filter(
@@ -324,22 +324,24 @@ def exercise_list(request, subject_id):
         'accuracy': accuracy,
     }
 
-    # 按标题分组（已按title排序）
+    # 按习题集 ID 分组；章节标题显示该组第一道习题的 title
     grouped_exercises = []
+    current_problemset = None
     current_title = None
     current_group = []
 
     for exercise in exercises:
-        if exercise.title != current_title:
+        if exercise.problemsets != current_problemset:
             if current_group:
-                # 完成上一个分组
                 grouped_exercises.append({
+                    'problemsets': current_problemset,
                     'title': current_title,
                     'exercises': current_group,
                     'exercise_count': len(current_group),
+                    'completed_count': sum(1 for ex in current_group if ex.completed),
                     'completed': all(ex.completed for ex in current_group)
                 })
-            # 开始新分组
+            current_problemset = exercise.problemsets
             current_title = exercise.title
             current_group = [exercise]
         else:
@@ -348,9 +350,11 @@ def exercise_list(request, subject_id):
     # 添加最后一个分组
     if current_group:
         grouped_exercises.append({
+            'problemsets': current_problemset,
             'title': current_title,
             'exercises': current_group,
             'exercise_count': len(current_group),
+            'completed_count': sum(1 for ex in current_group if ex.completed),
             'completed': all(ex.completed for ex in current_group)
         })
 
@@ -367,7 +371,9 @@ def exercise_list(request, subject_id):
 @user_passes_test(is_student)
 def take_exercise(request, exercise_id):
     exercise = get_object_or_404(Exercise, id=exercise_id)
-    single_mode = request.GET.get('single', '0') == '1'  # 检查是否是单个习题模式
+    flow_source = request.GET.get('source', 'chapter')
+    if flow_source not in ('chapter', 'recommendation'):
+        flow_source = 'chapter'
 
     if request.method == 'POST':
         # 处理答题提交
@@ -424,11 +430,8 @@ def take_exercise(request, exercise_id):
         # 更新知识点掌握情况
         update_knowledge_mastery(request.user, exercise, answer_log.is_correct)
 
-        # 设置单题模式标志到session
-        if single_mode:
-            request.session['single_mode'] = True
-
-        return redirect('exercise_result', log_id=answer_log.id)
+        result_url = reverse('exercise_result', kwargs={'log_id': answer_log.id})
+        return redirect(f'{result_url}?source={flow_source}')
 
     # 获取推荐习题列表（如果存在且不是单个习题模式）
     subject = exercise.subject
@@ -436,7 +439,7 @@ def take_exercise(request, exercise_id):
     recommended_exercises = []
     current_exercise_index = -1
 
-    if not single_mode and session_key in request.session:
+    if flow_source == 'recommendation' and session_key in request.session:
         exercise_ids = request.session[session_key]
         current_exercise_index = exercise_ids.index(exercise_id) if exercise_id in exercise_ids else -1
 
@@ -453,7 +456,7 @@ def take_exercise(request, exercise_id):
         'exercise': exercise,
         'recommended_exercises': recommended_exercises,
         'current_exercise_index': current_exercise_index,
-        'single_mode': single_mode,
+        'flow_source': flow_source,
     })
 
 #显示答题结果，并提供下一题链接
@@ -489,14 +492,16 @@ def exercise_result(request, log_id):
     # 3. 获取用户选择的选项ID列表（如果需要的话）
     selected_choice_ids = list(answer_log.selected_choices.values_list('id', flat=True))
 
-    # 4. 检查是否在单题模式中
-    single_mode = request.session.get('single_mode', False)
+    # 4. 明确区分章节练习和个性化推荐，避免推荐 Session 干扰章节顺序
+    flow_source = request.GET.get('source', 'chapter')
+    if flow_source not in ('chapter', 'recommendation'):
+        flow_source = 'chapter'
     
     # 5. 检查是否在推荐练习集中 - 如果是，提供"下一题"功能
     next_exercise = None
     session_key = f'recommended_exercises_{current_subject.id}'
     
-    if not single_mode and session_key in request.session:
+    if flow_source == 'recommendation' and session_key in request.session:
         # 用户在做推荐练习集（非单题模式）
         exercise_ids = request.session[session_key]
         if current_exercise.id in exercise_ids:
@@ -508,12 +513,11 @@ def exercise_result(request, log_id):
                 next_exercise = Exercise.objects.get(id=next_exercise_id)
     
     # 6. 如果不在推荐练习集中，检查是否在章节做题中 - 获取同一章节的下一道题
-    if not next_exercise and not single_mode:
-        current_title = current_exercise.title
-        # 获取同一章节（title相同）且ID大于当前题目的下一道题
+    if not next_exercise and flow_source == 'chapter':
+        # 章节以 problemsets 分组，章节内按 ID 升序
         next_exercise = Exercise.objects.filter(
             subject=current_subject,
-            title=current_title,
+            problemsets=current_exercise.problemsets,
             id__gt=current_exercise.id
         ).order_by('id').first()
 
@@ -538,14 +542,9 @@ def exercise_result(request, log_id):
         'selected_choice_ids': selected_choice_ids,
         'next_exercise': next_exercise,
         'is_favorited': is_favorited,
-        'single_mode': single_mode,
+        'flow_source': flow_source,
         'cached_score': cached_score,
     }
-
-    # 如果在单题模式中，清除session标志
-    if single_mode:
-        if 'single_mode' in request.session:
-            del request.session['single_mode']
 
     return render(request, 'student/exercise_result.html', context)
 
@@ -697,17 +696,6 @@ def subject_exercise_logs(request, subject_id):
             return f'{minutes}分{remain}秒' if remain else f'{minutes}分'
         return f'{remain}秒'
 
-    def difficulty_from_score(score):
-        try:
-            value = float(score or 0)
-        except (TypeError, ValueError):
-            value = 0
-        if value <= 1:
-            return '简单'
-        if value <= 2:
-            return '中等'
-        return '困难'
-
     def format_json_answer(raw_answer):
         if not raw_answer:
             return '未作答'
@@ -763,9 +751,15 @@ def subject_exercise_logs(request, subject_id):
         return {
             'id': log.id,
             'question_content': exercise.content,
+            'question_choices': [
+                {
+                    'label': chr(65 + index),
+                    'content': choice.content,
+                }
+                for index, choice in enumerate(choices)
+            ] if exercise.question_type not in ['4', '5', 'fill', 'subjective'] else [],
             'knowledge_points': knowledge_points,
             'question_type': question_type_map.get(exercise.question_type, exercise.question_type or '其他'),
-            'difficulty': difficulty_from_score(exercise.score),
             'student_answer': student_answer,
             'correct_answer': correct_answer,
             'is_correct': log.is_correct,
@@ -1471,20 +1465,24 @@ def subject_learning(request, subject_id):
         'accuracy': accuracy,
     }
 
-    # 按标题分组
+    # 按习题集 ID 分组；章节标题显示该组第一道习题的 title
     grouped_exercises = []
+    current_problemset = None
     current_title = None
     current_group = []
 
     for exercise in exercises:
-        if exercise.title != current_title:
+        if exercise.problemsets != current_problemset:
             if current_group:
                 grouped_exercises.append({
+                    'problemsets': current_problemset,
                     'title': current_title,
                     'exercises': current_group,
                     'exercise_count': len(current_group),
+                    'completed_count': sum(1 for ex in current_group if ex.completed),
                     'completed': all(ex.completed for ex in current_group)
                 })
+            current_problemset = exercise.problemsets
             current_title = exercise.title
             current_group = [exercise]
         else:
@@ -1492,9 +1490,11 @@ def subject_learning(request, subject_id):
 
     if current_group:
         grouped_exercises.append({
+            'problemsets': current_problemset,
             'title': current_title,
             'exercises': current_group,
             'exercise_count': len(current_group),
+            'completed_count': sum(1 for ex in current_group if ex.completed),
             'completed': all(ex.completed for ex in current_group)
         })
 

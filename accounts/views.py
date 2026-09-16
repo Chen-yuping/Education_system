@@ -21,7 +21,6 @@ def user_login(request):
             if user is not None:
                 # 登录用户
                 login(request, user)
-                messages.success(request, f'欢迎回来，{user.username}！')
 
                 # 根据用户类型重定向
                 if user.user_type == 'teacher':

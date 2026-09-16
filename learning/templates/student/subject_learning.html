@@ -109,6 +109,17 @@
         color: #333;
     }
 
+    .chapter-progress-count {
+        background: #e7f1ff;
+        border: 1px solid #bfdbfe;
+        border-radius: 999px;
+        color: #1d4ed8;
+        flex-shrink: 0;
+        font-size: 13px;
+        font-weight: 600;
+        padding: 5px 11px;
+    }
+
     .chapter-toggle {
         color: #999;
         transition: transform 0.3s;
@@ -202,12 +213,13 @@
         <div class="chapter-header" onclick="toggleChapter({{ forloop.counter }})">
             <div class="chapter-number {% if exercise_set.completed %}completed{% else %}incomplete{% endif %}">{{ forloop.counter }}</div>
             <div class="chapter-title">{{ exercise_set.title }}</div>
+            <div class="chapter-progress-count">已做 {{ exercise_set.completed_count }} / 共 {{ exercise_set.exercise_count }} 题</div>
             <i class="fas fa-chevron-down chapter-toggle" id="toggle-{{ forloop.counter }}"></i>
         </div>
         <div class="section-list" id="chapter-{{ forloop.counter }}">
             {% for exercise in exercise_set.exercises %}
             <div class="section-item {% if exercise.completed %}completed{% endif %}" 
-                 onclick="window.location.href='{% url 'take_exercise' exercise_id=exercise.id %}'">
+                 onclick="window.location.href='{% url 'take_exercise' exercise_id=exercise.id %}?source=chapter'">
                 <div class="section-status {% if exercise.completed %}completed{% else %}not-started{% endif %}">
                     {% if exercise.completed %}
                     <i class="fas fa-check"></i>

@@ -425,9 +425,15 @@
             <!-- 操作按钮 -->
             <div class="d-flex justify-content-between align-items-center mt-4">
                 <div class="d-flex gap-2">
-                    <a href="{% url 'subject_learning' answer_log.exercise.subject.id %}" class="btn btn-outline-secondary">
-                        <i class="fas fa-list me-1"></i>返回列表
+                    {% if flow_source == 'recommendation' %}
+                    <a href="{% url 'personalized_recommendations' answer_log.exercise.subject.id %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-list me-1"></i>返回推荐
                     </a>
+                    {% else %}
+                    <a href="{% url 'subject_learning' answer_log.exercise.subject.id %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-list me-1"></i>返回章节
+                    </a>
+                    {% endif %}
                     <button type="button" class="btn btn-outline-warning" id="favoriteBtn" 
                             data-exercise-id="{{ answer_log.exercise.id }}"
                             data-is-favorited="{{ is_favorited|yesno:'true,false' }}">
@@ -436,21 +442,21 @@
                     </button>
                 </div>
                 <div class="d-flex gap-2">
-                    <a href="{% url 'take_exercise' answer_log.exercise.id %}" class="btn btn-primary">
+                    <a href="{% url 'take_exercise' answer_log.exercise.id %}?source={{ flow_source }}" class="btn btn-primary">
                         <i class="fas fa-redo me-1"></i>重新练习
                     </a>
-                    {% if single_mode %}
-                    <a href="{% url 'personalized_recommendations' answer_log.exercise.subject.id %}" class="btn btn-success">
-                        <i class="fas fa-check me-1"></i>完成练习
+                    {% if next_exercise %}
+                    <a href="{% url 'take_exercise' next_exercise.id %}?source={{ flow_source }}" class="btn btn-success">
+                        <i class="fas fa-arrow-right me-1"></i>下一题
                     </a>
                     {% else %}
-                        {% if next_exercise %}
-                        <a href="{% url 'take_exercise' next_exercise.id %}" class="btn btn-success">
-                            <i class="fas fa-arrow-right me-1"></i>下一题
+                        {% if flow_source == 'recommendation' %}
+                        <a href="{% url 'personalized_recommendations' answer_log.exercise.subject.id %}" class="btn btn-success">
+                            <i class="fas fa-check me-1"></i>完成推荐练习
                         </a>
                         {% else %}
-                        <a href="{% url 'personalized_recommendations' answer_log.exercise.subject.id %}" class="btn btn-success">
-                            <i class="fas fa-check me-1"></i>完成练习
+                        <a href="{% url 'subject_learning' answer_log.exercise.subject.id %}" class="btn btn-success">
+                            <i class="fas fa-check me-1"></i>完成本章节
                         </a>
                         {% endif %}
                     {% endif %}

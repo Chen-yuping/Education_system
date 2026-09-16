@@ -318,7 +318,7 @@
 <div class="card mb-4">
     <div class="card-body p-0">
         <!-- 关系图视图 -->
-        <div id="graphContainer" class="knowledge-diagnosis-container" style="height: 600px; border: 2px solid #dee2e6; border-radius: 8px; background-color: #f8f9fa; display: block;">
+        <div id="graphContainer" class="knowledge-diagnosis-container" style="height: 700px; border: 2px solid #dee2e6; border-radius: 8px; background-color: #f8f9fa; display: block;">
             <!-- 加载状态 -->
             <div id="loading" style="position:absolute; top:0; left:0; width:100%; height:100%; display:none; flex-direction:column; justify-content:center; align-items:center; background:rgba(255,255,255,0.95); z-index:1000;">
                 <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
@@ -341,8 +341,8 @@
             <!-- 工具提示 -->
             <div id="tooltip" class="tooltip hidden"></div>
 
-            <!-- D3.js图表区域 -->
-            <div id="chart"></div>
+            <!-- 知识点关系图谱 -->
+            <div id="chart" style="width: 100%; height: 100%;"></div>
         </div>
 
         <!-- 柱状图视图 -->
@@ -360,7 +360,7 @@
         <div>
             <i class="fas fa-chart-bar me-2"></i>
             <span id="subjectName"></span>：
-            共 <span id="nodeCount" class="fw-bold">0</span> 个知识点，<span id="linkCount" class="fw-bold">0</span> 个关系，<span id="clusterCount" class="fw-bold">0</span> 个聚类
+            共 <span id="nodeCount" class="fw-bold">0</span> 个知识点，<span id="linkCount" class="fw-bold">0</span> 个关系
         </div>
         <div class="text-muted small">
             <i class="fas fa-mouse-pointer me-1"></i>鼠标悬停查看详情 |
@@ -419,11 +419,14 @@
 
 <!-- 引入D3.js -->
 <script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 
 <script>
 
 // 全局变量
-let simulation, currentData = {};
+let diagnosisNetwork = null;
+let diagnosisRequestVersion = 0;
+let currentData = {};
 
 // 页面加载完成
 document.addEventListener('DOMContentLoaded', function() {
@@ -458,6 +461,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (this.checked) {
                 graphContainer.style.display = 'block';
                 chartContainer.style.display = 'none';
+                if (currentData.nodes) renderDiagnosisGraph(currentData);
             }
         });
     }
@@ -488,6 +492,10 @@ function refreshData() {
 
 // 加载诊断数据
 function loadDiagnosisData() {
+    const requestVersion = ++diagnosisRequestVersion;
+    if (diagnosisNetwork) { diagnosisNetwork.destroy(); diagnosisNetwork = null; }
+    currentData = {};
+    d3.select('#barChart').html('');
     const subjectId = document.getElementById('subjectSelect').value;
     if (!subjectId) {
         // 清空图表
@@ -545,6 +553,7 @@ function loadDiagnosisData() {
             return response.json();
         })
         .then(data => {
+            if (requestVersion !== diagnosisRequestVersion) return;
             console.log('收到数据:', data);
 
             // 隐藏加载状态
@@ -560,17 +569,18 @@ function loadDiagnosisData() {
                 // 显示知识点统计信息
                 document.getElementById('nodeCount').textContent = data.node_count;
                 document.getElementById('linkCount').textContent = data.link_count;
-                document.getElementById('clusterCount').textContent = data.cluster_count || 0;
                 document.getElementById('subjectName').textContent = data.subject_name;
                 document.getElementById('stats').style.display = 'block';
 
                 // 绘制图表
-                renderDiagnosisGraph(data);
+                if (document.getElementById('graphView').checked) renderDiagnosisGraph(data);
+                else renderBarChart(data);
             } else {
                 throw new Error(data.message || 'API返回失败状态');
             }
         })
         .catch(error => {
+            if (requestVersion !== diagnosisRequestVersion) return;
             console.error('加载失败:', error);
             loading.innerHTML = `
                 <i class="fas fa-exclamation-triangle text-danger fa-3x mb-3"></i>
@@ -656,428 +666,62 @@ function resetStats() {
     document.getElementById('noneCount').textContent = '0';
 }
 
-// 绘图
+// 与课程门户采用相同的圆点、关系线与布局参数。
 function renderDiagnosisGraph(data) {
-    console.log('=== 绘制知识点关系图（带箭头）===');
-    // ===== 新增：根据节点数量动态调整参数 =====
-    const nodeCount = data.nodes.length;
-
-    let nodeRadius;      // 节点半径
-    let fontSize;        // 字体大小
-    let linkDistance;    // 连线距离
-    let chargeStrength;  // 排斥力强度
-    let collideRadius;   // 碰撞半径
-
-    if (nodeCount > 150) {
-        nodeRadius = 15;      // 节点变小
-        fontSize = '8px';     // 字体变小
-        linkDistance = 45;    // 连线变短（紧凑）
-        chargeStrength = -200; // 排斥力适中
-        collideRadius = 40;   // 碰撞半径变小
-    } else if (nodeCount > 40) {
-        nodeRadius = 18;
-        fontSize = '9px';
-        linkDistance = 65;
-        chargeStrength = -500;
-        collideRadius = 25;
-    } else if (nodeCount > 20) {
-        nodeRadius = 22;
-        fontSize = '10px';
-        linkDistance = 80;
-        chargeStrength = -600;
-        collideRadius = 30;
-    } else {
-        nodeRadius = 28;
-        fontSize = '12px';
-        linkDistance = 100;
-        chargeStrength = -800;
-        collideRadius = 38;
-    }
-
-    console.log(`节点数量: ${nodeCount}, 节点半径: ${nodeRadius}, 连线距离: ${linkDistance}`);
-    const container = document.getElementById('graphContainer');
-    const width = container.clientWidth;
-    const height = container.clientHeight;
-
-    // 清空图表
-    d3.select('#chart').html('');
-
-    // 如果没有节点数据
+    const container = document.getElementById('chart');
+    if (diagnosisNetwork) { diagnosisNetwork.destroy(); diagnosisNetwork = null; }
+    container.textContent = '';
     if (!data.nodes || data.nodes.length === 0) {
-        console.log('没有节点数据');
-        const chart = document.getElementById('chart');
-        if (chart) {
-            chart.innerHTML = `
-                <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); text-align:center;">
-                    <i class="fas fa-database fa-3x text-muted mb-3"></i>
-                    <h5 class="text-muted">暂无知识点数据</h5>
-                    <p class="text-muted small">该科目暂无知识点定义</p>
-                </div>
-            `;
-        }
+        container.textContent = '该科目暂无知识点数据';
         return;
     }
-
-    // 创建SVG
-    const svg = d3.select('#chart')
-        .append('svg')
-        .attr('width', width)
-        .attr('height', height)
-        .attr('viewBox', [0, 0, width, height])
-        .call(d3.zoom()
-            .scaleExtent([0.1, 8])
-            .on('zoom', function(event) {
-                g.attr('transform', event.transform);
-            }))
-        .append('g');
-
-    const g = svg.append('g');
-
-    // 添加箭头定义
-    const defs = svg.append('defs');
-
-    // 单向箭头
-    defs.append('marker')
-        .attr('id', 'arrow')
-        .attr('viewBox', '0 -5 10 10')
-        .attr('refX', 30)  // 箭头距离目标节点的距离
-        .attr('refY', 0)
-        .attr('markerWidth', 6)
-        .attr('markerHeight', 6)
-        .attr('orient', 'auto')
-        .append('path')
-        .attr('d', 'M0,-5L10,0L0,5')
-        .attr('fill', '#999');
-
-    // 处理节点
-    const nodes = data.nodes.map((node, i) => ({
-        ...node,
-        x: width / 2 + Math.cos(i * 2 * Math.PI / data.nodes.length) * 250,
-        y: height / 2 + Math.sin(i * 2 * Math.PI / data.nodes.length) * 250
+    const nodes = new vis.DataSet(data.nodes.map(node => {
+        const mastery = Number(node.mastery_level) || 0;
+        const percent = (mastery * 100).toFixed(1);
+        const name = node.full_name || node.name;
+        const color = node.color || '#95a5a6';
+        const tooltip = document.createElement('div');
+        tooltip.style.whiteSpace = 'pre-line';
+        tooltip.textContent = `${name}\n掌握度：${percent}%\n分档：${node.mastery_label || ''}\n练习次数：${node.practice_count || 0}\n正确率：${node.accuracy || 0}%`;
+        return {
+            id: String(node.id), label: `${String(name).replace(/(.{10})(?=.)/gu, '$1\n')}\n掌握度：${percent}%`, title: tooltip,
+            shape: 'dot', size: 25,
+            font: { color: '#1a2332', size: 12, face: 'sans-serif', strokeWidth: 3, strokeColor: '#fff', align: 'center' },
+            color: { background: color, border: color, highlight: { background: color, border: '#1a2332' }, hover: { background: color, border: '#1a2332' } },
+            borderWidth: 2,
+        };
     }));
-
-    // 处理链接
-    const links = data.links.map(link => ({
-        ...link,
-        source: nodes[link.source],
-        target: nodes[link.target]
-    }));
-
-    console.log('节点:', nodes);
-    console.log('链接:', links);
-
-    // 改进的力模拟设置 - 使用 diagnosis_model=3 的数据，优化节点布局
-   const simulation = d3.forceSimulation(nodes)
-        // 链接力：控制有关系的节点之间的距离
-        .force('link', d3.forceLink(links)
-            .id(d => d.id)
-            .distance(linkDistance)  // 使用动态变量
-            .strength(0.5))
-
-        // 排斥力：让无关节点推开
-        .force('charge', d3.forceManyBody()
-            .strength(chargeStrength)  // 使用动态变量
-            .distanceMax(600))
-
-        // 中心引力：让节点不会飘离太远
-        .force('center', d3.forceCenter(width / 2, height / 2)
-            .strength(0.15))         // 减小中心引力
-
-        // 碰撞力：防止节点重叠
-        .force('collision', d3.forceCollide()
-            .radius(collideRadius)              // 增加碰撞半径：节点之间保持更大距离
-            .strength(1.0)
-            .iterations(3))          // 增加迭代次数以获得更好的分布
-
-        // 布局参数
-        .alphaDecay(0.005)           // 更慢的衰减：让布局有更多时间收敛
-        .velocityDecay(0.6)          // 速度衰减
-        .alpha(0.8);                 // 更高的启动能量
-
-    // 绘制链接
-    const link = g.append('g')
-        .attr('class', 'links')
-        .selectAll('line')
-        .data(links)
-        .enter()
-        .append('line')
-        .attr('class', 'link')
-        .attr('stroke', '#bdc3c7')
-        .attr('stroke-width', 2)
-        .attr('stroke-opacity', 0.7)
-        .attr('stroke-dasharray', 'none')  // 全部实线
-        .attr('marker-end', d => d.bidirectional ? null : 'url(#arrow)');  // 单向保留箭头
-
-    // 绘制节点
-    const node = g.append('g')
-        .attr('class', 'nodes')
-        .selectAll('circle')
-        .data(nodes)
-        .enter()
-        .append('circle')
-        .attr('r', nodeRadius)
-        .attr('fill', d => d.color)
-        .attr('stroke', '#fff')
-        .attr('stroke-width', 2)
-        .call(d3.drag()
-            .on('start', dragstarted)
-            .on('drag', dragged)
-            .on('end', dragended));
-
-    // 添加节点标签
-    const label = g.append('g')
-        .attr('class', 'labels')
-        .selectAll('text')
-        .data(nodes)
-        .enter()
-        .append('text')
-        .text(d => d.name)
-        .attr('text-anchor', 'middle')
-        .attr('dy', '0.35em')
-        .attr('fill', 'white')
-        .style('font-size', fontSize)
-        .style('font-weight', 'bold')
-        .style('pointer-events', 'none');
-
-    // 力模拟的tick事件
-    simulation.on('tick', () => {
-        // 更新链接位置
-        link
-            .attr('x1', d => d.source.x)
-            .attr('y1', d => d.source.y)
-            .attr('x2', d => d.target.x)
-            .attr('y2', d => d.target.y);
-
-        // 更新节点位置
-        node
-            .attr('cx', d => {
-                // 限制在边界内
-                d.x = Math.max(30, Math.min(width - 50, d.x));
-                return d.x;
-            })
-            .attr('cy', d => {
-                d.y = Math.max(30, Math.min(height - 50, d.y));
-                return d.y;
-            });
-
-        // 更新标签位置
-        label
-            .attr('x', d => d.x)
-            .attr('y', d => d.y);
-
-        // 更新聚类背景
-        if (data.clusters && data.clusters.length > 0) {
-            updateClusterBackgrounds();
-        }
+    const ids = new Set(nodes.getIds());
+    const relationColors = { '先修': '#f59e0b', '层级': '#8b5cf6', '相似': '#10b981' };
+    const edges = new vis.DataSet((data.links || []).map(link => {
+        // 学生接口 source/target 为数组索引，优先使用明确的知识点 ID。
+        const from = String(link.source_id ?? data.nodes[link.source]?.id);
+        const to = String(link.target_id ?? data.nodes[link.target]?.id);
+        const similar = link.relationship_type === '相似' || link.bidirectional === true;
+        return {
+            from, to, arrows: similar ? undefined : 'to', dashes: similar,
+            color: { color: relationColors[link.relationship_type] || '#999', highlight: '#ff5722' },
+            width: 2, label: link.relationship_type || '',
+            font: { size: 11, color: '#666', strokeWidth: 2, strokeColor: '#fff' },
+            smooth: { type: 'curvedCW', roundness: 0.1 },
+        };
+    }).filter(edge => ids.has(edge.from) && ids.has(edge.to)));
+    const network = new vis.Network(container, { nodes, edges }, {
+        autoResize: true, width: '100%', height: '100%', locale: 'zh-CN',
+        interaction: { hover: true, tooltipDelay: 200, zoomView: true, dragView: true, dragNodes: true },
+        physics: {
+            solver: 'barnesHut',
+            barnesHut: { gravitationalConstant: -6000, centralGravity: 0.15, springLength: 240, springConstant: 0.03, damping: 0.5, avoidOverlap: 1 },
+            stabilization: { enabled: true, iterations: 1000 },
+        },
+        nodes: { shadow: { enabled: true, size: 4, x: 2, y: 2 } },
     });
-
-    // 更新聚类背景
-    function updateClusterBackgrounds() {
-        if (!data.clusters || data.clusters.length === 0) return;
-
-        // 为每个聚类计算凸包
-        data.clusters.forEach((cluster, idx) => {
-            const clusterNodes = nodes.filter(n => n.cluster === idx);
-            if (clusterNodes.length < 2) return;
-
-            // 计算聚类的边界
-            const xs = clusterNodes.map(n => n.x);
-            const ys = clusterNodes.map(n => n.y);
-            const minX = Math.min(...xs) - 40;
-            const maxX = Math.max(...xs) + 40;
-            const minY = Math.min(...ys) - 40;
-            const maxY = Math.max(...ys) + 40;
-
-            // 绘制聚类背景矩形
-            const clusterId = `cluster-${idx}`;
-            let clusterBg = g.select(`#${clusterId}`);
-
-            if (clusterBg.empty()) {
-                clusterBg = g.insert('rect', ':first-child')
-                    .attr('id', clusterId)
-                    .attr('class', 'cluster-background')
-                    .attr('rx', 10)
-                    .attr('ry', 10);
-            }
-
-            clusterBg
-                .attr('x', minX)
-                .attr('y', minY)
-                .attr('width', maxX - minX)
-                .attr('height', maxY - minY);
-        });
-    }
-
-    // 拖拽函数
-    function dragstarted(event) {
-        if (!event.active) simulation.alphaTarget(0.3).restart();
-        event.subject.fx = event.subject.x;
-        event.subject.fy = event.subject.y;
-    }
-
-    function dragged(event) {
-        event.subject.fx = event.x;
-        event.subject.fy = event.y;
-    }
-
-    function dragended(event) {
-        if (!event.active) simulation.alphaTarget(0);
-        event.subject.fx = null;
-        event.subject.fy = null;
-    }
-       // 在事件处理函数外部保存需要的变量引用
-    const currentLinks = link;  // 保存link引用
-    const currentContainer = container;  // 保存container引用
-
-    // 节点悬停效果
-    node.on('mouseover', function(event) {
-        console.log('mouseover事件触发');
-
-        const d = d3.select(this).datum();  // 获取数据
-        if (!d) {
-            console.error('无法获取节点数据');
-            return;
-        }
-
-        console.log('节点数据:', d);
-
-        // 高亮当前节点
-        d3.select(this)
-            .transition()
-            .duration(200)
-            .attr('stroke-width', 3)
-            .attr('stroke', '#3498db');
-
-        // 高亮相关链接 - 使用保存的currentLinks
-        if (currentLinks) {
-            currentLinks.style('stroke', function(l) {
-                if (l.source.id === d.id || l.target.id === d.id) {
-                    return '#3498db';
-                }
-                const avg = l.avg_mastery || 0;
-                return '#999';
-            })
-            .style('stroke-width', function(l) {
-                return (l.source.id === d.id || l.target.id === d.id) ? 3 : 2;
-            });
-        }
-
-        // 显示工具提示
-        const tooltip = document.getElementById('tooltip');
-        if (tooltip && currentContainer) {
-            const masteryPercent = d.mastery_percent || Math.round((d.mastery_level || 0) * 100);
-            const displayPercent = d.display_percent ?? Math.round((d.display_level ?? d.mastery_level ?? 0) * 100);
-            const accuracy = d.accuracy || 0;
-            const practiceCount = d.practice_count || 0;
-            const correctCount = d.correct_count || 0;
-
-            tooltip.innerHTML = `
-                <h6 style="margin: 0 0 8px 0; color: #ffcc00; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px;">
-                    ${d.full_name || d.name}
-                </h6>
-                <p style="margin: 4px 0;"><strong>原始掌握度:</strong> <span style="color: #4ade80; font-weight: bold;">${masteryPercent}%</span></p>
-                <p style="margin: 4px 0;"><strong>显示分档:</strong> ${d.mastery_label || ''} (${displayPercent}%)</p>
-                <div style="background: rgba(255,255,255,0.1); border-radius: 3px; height: 6px; margin: 5px 0; overflow: hidden;">
-                    <div style="height: 100%; width: ${displayPercent}%; background-color: ${d.color}; transition: width 0.3s ease;"></div>
-                </div>
-                ${d.last_practiced ? `<p style="margin: 4px 0; font-size: 11px; color: #bbb;"><strong>最后练习:</strong> ${d.last_practiced}</p>` : ''}
-            `;
-
-            // 相对于节点位置定位tooltip，而不是鼠标位置
-            const rect = currentContainer.getBoundingClientRect();
-            const nodeX = d.x || 0;
-            const nodeY = d.y || 0;
-
-            tooltip.style.left = (rect.left + nodeX + 35) + 'px';
-            tooltip.style.top = (rect.top + nodeY - 80) + 'px';
-
-            // 使用class来控制显示
-            tooltip.classList.remove('hidden');
-            tooltip.classList.add('visible');
-        }
+    diagnosisNetwork = network;
+    network.once('stabilizationIterationsDone', () => {
+        if (diagnosisNetwork !== network) return;
+        network.setOptions({ physics: { enabled: false } });
+        network.fit({ animation: false });
     });
-
-    node.on('mouseout', function(event) {
-        console.log('mouseout事件触发');
-
-        // 恢复节点样式
-        d3.select(this)
-            .transition()
-            .duration(200)
-            .attr('stroke-width', 2)
-            .attr('stroke', '#fff');
-
-        // 恢复链接样式
-        if (currentLinks) {
-            currentLinks.style('stroke', '#999')
-            .style('stroke-width', 2);
-        }
-
-        // 隐藏工具提示
-        const tooltip = document.getElementById('tooltip');
-        if (tooltip) {
-            tooltip.classList.remove('visible');
-            tooltip.classList.add('hidden');
-        }
-    });
-
-    console.log('图表绘制完成');
-}
-
-// 显示工具提示函数
-function showTooltip(event, node) {
-    const tooltip = document.getElementById('tooltip');
-    if (!tooltip) return;
-
-    const masteryPercent = node.mastery_percent || (node.mastery_level * 100).toFixed(1);
-    const displayPercent = node.display_percent ?? ((node.display_level ?? node.mastery_level ?? 0) * 100).toFixed(1);
-
-    tooltip.innerHTML = `
-        <h6>${node.full_name || node.name}</h6>
-        <p><strong>原始掌握度:</strong> ${masteryPercent}%</p>
-        <p><strong>显示分档:</strong> ${node.mastery_label || ''} (${displayPercent}%)</p>
-        <div class="progress progress-thin">
-            <div class="progress-bar" role="progressbar"
-                 style="width: ${displayPercent}%; background-color: ${node.color};">
-            </div>
-        </div>
-        <p><strong>练习次数:</strong> ${node.practice_count || 0}</p>
-        <p><strong>正确次数:</strong> ${node.correct_count || 0}</p>
-        <p><strong>正确率:</strong> ${node.accuracy || 0}%</p>
-        ${node.last_practiced ? `<p><strong>最后练习:</strong> ${node.last_practiced}</p>` : ''}
-    `;
-
-    const container = document.getElementById('graphContainer');
-    const rect = container.getBoundingClientRect();
-
-    tooltip.style.left = (event.clientX - rect.left + 15) + 'px';
-    tooltip.style.top = (event.clientY - rect.top - 100) + 'px';
-    tooltip.style.display = 'block';
-}
-
-function hideTooltip() {
-    const tooltip = document.getElementById('tooltip');
-    if (tooltip) {
-        tooltip.style.display = 'none';
-    }
-}
-
-// 拖拽函数
-function dragstarted(event) {
-    if (!event.active) simulation.alphaTarget(0.3).restart();
-    event.subject.fx = event.subject.x;
-    event.subject.fy = event.subject.y;
-}
-
-function dragged(event) {
-    event.subject.fx = event.x;
-    event.subject.fy = event.y;
-}
-
-function dragended(event) {
-    if (!event.active) simulation.alphaTarget(0);
-    event.subject.fx = null;
-    event.subject.fy = null;
 }
 
 // 更新掌握程度统计
