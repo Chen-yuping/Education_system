@@ -125,6 +125,17 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# Algorithm comparison is started and polled by separate HTTP requests. A
+# file cache keeps task state visible to every worker on this server.
+CACHES = {
+    'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'},
+    'algorithm_comparison': {
+        'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
+        'LOCATION': str(BASE_DIR / '.algorithm_comparison_cache'),
+        'TIMEOUT': 86400,
+    },
+}
+
 AUTH_USER_MODEL = 'accounts.User'
 
 # 认证后端

@@ -21,6 +21,7 @@ import importlib.util
 from .forms import ExerciseForm
 import torch
 from django.conf import settings
+from django.core.cache import caches
 from django.views.decorators.http import require_POST
 from django.utils import timezone
 
@@ -246,11 +247,13 @@ def _train_hiercdf_mastery(data_dir, stats, task=None):
                     started_at=time.time(),
                     batches_per_epoch=math.ceil(len(train_data) / int(params['batch_size'])),
                     total_epochs=int(params['epoch']))
+        _save_algorithm_comparison_task(task['task_id'], task)
     model = HierCDF(*counts, hidden_dim=params['hidden_dim'], know_graph=graph,
                     itf_type='irt', log_path=str(log_dir))
     model.train(params, train_data, q_matrix, valid_data)
     if task is not None:
         task.update(progress=52, message='HierCDF 训练完成，正在提取掌握度')
+        _save_algorithm_comparison_task(task['task_id'], task)
     with torch.no_grad():
         mastery = torch.cat([
             model.get_posterior(torch.arange(start, min(start + 256, counts[0])), device='cpu')
@@ -261,6 +264,7 @@ def _train_hiercdf_mastery(data_dir, stats, task=None):
     edges = [(int(source), int(target)) for source, target in graph.iloc[:, :2].itertuples(index=False, name=None)]
     if task is not None:
         task.pop('log_dir', None)
+        _save_algorithm_comparison_task(task['task_id'], task)
     return mastery, edges
 
 
@@ -295,23 +299,27 @@ def researcher_algorithm_comparison_data(request):
 
     import uuid
     task_id = uuid.uuid4().hex
-    algorithm_comparison_tasks[task_id] = {
+    task = {
         'user_id': request.user.pk, 'status': 'queued', 'progress': 0,
-        'message': '等待训练资源',
+        'message': '等待训练资源', 'task_id': task_id,
     }
+    _save_algorithm_comparison_task(task_id, task)
     threading.Thread(target=_run_algorithm_comparison,
                      args=(task_id, data_dir, related_model.name), daemon=True).start()
     return JsonResponse({'task_id': task_id})
 
 
 def _run_algorithm_comparison(task_id, data_dir, related_model_name):
-    task = algorithm_comparison_tasks[task_id]
+    task = _load_algorithm_comparison_task(task_id)
     try:
         task.update(status='training', progress=2, message='读取数据集')
+        _save_algorithm_comparison_task(task_id, task)
         result = _calculate_algorithm_comparison(task, data_dir, related_model_name)
         task.update(status='completed', progress=100, message='分析完成', result=result)
+        _save_algorithm_comparison_task(task_id, task)
     except Exception as exc:
         task.update(status='failed', message=f'诊断分析失败：{exc}')
+        _save_algorithm_comparison_task(task_id, task)
 
 
 def _calculate_algorithm_comparison(task, data_dir, related_model_name):
@@ -330,18 +338,22 @@ def _calculate_algorithm_comparison(task, data_dir, related_model_name):
             if len(columns) == 2 and columns[0].isdigit():
                 skill_names[int(columns[0])] = columns[1].strip()
     task.update(progress=5, message='数据已准备，等待模型训练')
+    _save_algorithm_comparison_task(task['task_id'], task)
     try:
         stats = context['stats']
         with training_execution_lock:
             try:
                 if related_model_name == 'HierCDF':
                     task.update(progress=8, message='正在训练 HierCDF')
+                    _save_algorithm_comparison_task(task['task_id'], task)
                     relation_mastery, hier_edges = _train_hiercdf_mastery(data_dir, stats, task)
                 else:
                     task.update(progress=8, message=f'正在训练 {related_model_name}')
+                    _save_algorithm_comparison_task(task['task_id'], task)
                     _, trained_model = train_from_context(context, model_name=related_model_name)
                     relation_mastery = extract_mastery(trained_model)
                 task.update(progress=55, message='正在训练 NCDM')
+                _save_algorithm_comparison_task(task['task_id'], task)
                 torch.set_default_dtype(torch.float32)
                 from .diagnosis.CMD_survey.model.NCDM import NCDM
                 from .diagnosis.dual_relation_ncdm.platform import build_loader
@@ -360,8 +372,12 @@ def _calculate_algorithm_comparison(task, data_dir, related_model_name):
                         self.epoch += 1
                         for index, batch in enumerate(self.batches, 1):
                             completed = (self.epoch - 1) * len(self.batches) + index
-                            task.update(progress=min(94, 55 + round(40 * completed / (10 * len(self.batches)))),
+                            new_progress = min(94, 55 + round(40 * completed / (10 * len(self.batches))))
+                            previous_progress = task['progress']
+                            task.update(progress=new_progress,
                                         message=f'NCDM 第 {self.epoch}/10 轮，批次 {index}/{len(self.batches)}')
+                            if new_progress != previous_progress or index == len(self.batches):
+                                _save_algorithm_comparison_task(task['task_id'], task)
                             yield batch
 
                 baseline = NCDM(stats['knowledge_n'], stats['exercise_n'], stats['student_n'])
@@ -373,6 +389,7 @@ def _calculate_algorithm_comparison(task, data_dir, related_model_name):
             finally:
                 torch.set_default_dtype(torch.float32)
         task.update(progress=96, message='正在计算知识点平均掌握率')
+        _save_algorithm_comparison_task(task['task_id'], task)
         observed = defaultdict(lambda: [0.0, 0])
         for row in context['log_rows']:
             student = normalize_index(row['user_id'], stats['student_n'])
@@ -418,13 +435,18 @@ def _calculate_algorithm_comparison(task, data_dir, related_model_name):
         torch.set_default_dtype(torch.float32)
 
 
-algorithm_comparison_tasks = {}
+def _save_algorithm_comparison_task(task_id, task):
+    caches['algorithm_comparison'].set(f'algorithm_comparison:{task_id}', task, timeout=86400)
+
+
+def _load_algorithm_comparison_task(task_id):
+    return caches['algorithm_comparison'].get(f'algorithm_comparison:{task_id}')
 
 
 @login_required
 @user_passes_test(is_researcher)
 def researcher_algorithm_comparison_status(request):
-    task = algorithm_comparison_tasks.get(request.GET.get('task_id'))
+    task = _load_algorithm_comparison_task(request.GET.get('task_id'))
     if not task or task['user_id'] != request.user.pk:
         return JsonResponse({'error': '未找到该分析任务。'}, status=404)
     response = {key: task[key] for key in ('status', 'progress', 'message')}

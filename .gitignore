@@ -13,6 +13,7 @@ env/
 # Django
 *.sqlite3
 *.log
+.algorithm_comparison_cache/
 
 # 编辑器
 .vscode/
