@@ -1,0 +1,16 @@
+2026-09-22-15_15_51 (0 s used) Before HierCDF train.
+hparams = {
+  n_user: 4209,
+  n_item: 15,
+  n_know: 11,
+  max_exercise_id: 15,
+  hidden_dim: 1,
+  lr: 0.01,
+  epoch: 5,
+  batch_size: 64,
+  logger_mode: both,
+  loss_factor: 1.0,
+  batch_show: 200,
+  device: cpu,
+  Hier_log_path: D:\Project\Learning platform\Github\Education_system\learning\diagnosis\CMD_survey\model\HierCDF\logs\Math1
+}

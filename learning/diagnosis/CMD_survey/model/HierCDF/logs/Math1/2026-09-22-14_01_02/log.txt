@@ -1,0 +1,61 @@
+2026-09-22-14_01_02 (0 s used) Before HierCDF train.
+hparams = {
+  n_user: 4209,
+  n_item: 15,
+  n_know: 11,
+  max_exercise_id: 15,
+  hidden_dim: 1,
+  lr: 0.01,
+  epoch: 5,
+  batch_size: 64,
+  logger_mode: both,
+  loss_factor: 1.0,
+  batch_show: 200,
+  device: cpu,
+  Hier_log_path: D:\Project\Learning platform\Github\Education_system\learning\diagnosis\CMD_survey\model\HierCDF\logs\Math1
+}
+2026-09-22-14_01_08 (6 s used) HierCDF:epoch = 1, batch = 199, loss = 5.312362559605752
+2026-09-22-14_01_14 (12 s used) HierCDF:epoch = 1, batch = 399, loss = 0.7803616584559059
+2026-09-22-14_01_20 (18 s used) HierCDF:epoch = 1, batch = 599, loss = 0.6454365056163012
+2026-09-22-14_01_27 (25 s used) HierCDF:epoch = 1, train_f1 = 0.5908766928011404
+2026-09-22-14_01_28 (26 s used) HierCDF:valid acc = 0.6017264591747842
+2026-09-22-14_01_28 (26 s used) HierCDF:valid f1  = 0.7038454743536894
+2026-09-22-14_01_28 (26 s used) HierCDF:valid auc = 0.7058751619120968
+2026-09-22-14_01_28 (26 s used) HierCDF:valid mse = 0.22312536248647188
+
+2026-09-22-14_01_34 (32 s used) HierCDF:epoch = 2, batch = 199, loss = 0.6402284013465364
+2026-09-22-14_01_40 (38 s used) HierCDF:epoch = 2, batch = 399, loss = 0.6345482380330912
+2026-09-22-14_01_46 (44 s used) HierCDF:epoch = 2, batch = 599, loss = 0.6287343643772954
+2026-09-22-14_01_52 (50 s used) HierCDF:epoch = 2, train_f1 = 0.6236041815157994
+2026-09-22-14_01_54 (52 s used) HierCDF:valid acc = 0.604656688049418
+2026-09-22-14_01_54 (52 s used) HierCDF:valid f1  = 0.6906296479920675
+2026-09-22-14_01_54 (52 s used) HierCDF:valid auc = 0.7075504184824438
+2026-09-22-14_01_54 (52 s used) HierCDF:valid mse = 0.2198548388937327
+
+2026-09-22-14_02_00 (58 s used) HierCDF:epoch = 3, batch = 199, loss = 0.6189310633588403
+2026-09-22-14_02_06 (64 s used) HierCDF:epoch = 3, batch = 399, loss = 0.610432607661844
+2026-09-22-14_02_12 (70 s used) HierCDF:epoch = 3, batch = 599, loss = 0.6062031353852099
+2026-09-22-14_02_18 (76 s used) HierCDF:epoch = 3, train_f1 = 0.6578363823552704
+2026-09-22-14_02_19 (77 s used) HierCDF:valid acc = 0.6091708244238536
+2026-09-22-14_02_19 (77 s used) HierCDF:valid f1  = 0.6877570389117368
+2026-09-22-14_02_19 (77 s used) HierCDF:valid auc = 0.7057803112257128
+2026-09-22-14_02_19 (77 s used) HierCDF:valid mse = 0.2186901351528999
+
+2026-09-22-14_02_25 (83 s used) HierCDF:epoch = 4, batch = 199, loss = 0.6057105255847484
+2026-09-22-14_02_31 (89 s used) HierCDF:epoch = 4, batch = 399, loss = 0.5973293246453066
+2026-09-22-14_02_37 (95 s used) HierCDF:epoch = 4, batch = 599, loss = 0.5943608061144526
+2026-09-22-14_02_44 (102 s used) HierCDF:epoch = 4, train_f1 = 0.6757939336342758
+2026-09-22-14_02_45 (103 s used) HierCDF:valid acc = 0.6088540429238932
+2026-09-22-14_02_45 (103 s used) HierCDF:valid f1  = 0.6891951419042225
+2026-09-22-14_02_45 (103 s used) HierCDF:valid auc = 0.7059365135439993
+2026-09-22-14_02_45 (103 s used) HierCDF:valid mse = 0.21851899644578165
+
+2026-09-22-14_02_51 (109 s used) HierCDF:epoch = 5, batch = 199, loss = 0.5982621873505505
+2026-09-22-14_02_58 (116 s used) HierCDF:epoch = 5, batch = 399, loss = 0.5893934528444315
+2026-09-22-14_03_04 (122 s used) HierCDF:epoch = 5, batch = 599, loss = 0.5868023730350285
+2026-09-22-14_03_10 (128 s used) HierCDF:epoch = 5, train_f1 = 0.6830997069771125
+2026-09-22-14_03_11 (129 s used) HierCDF:valid acc = 0.6068741585491407
+2026-09-22-14_03_11 (129 s used) HierCDF:valid f1  = 0.6893617021276597
+2026-09-22-14_03_11 (129 s used) HierCDF:valid auc = 0.7061628030752891
+2026-09-22-14_03_11 (129 s used) HierCDF:valid mse = 0.21874581706179802
+

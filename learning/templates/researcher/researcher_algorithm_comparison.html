@@ -1,0 +1,170 @@
+{% extends 'researcher/researcher-base.html' %}
+
+{% block title %}算法对比 - 科研管理{% endblock %}
+
+{% block extra_css %}
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<style>
+  .comparison-container { padding: 20px; }
+  .diagnosis-config, .analysis-result { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,.1); }
+  .diagnosis-config { margin-bottom: 20px; }
+  .config-title, .result-title { font-size: 1.1rem; font-weight: 600; color: #333; margin-bottom: 15px; }
+  .config-title i, .result-title i { color: #007bff; margin-right: 8px; }
+  .config-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 15px; }
+  .config-item { display: flex; flex-direction: column; }
+  .config-item label { font-size: .9rem; font-weight: 500; color: #555; margin-bottom: 8px; }
+  .config-item select { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: .95rem; background: #fff; }
+  .config-item select:focus { outline: none; border-color: #007bff; box-shadow: 0 0 0 3px rgba(0,123,255,.1); }
+  .config-actions { display: flex; align-items: center; }
+  .btn-analyze { padding: 10px 20px; background: #28a745; color: #fff; border: 0; border-radius: 4px; font-weight: 500; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; transition: all .3s ease; }
+  .btn-analyze:hover { background: #218838; transform: translateY(-2px); box-shadow: 0 4px 8px rgba(40,167,69,.3); }
+  .btn-analyze:disabled { opacity: .65; cursor: wait; transform: none; }
+  .analysis-result { display: none; }
+  .analysis-result.active { display: block; }
+  .graph-hint { color: #666; font-size: .9rem; margin-bottom: 12px; }
+  .graph-legend { display: flex; flex-wrap: wrap; gap: 18px; color: #555; font-size: .9rem; margin: 15px 0; }
+  .graph-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; }
+  .knowledge-graph { height: 700px; min-height: 420px; border: 2px solid #dee2e6; background: #f8f9fa; border-radius: 8px; }
+  .graph-stats { margin-top: 14px; padding: 12px 16px; border-radius: 6px; background: #d1ecf1; color: #0c5460; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+  #algorithmStatus { margin: 0 0 20px; min-height: 24px; color: #666; }
+  .analysis-progress { display: none; margin: -8px 0 20px; }
+  .analysis-progress.active { display: block; }
+  .analysis-progress-track { height: 18px; overflow: hidden; border-radius: 9px; background: #e9ecef; }
+  .analysis-progress-bar { height: 100%; width: 0; border-radius: 9px; background: #28a745; color: #fff; font-size: 12px; text-align: center; line-height: 18px; transition: width .35s ease; }
+  @media (max-width: 768px) { .config-row { grid-template-columns: 1fr; } .btn-analyze { width: 100%; justify-content: center; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="comparison-container">
+  <div class="diagnosis-config">
+    <div class="config-title"><i class="fas fa-cog"></i>诊断配置</div>
+    <div class="config-row">
+      <div class="config-item"><label for="datasetSelect">数据集</label><select id="datasetSelect"><option value="">-- 选择数据集 --</option>{% for dataset in datasets %}<option value="{{ dataset.id }}">{{ dataset.name }}</option>{% endfor %}</select></div>
+      <div class="config-item"><label for="independentModelSelect">不考虑知识点关联的模型</label><select id="independentModelSelect"><option value="">-- 选择诊断模型 --</option>{% for model in independent_models %}<option value="{{ model.id }}">{{ model.name }}</option>{% endfor %}</select></div>
+      <div class="config-item"><label for="relatedModelSelect">考虑知识点关联的模型</label><select id="relatedModelSelect"><option value="">-- 选择诊断模型 --</option>{% for model in related_models %}<option value="{{ model.id }}">{{ model.name }}</option>{% endfor %}</select></div>
+    </div>
+    <div class="config-actions"><button id="analyzeButton" class="btn-analyze" type="button"><i class="fas fa-play"></i>开始诊断分析</button></div>
+  </div>
+  <div id="algorithmStatus" role="status">请选择数据集和模型。</div>
+  <div id="analysisProgress" class="analysis-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="诊断分析进度"><div class="analysis-progress-track"><div id="analysisProgressBar" class="analysis-progress-bar">0%</div></div></div>
+  <div class="analysis-result" id="analysisResult">
+    <div class="result-title"><i class="fas fa-project-diagram"></i>诊断分析结果 · 知识点关系图谱</div>
+    <p class="graph-hint">节点显示知识点 ID、名称及两类模型的平均掌握率。节点颜色由考虑知识点关联模型的平均掌握率决定，鼠标悬停可查看详情。</p>
+    <div id="knowledgeGraph" class="knowledge-graph" aria-label="知识点关系图谱"></div>
+    <div id="graphStats" class="graph-stats" style="display:none"><span id="graphCount"></span><span><i class="fas fa-mouse-pointer"></i> 悬停查看详情　<i class="fas fa-arrows-alt"></i> 拖拽节点　<i class="fas fa-search"></i> 滚轮缩放</span></div>
+    <div class="graph-legend">
+      <span><i class="legend-dot" style="background:#2ecc71"></i>大于 52%</span>
+      <span><i class="legend-dot" style="background:#f39c12"></i>50%–52%</span>
+      <span><i class="legend-dot" style="background:#e74c3c"></i>小于 50%</span>
+      <span><i class="legend-dot" style="background:#95a5a6"></i>无记录</span>
+    </div>
+  </div>
+</div>
+<script>
+const button = document.getElementById('analyzeButton');
+const status = document.getElementById('algorithmStatus');
+const progress = document.getElementById('analysisProgress');
+const progressBar = document.getElementById('analysisProgressBar');
+let knowledgeNetwork = null;
+function updateProgress(value, message) {
+  const percent = Math.max(0, Math.min(100, Number(value) || 0));
+  progress.classList.add('active');
+  progress.setAttribute('aria-valuenow', String(percent));
+  progressBar.style.width = `${percent}%`;
+  progressBar.textContent = `${percent}%`;
+  status.textContent = message || '正在分析…';
+}
+const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+function renderKnowledgeGraph(data) {
+  const container = document.getElementById('knowledgeGraph');
+  if (knowledgeNetwork) { knowledgeNetwork.destroy(); knowledgeNetwork = null; }
+  container.replaceChildren();
+  if (!window.vis) { container.textContent = '图谱组件加载失败，请刷新页面后重试。'; return; }
+  const points = data.knowledge_points || [];
+  if (!points.length) { container.textContent = '当前数据集没有知识点。'; return; }
+  const nodes = new vis.DataSet(points.map(point => {
+    const skillLabel = point.skill_name ? `${point.name} · ${point.skill_name}` : String(point.name);
+    const independent = point.independent === null ? '暂无数据' : `${point.independent.toFixed(1)}%`;
+    const related = point.related === null ? '暂无数据' : `${point.related.toFixed(1)}%`;
+    const color = point.related === null ? '#95a5a6'
+      : point.related < 50 ? '#e74c3c' : point.related <= 52 ? '#f39c12' : '#2ecc71';
+    const tooltip = document.createElement('div');
+    tooltip.style.whiteSpace = 'pre-line';
+    tooltip.textContent = `知识点 ${skillLabel}\n不考虑关系的平均掌握率：${independent}\n考虑关系的平均掌握率：${related}\n诊断学生数：${point.students}`;
+    return {
+      id: String(point.id),
+      label: `${skillLabel.replace(/(.{10})(?=.)/gu, '$1\n')}\n不考虑关系：${independent}\n考虑关系：${related}`,
+      title: tooltip,
+      shape: 'dot', size: 25,
+      color: {background: color, border: color, highlight: {background: color, border: '#1a2332'}, hover: {background: color, border: '#1a2332'}},
+      borderWidth: 2,
+      font: {color: '#1a2332', size: 12, face: 'sans-serif', strokeWidth: 3, strokeColor: '#fff', align: 'center'},
+    };
+  }));
+  const ids = new Set(nodes.getIds());
+  const edges = new vis.DataSet((data.relations || [])
+    .filter(edge => ids.has(String(edge.source)) && ids.has(String(edge.target)))
+    .map(edge => ({
+      from: String(edge.source), to: String(edge.target), arrows: 'to',
+      color: {color: '#f59e0b', highlight: '#ff5722'},
+      width: 2, label: '先修',
+      font: {size: 11, color: '#666', strokeWidth: 2, strokeColor: '#fff'},
+      smooth: {type: 'curvedCW', roundness: .1},
+    })));
+  const network = new vis.Network(container, {nodes, edges}, {
+    autoResize: true, width: '100%', height: '100%', locale: 'zh-CN',
+    interaction: {hover: true, tooltipDelay: 200, zoomView: true, dragView: true, dragNodes: true},
+    physics: {
+      solver: 'barnesHut',
+      barnesHut: {gravitationalConstant: -6000, centralGravity: .15, springLength: 240, springConstant: .03, damping: .5, avoidOverlap: 1},
+      stabilization: {enabled: true, iterations: 1000},
+    },
+    nodes: {shadow: {enabled: true, size: 4, x: 2, y: 2}},
+  });
+  knowledgeNetwork = network;
+  network.once('stabilizationIterationsDone', () => {
+    if (knowledgeNetwork !== network) return;
+    network.setOptions({physics: {enabled: false}});
+    network.fit({animation: false});
+  });
+  document.getElementById('graphCount').textContent = `共 ${points.length} 个知识点，${edges.length} 个关系`;
+  document.getElementById('graphStats').style.display = 'flex';
+}
+button.addEventListener('click', async () => {
+  const dataset_id = document.getElementById('datasetSelect').value;
+  const independent_model_id = document.getElementById('independentModelSelect').value;
+  const related_model_id = document.getElementById('relatedModelSelect').value;
+  if (!dataset_id || !independent_model_id || !related_model_id) { status.textContent = '请选择数据集和两类模型。'; return; }
+  button.disabled = true;
+  document.getElementById('analysisResult').classList.add('active');
+  if (knowledgeNetwork) { knowledgeNetwork.destroy(); knowledgeNetwork = null; }
+  document.getElementById('graphStats').style.display = 'none';
+  document.getElementById('knowledgeGraph').textContent = '正在生成知识点关系图谱…';
+  updateProgress(0, '正在提交分析任务…');
+  try {
+    const response = await fetch('{% url "researcher_algorithm_comparison_data" %}', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+      body: JSON.stringify({dataset_id, independent_model_id, related_model_id})
+    });
+    const started = await response.json();
+    if (!response.ok) throw new Error(started.error || '分析失败');
+    let data;
+    while (true) {
+      await pause(1200);
+      const stateResponse = await fetch(`{% url "researcher_algorithm_comparison_status" %}?task_id=${encodeURIComponent(started.task_id)}`, {cache: 'no-store'});
+      const state = await stateResponse.json();
+      if (!stateResponse.ok) throw new Error(state.error || '无法读取分析进度');
+      updateProgress(state.progress, state.message);
+      if (state.status === 'failed') throw new Error(state.message || '分析失败');
+      if (state.status === 'completed') { data = state.result; break; }
+    }
+    renderKnowledgeGraph(data);
+    status.textContent = `分析完成：${data.student_count} 名学生，${data.knowledge_points.length} 个知识点，${data.relations.length} 条先修关系。掌握率单位为 %。`;
+  } catch (error) { status.textContent = error.message; progress.classList.remove('active'); document.getElementById('knowledgeGraph').textContent = '图谱生成失败。'; }
+  finally { button.disabled = false; }
+});
+</script>
+{% endblock %}

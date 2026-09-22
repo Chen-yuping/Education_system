@@ -338,7 +338,9 @@
         background: white;
         border-radius: 8px;
         box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        overflow: hidden;
+        max-height: 600px;
+        overflow: auto;
+        margin-bottom: 20px;
     }
 
     .models-table table {
@@ -351,6 +353,11 @@
     }
 
     .models-table th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: #667eea;
+        color: white;
         padding: 15px;
         font-weight: 600;
         border: none;
@@ -472,33 +479,6 @@
         cursor: not-allowed;
     }
 
-    .pagination {
-        margin-top: 20px;
-    }
-
-    .page-link {
-        color: #007bff;
-        border-color: #dee2e6;
-        transition: all 0.2s ease;
-        cursor: pointer;
-    }
-
-    .page-link:hover {
-        color: white;
-        background-color: #007bff;
-        border-color: #007bff;
-    }
-
-    .page-item.active .page-link {
-        background-color: #007bff;
-        border-color: #007bff;
-    }
-
-    .page-item.disabled .page-link {
-        color: #6c757d;
-        cursor: not-allowed;
-    }
-
     .info-section {
         background-color: #f8f9fa;
         padding: 15px;
@@ -604,7 +584,7 @@
     </div>
 
     <!-- 诊断模型表格 -->
-    <div class="models-table">
+    <div class="models-table" tabindex="0" role="region" aria-label="诊断模型列表">
         <table class="table">
             <thead>
                 <tr>
@@ -616,7 +596,7 @@
                 </tr>
             </thead>
             <tbody>
-                {% for model in page_obj %}
+                {% for model in models %}
                 <tr>
                     <td class="model-name">{{ model.name }}</td>
                     <td>
@@ -661,62 +641,6 @@
     </div>
 
     <!-- 分页控件 -->
-    <div class="pagination-container">
-        {% if page_obj.has_other_pages %}
-        <nav aria-label="分页导航" class="mt-4">
-            <ul class="pagination justify-content-center">
-                {% if page_obj.has_previous %}
-                <li class="page-item">
-                    <a class="page-link pagination-link" href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}{% if category_filter %}&category={{ category_filter }}{% endif %}">&laquo;&laquo;</a>
-                </li>
-                <li class="page-item">
-                    <a class="page-link pagination-link" href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if category_filter %}&category={{ category_filter }}{% endif %}">&laquo;</a>
-                </li>
-                {% else %}
-                <li class="page-item disabled">
-                    <span class="page-link">&laquo;&laquo;</span>
-                </li>
-                <li class="page-item disabled">
-                    <span class="page-link">&laquo;</span>
-                </li>
-                {% endif %}
-
-                {% for num in page_obj.paginator.page_range %}
-                    {% if page_obj.number == num %}
-                    <li class="page-item active">
-                        <span class="page-link">{{ num }}</span>
-                    </li>
-                    {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
-                    <li class="page-item">
-                        <a class="page-link pagination-link" href="?page={{ num }}{% if search_query %}&search={{ search_query }}{% endif %}{% if category_filter %}&category={{ category_filter }}{% endif %}">{{ num }}</a>
-                    </li>
-                    {% endif %}
-                {% endfor %}
-
-                {% if page_obj.has_next %}
-                <li class="page-item">
-                    <a class="page-link pagination-link" href="?page={{ page_obj.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if category_filter %}&category={{ category_filter }}{% endif %}">&raquo;</a>
-                </li>
-                <li class="page-item">
-                    <a class="page-link pagination-link" href="?page={{ page_obj.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}{% if category_filter %}&category={{ category_filter }}{% endif %}">&raquo;&raquo;</a>
-                </li>
-                {% else %}
-                <li class="page-item disabled">
-                    <span class="page-link">&raquo;</span>
-                </li>
-                <li class="page-item disabled">
-                    <span class="page-link">&raquo;&raquo;</span>
-                </li>
-                {% endif %}
-            </ul>
-        </nav>
-
-        <div class="text-center text-muted mt-3 mb-4">
-            <small>第 {{ page_obj.number }} 页，共 {{ page_obj.paginator.num_pages }} 页</small>
-        </div>
-        {% endif %}
-    </div>
-
     <!-- 信息说明 -->
     <div class="info-section">
         <h5><i class="fas fa-info-circle me-2"></i>模型说明</h5>
@@ -757,7 +681,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    attachPaginationListeners();
 });
 
 function performSearch() {
@@ -827,33 +750,7 @@ function updateTableAndInfo(data) {
         clearBtn.style.display = 'none';
     }
     
-    const paginationContainer = document.querySelector('.pagination-container');
-    if (data.pagination_html && paginationContainer) {
-        paginationContainer.innerHTML = data.pagination_html;
-        attachPaginationListeners();
-    }
-}
-
-function attachPaginationListeners() {
-    const paginationLinks = document.querySelectorAll('.pagination-link');
-    
-    paginationLinks.forEach(link => {
-        link.addEventListener('click', function(e) {
-            e.preventDefault();
-            const url = this.href;
-            
-            fetch(url + (url.includes('?') ? '&' : '?') + 'ajax=1', {
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                updateTableAndInfo(data);
-            })
-            .catch(error => console.error('Error:', error));
-        });
-    });
+    document.querySelector('.models-table').scrollTop = 0;
 }
 </script>
 

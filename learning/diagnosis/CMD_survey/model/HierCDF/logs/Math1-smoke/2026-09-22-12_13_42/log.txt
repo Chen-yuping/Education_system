@@ -1,0 +1,21 @@
+2026-09-22-12_13_42 (0 s used) Before HierCDF train.
+hparams = {
+  n_user: 4209,
+  n_item: 15,
+  n_know: 11,
+  max_exercise_id: 15,
+  hidden_dim: 1,
+  lr: 0.01,
+  epoch: 1,
+  batch_size: 128,
+  logger_mode: file,
+  loss_factor: 1.0,
+  batch_show: 200,
+  device: cpu
+}
+2026-09-22-12_13_43 (1 s used) HierCDF:epoch = 1, train_f1 = 0.390625
+2026-09-22-12_13_43 (1 s used) HierCDF:valid acc = 0.44921875
+2026-09-22-12_13_43 (1 s used) HierCDF:valid f1  = 0.16568047337278105
+2026-09-22-12_13_43 (1 s used) HierCDF:valid auc = 0.4250385445575085
+2026-09-22-12_13_43 (1 s used) HierCDF:valid mse = 0.2618461967678422
+

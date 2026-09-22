@@ -12,6 +12,7 @@ from django.core.paginator import Paginator
 import json
 import math
 import re
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from .models import Exercise, Subject, KnowledgePoint, Choice, QMatrix, AnswerLog, StudentDiagnosis
@@ -115,16 +116,11 @@ def researcher_diagnosis_models(request):
     gnn_models = DiagnosisModel.objects.filter(is_active=True, category='gnn')
     llm_models = DiagnosisModel.objects.filter(is_active=True, category='llm')
     
-    # 分页处理 - 每页10条
-    paginator = Paginator(all_models, 10)
-    page_number = request.GET.get('page', 1)
-    page_obj = paginator.get_page(page_number)
-
     # 检查是否是AJAX请求
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         # 构建表格HTML
         table_html = ''
-        for model in page_obj:
+        for model in all_models:
             category_label = dict(category_choices).get(model.category, '')
             table_html += f'''
             <tr>
@@ -148,7 +144,7 @@ def researcher_diagnosis_models(request):
             </tr>
             '''
         
-        if not page_obj:
+        if not all_models:
             table_html = '''
             <tr>
                 <td colspan="5" class="text-center py-4 text-muted">
@@ -158,74 +154,13 @@ def researcher_diagnosis_models(request):
             </tr>
             '''
         
-        # 构建分页HTML
-        pagination_html = ''
-        if page_obj.has_other_pages:
-            pagination_html = '<nav aria-label="分页导航" class="mt-4"><ul class="pagination justify-content-center">'
-            
-            if page_obj.has_previous:
-                pagination_html += f'''
-                <li class="page-item">
-                    <a class="page-link pagination-link" href="?page=1{'&search=' + search_query if search_query else ''}{'&category=' + category_filter if category_filter else ''}">&laquo;&laquo;</a>
-                </li>
-                <li class="page-item">
-                    <a class="page-link pagination-link" href="?page={page_obj.previous_page_number}{'&search=' + search_query if search_query else ''}{'&category=' + category_filter if category_filter else ''}">&laquo;</a>
-                </li>
-                '''
-            else:
-                pagination_html += '''
-                <li class="page-item disabled">
-                    <span class="page-link">&laquo;&laquo;</span>
-                </li>
-                <li class="page-item disabled">
-                    <span class="page-link">&laquo;</span>
-                </li>
-                '''
-            
-            for num in page_obj.paginator.page_range:
-                if page_obj.number == num:
-                    pagination_html += f'<li class="page-item active"><span class="page-link">{num}</span></li>'
-                elif num > page_obj.number - 3 and num < page_obj.number + 3:
-                    pagination_html += f'''
-                    <li class="page-item">
-                        <a class="page-link pagination-link" href="?page={num}{'&search=' + search_query if search_query else ''}{'&category=' + category_filter if category_filter else ''}">{num}</a>
-                    </li>
-                    '''
-            
-            if page_obj.has_next:
-                pagination_html += f'''
-                <li class="page-item">
-                    <a class="page-link pagination-link" href="?page={page_obj.next_page_number}{'&search=' + search_query if search_query else ''}{'&category=' + category_filter if category_filter else ''}">&raquo;</a>
-                </li>
-                <li class="page-item">
-                    <a class="page-link pagination-link" href="?page={page_obj.paginator.num_pages}{'&search=' + search_query if search_query else ''}{'&category=' + category_filter if category_filter else ''}">&raquo;&raquo;</a>
-                </li>
-                '''
-            else:
-                pagination_html += '''
-                <li class="page-item disabled">
-                    <span class="page-link">&raquo;</span>
-                </li>
-                <li class="page-item disabled">
-                    <span class="page-link">&raquo;&raquo;</span>
-                </li>
-                '''
-            
-            pagination_html += '</ul></nav>'
-            pagination_html += f'''
-            <div class="text-center text-muted mt-3 mb-4">
-                <small>第 {page_obj.number} 页，共 {page_obj.paginator.num_pages} 页</small>
-            </div>
-            '''
-        
         return JsonResponse({
             'html': table_html,
-            'pagination_html': pagination_html,
             'total_count': all_models.count(),
         })
 
     context = {
-        'page_obj': page_obj,
+        'models': all_models,
         'total_count': all_models.count(),
         'search_query': search_query,
         'category_filter': category_filter,
@@ -253,8 +188,258 @@ def researcher_performance_comparison(request):
     return render(request, 'researcher/researcher_performance_comparison.html', context)
 
 
+@login_required
+@user_passes_test(is_researcher)
+def researcher_algorithm_comparison(request):
+    from .diagnosis.dual_relation_ncdm import MODEL_NAMES
+    from .diagnosis.dual_relation_ncdm.platform import resolve_system_dataset_dir
+
+    datasets = [dataset for dataset in Dataset.objects.all()
+                if resolve_system_dataset_dir(dataset.name) or
+                (dataset.name.casefold() in {'math', 'math1'} and
+                 (Path(settings.BASE_DIR) / 'learning/diagnosis/CMD_survey/data/Math1/train.csv').exists())]
+    independent_names = {'NCDM'}
+    related_names = MODEL_NAMES | {'HierCDF', 'ConCDF', 'PCG-CDF', 'QCCDM'}
+    independent_models = DiagnosisModel.objects.filter(is_active=True, name__in=independent_names)
+    related_models = DiagnosisModel.objects.filter(is_active=True, name__in=related_names)
+    return render(request, 'researcher/researcher_algorithm_comparison.html', {
+        'datasets': datasets,
+        'independent_models': independent_models,
+        'related_models': related_models,
+    })
+
+
+def _train_hiercdf_mastery(data_dir, stats, task=None):
+    """Train HierCDF on its native data and return student by skill posterior probabilities."""
+    import numpy as np
+    import pandas as pd
+    from .researcher_cdf_compat import ensure_pandas_append
+
+    required = ('config.py', 'knowledge_graphs_prereq.csv', 'q_matrix.txt',
+                'log_split__train_mini.csv', 'log_split__valid_mini.csv')
+    missing = [name for name in required if not (data_dir / name).is_file()]
+    if missing:
+        raise ValueError(f'HierCDF 缺少数据文件：{", ".join(missing)}')
+    ensure_pandas_append()
+    from .diagnosis.CMD_survey.model.HierCDF.HierCDF import HierCDF
+    # HierCDF's data loader creates Double tensors. Its import changes the
+    # default dtype only on first import, so set it on every training run.
+    torch.set_default_dtype(torch.float64)
+
+    spec = importlib.util.spec_from_file_location('comparison_hiercdf_config', data_dir / 'config.py')
+    config = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(config)
+    params = dict(config.hparams)
+    counts = (stats['student_n'], stats['exercise_n'], stats['knowledge_n'])
+    if tuple(int(params[key]) for key in ('n_user', 'n_item', 'n_know')) != counts:
+        raise ValueError('HierCDF 配置中的学生、习题或知识点数量与数据集不一致。')
+    graph = pd.read_csv(data_dir / 'knowledge_graphs_prereq.csv')
+    q_matrix = np.loadtxt(data_dir / 'q_matrix.txt')
+    train_data = pd.read_csv(data_dir / 'log_split__train_mini.csv')
+    valid_data = pd.read_csv(data_dir / 'log_split__valid_mini.csv')
+    params['device'] = torch.device('cpu')
+    log_dir = _cdf_model_log_dir('HierCDF', data_dir.name)
+    params['Hier_log_path'] = str(log_dir)
+    if task is not None:
+        task.update(log_dir=str(log_dir),
+                    before_log_dirs=[str(path) for path in _snapshot_log_dirs(log_dir)],
+                    started_at=time.time(),
+                    batches_per_epoch=math.ceil(len(train_data) / int(params['batch_size'])),
+                    total_epochs=int(params['epoch']))
+    model = HierCDF(*counts, hidden_dim=params['hidden_dim'], know_graph=graph,
+                    itf_type='irt', log_path=str(log_dir))
+    model.train(params, train_data, q_matrix, valid_data)
+    if task is not None:
+        task.update(progress=52, message='HierCDF 训练完成，正在提取掌握度')
+    with torch.no_grad():
+        mastery = torch.cat([
+            model.get_posterior(torch.arange(start, min(start + 256, counts[0])), device='cpu')
+            for start in range(0, counts[0], 256)
+        ]).cpu().numpy()
+    if mastery.shape != (counts[0], counts[2]) or not np.isfinite(mastery).all():
+        raise ValueError('HierCDF 未产生有效的逐知识点掌握度。')
+    edges = [(int(source), int(target)) for source, target in graph.iloc[:, :2].itertuples(index=False, name=None)]
+    if task is not None:
+        task.pop('log_dir', None)
+    return mastery, edges
+
+
+@login_required
+@user_passes_test(is_researcher)
+@require_POST
+def researcher_algorithm_comparison_data(request):
+    """Compare observed mastery with the selected relation-aware model's mastery."""
+    from .diagnosis.dual_relation_ncdm import MODEL_NAMES
+    from .diagnosis.dual_relation_ncdm.platform import resolve_system_dataset_dir
+
+    try:
+        payload = json.loads(request.body)
+        dataset = Dataset.objects.get(pk=payload.get('dataset_id'))
+        independent_model = DiagnosisModel.objects.get(pk=payload.get('independent_model_id'), is_active=True)
+        related_model = DiagnosisModel.objects.get(pk=payload.get('related_model_id'), is_active=True)
+    except (ValueError, TypeError, json.JSONDecodeError, Dataset.DoesNotExist, DiagnosisModel.DoesNotExist):
+        return JsonResponse({'error': '请选择有效的数据集和模型。'}, status=400)
+    if independent_model.name != 'NCDM' or related_model.name not in MODEL_NAMES | {'HierCDF'}:
+        return JsonResponse({'error': '所选模型组合暂不支持逐知识点掌握度输出。'}, status=400)
+    if related_model.name == 'HierCDF' and dataset.name.casefold() in {'math', 'math1'}:
+        from .prepare_math1_hiercdf import prepare_math1_hiercdf, MATH1
+        try:
+            prepare_math1_hiercdf()
+        except (OSError, ValueError) as exc:
+            return JsonResponse({'error': f'Math 数据准备失败：{exc}'}, status=400)
+        data_dir = MATH1
+    else:
+        data_dir = resolve_system_dataset_dir(dataset.name)
+    if not data_dir:
+        return JsonResponse({'error': '未找到该数据集的训练文件。'}, status=400)
+
+    import uuid
+    task_id = uuid.uuid4().hex
+    algorithm_comparison_tasks[task_id] = {
+        'user_id': request.user.pk, 'status': 'queued', 'progress': 0,
+        'message': '等待训练资源',
+    }
+    threading.Thread(target=_run_algorithm_comparison,
+                     args=(task_id, data_dir, related_model.name), daemon=True).start()
+    return JsonResponse({'task_id': task_id})
+
+
+def _run_algorithm_comparison(task_id, data_dir, related_model_name):
+    task = algorithm_comparison_tasks[task_id]
+    try:
+        task.update(status='training', progress=2, message='读取数据集')
+        result = _calculate_algorithm_comparison(task, data_dir, related_model_name)
+        task.update(status='completed', progress=100, message='分析完成', result=result)
+    except Exception as exc:
+        task.update(status='failed', message=f'诊断分析失败：{exc}')
+
+
+def _calculate_algorithm_comparison(task, data_dir, related_model_name):
+    from collections import defaultdict
+    from .diagnosis.dual_relation_ncdm.platform import (
+        build_context_from_json_dir, train_from_context, extract_mastery,
+        normalize_index, read_adjacency_edges,
+    )
+
+    context = build_context_from_json_dir(data_dir)
+    skill_names = {}
+    names_file = data_dir / 'qnames.txt'
+    if names_file.is_file():
+        for line in names_file.read_text(encoding='utf-8-sig').splitlines():
+            columns = line.strip().split(maxsplit=1)
+            if len(columns) == 2 and columns[0].isdigit():
+                skill_names[int(columns[0])] = columns[1].strip()
+    task.update(progress=5, message='数据已准备，等待模型训练')
+    try:
+        stats = context['stats']
+        with training_execution_lock:
+            try:
+                if related_model_name == 'HierCDF':
+                    task.update(progress=8, message='正在训练 HierCDF')
+                    relation_mastery, hier_edges = _train_hiercdf_mastery(data_dir, stats, task)
+                else:
+                    task.update(progress=8, message=f'正在训练 {related_model_name}')
+                    _, trained_model = train_from_context(context, model_name=related_model_name)
+                    relation_mastery = extract_mastery(trained_model)
+                task.update(progress=55, message='正在训练 NCDM')
+                torch.set_default_dtype(torch.float32)
+                from .diagnosis.CMD_survey.model.NCDM import NCDM
+                from .diagnosis.dual_relation_ncdm.platform import build_loader
+                train_batches = [(user, exercise, original_q, score)
+                                 for user, exercise, original_q, _, _, score
+                                 in build_loader(context['train_records'], shuffle=True, seed=20260403)]
+                class ProgressBatches:
+                    def __init__(self, batches):
+                        self.batches = batches
+                        self.epoch = 0
+
+                    def __len__(self):
+                        return len(self.batches)
+
+                    def __iter__(self):
+                        self.epoch += 1
+                        for index, batch in enumerate(self.batches, 1):
+                            completed = (self.epoch - 1) * len(self.batches) + index
+                            task.update(progress=min(94, 55 + round(40 * completed / (10 * len(self.batches)))),
+                                        message=f'NCDM 第 {self.epoch}/10 轮，批次 {index}/{len(self.batches)}')
+                            yield batch
+
+                baseline = NCDM(stats['knowledge_n'], stats['exercise_n'], stats['student_n'])
+                baseline.train_with_curves(ProgressBatches(train_batches), epoch=10,
+                                           device='cuda:0' if torch.cuda.is_available() else 'cpu')
+                baseline.ncdm_net.eval()
+                with torch.no_grad():
+                    independent_mastery = torch.sigmoid(baseline.ncdm_net.student_emb.weight).cpu().numpy()
+            finally:
+                torch.set_default_dtype(torch.float32)
+        task.update(progress=96, message='正在计算知识点平均掌握率')
+        observed = defaultdict(lambda: [0.0, 0])
+        for row in context['log_rows']:
+            student = normalize_index(row['user_id'], stats['student_n'])
+            if student is None:
+                continue
+            for code in row.get('knowledge_code') or []:
+                skill = normalize_index(code, stats['knowledge_n'])
+                if skill is not None:
+                    item = observed[(student, skill)]
+                    item[0] += float(row.get('score', 0) or 0)
+                    item[1] += 1
+
+        by_skill = defaultdict(list)
+        by_student = defaultdict(list)
+        for (student, skill), values in observed.items():
+            by_skill[skill].append((student, values))
+            by_student[student].append((skill, values))
+
+        knowledge_rows = []
+        for skill in range(stats['knowledge_n']):
+            pairs = by_skill[skill]
+            independent = (sum(float(independent_mastery[student][skill]) for student, _ in pairs) / len(pairs)
+                           if pairs else None)
+            related = (sum(float(relation_mastery[student][skill]) for student, _ in pairs) / len(pairs)
+                       if pairs else None)
+            knowledge_rows.append({
+                'id': skill,
+                'name': str(context['skill_mapping'].get(skill, skill + 1)),
+                'skill_name': skill_names.get(int(context['skill_mapping'].get(skill, skill + 1)), ''),
+                'independent': round(independent * 100, 1) if independent is not None else None,
+                'related': round(related * 100, 1) if related is not None else None,
+                'students': len(pairs),
+            })
+        edges = [
+            {'source': source, 'target': target}
+            for source, target in (hier_edges if related_model_name == 'HierCDF'
+                                   else read_adjacency_edges(data_dir, stats))
+            if source is not None and target is not None and source != target
+        ]
+        return {'student_count': len(by_student),
+                'knowledge_points': knowledge_rows, 'relations': edges}
+    finally:
+        torch.set_default_dtype(torch.float32)
+
+
+algorithm_comparison_tasks = {}
+
+
+@login_required
+@user_passes_test(is_researcher)
+def researcher_algorithm_comparison_status(request):
+    task = algorithm_comparison_tasks.get(request.GET.get('task_id'))
+    if not task or task['user_id'] != request.user.pk:
+        return JsonResponse({'error': '未找到该分析任务。'}, status=404)
+    response = {key: task[key] for key in ('status', 'progress', 'message')}
+    if response['status'] == 'completed':
+        response['result'] = task['result']
+    if response['status'] == 'training' and 'log_dir' in task:
+        detail = _hiercdf_progress(task)
+        response['progress'] = max(response['progress'], min(54, 8 + round(detail['progress'] * .46)))
+        response['message'] = f"HierCDF：{detail['message']}"
+    return JsonResponse(response)
+
+
 # 训练状态存储（实际生产环境应该用数据库或缓存）
 training_tasks = {}
+training_execution_lock = threading.Lock()
 
 def _cdf_model_log_dir(model_name, dataset_name):
     return (
@@ -361,8 +546,41 @@ def _parse_cdf_training_curves(log_file):
 
     return curves
 
+
+def _hiercdf_progress(task):
+    log_dir = Path(task['log_dir'])
+    before_dirs = {Path(path) for path in task['before_log_dirs']}
+    log_file = _find_newest_log_file(log_dir, before_dirs)
+    if not log_file or log_file.stat().st_mtime < task['started_at']:
+        return {'progress': 0, 'message': '准备训练数据'}
+    lines = log_file.read_text(encoding='utf-8', errors='ignore')
+    updates = [line.split('HierCDF:', 1)[-1].strip() for line in lines.splitlines()
+               if 'HierCDF:' in line]
+    message = updates[-1] if updates else '模型已启动'
+    batches = re.findall(r'epoch\s*=\s*(\d+),\s*batch\s*=\s*(\d+)', lines)
+    if not batches:
+        return {'progress': 0, 'message': message}
+    epoch, batch = map(int, batches[-1])
+    completed = (epoch - 1) * task['batches_per_epoch'] + batch + 1
+    total = task['batches_per_epoch'] * task['total_epochs']
+    return {'progress': min(99, round(completed / total * 100)) if total else 0,
+            'message': message}
+
 """后台执行训练任务"""
-def run_training_task(dataset_name, model_name, experiment_id, user_id):
+def run_training_task(dataset_name, model_name, experiment_id, user_id, task_key):
+    # HierCDF changes PyTorch's process-wide default dtype at import time.
+    # Run comparison models one at a time so that it cannot alter NCDM's
+    # parameters or Adam state while NCDM is training.
+    with training_execution_lock:
+        training_tasks[task_key] = {'status': 'training'}
+        try:
+            torch.set_default_dtype(torch.float64 if model_name == 'HierCDF' else torch.float32)
+            _run_training_task(dataset_name, model_name, experiment_id, user_id, task_key)
+        finally:
+            torch.set_default_dtype(torch.float32)
+
+
+def _run_training_task(dataset_name, model_name, experiment_id, user_id, task_key):
     import os
     try:
         print(f"========== 开始训练任务: {dataset_name}_{model_name} ==========")
@@ -373,14 +591,33 @@ def run_training_task(dataset_name, model_name, experiment_id, user_id):
             print(f"检测到 {model_name} 模型，使用专用适配器训练")
 
             device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+            cdf_dataset_name = 'Math1' if model_name == 'HierCDF' and dataset_name.casefold() in {'math', 'math1'} else dataset_name
             if model_name == 'IdpCDF':
                 model_dir_name = 'IdpCDF'
             elif model_name == 'PCG-CDF':
                 model_dir_name = 'PCGCDF'
             else:
                 model_dir_name = model_name
-            log_dir = _cdf_model_log_dir(model_dir_name, dataset_name)
+            log_dir = _cdf_model_log_dir(model_dir_name, cdf_dataset_name)
             before_log_dirs = _snapshot_log_dirs(log_dir)
+            if model_name == 'HierCDF':
+                config_path = Path(settings.BASE_DIR) / 'learning' / 'diagnosis' / 'CMD_survey' / 'data' / cdf_dataset_name / 'config.py'
+                train_path = config_path.parent / 'log_split__train_mini.csv'
+                if cdf_dataset_name == 'Math1':
+                    from .prepare_math1_hiercdf import prepare_math1_hiercdf
+                    prepare_math1_hiercdf()
+                spec = importlib.util.spec_from_file_location('hiercdf_progress_config', config_path)
+                config_module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(config_module)
+                batch_size = int(config_module.hparams.get('batch_size', 512))
+                row_count = sum(1 for _ in train_path.open(encoding='utf-8')) - 1
+                training_tasks[task_key].update({
+                    'log_dir': str(log_dir),
+                    'before_log_dirs': [str(path) for path in before_log_dirs],
+                    'started_at': time.time(),
+                    'batches_per_epoch': math.ceil(row_count / batch_size),
+                    'total_epochs': int(config_module.hparams.get('epoch', 1)),
+                })
 
             if model_name == 'ConCDF':
                 # 包含关系模型使用 ConCDF 适配器。
@@ -388,8 +625,12 @@ def run_training_task(dataset_name, model_name, experiment_id, user_id):
                 best_epoch, best_auc, best_acc, rmse = train_concdm(dataset_name, device=device)
             elif model_name == 'HierCDF':
                 # 层次关系模型使用 HierCDF 适配器。
+                if cdf_dataset_name == 'Math1':
+                    device = 'cpu'
+                from .researcher_cdf_compat import ensure_pandas_append
+                ensure_pandas_append()
                 from learning.diagnosis.CMD_survey.model.HierCDF.HierCDF_adapter import train_hiercdm
-                best_epoch, best_auc, best_acc, rmse = train_hiercdm(dataset_name, device=device)
+                best_epoch, best_auc, best_acc, rmse = train_hiercdm(cdf_dataset_name, device=device)
             elif model_name == 'IdpCDF':
                 # IdpCDF 使用新的适配器。
                 from learning.diagnosis.CMD_survey.model.IdpCDF.IdpCDF_adapter import train_basecdm
@@ -424,7 +665,6 @@ def run_training_task(dataset_name, model_name, experiment_id, user_id):
                     created_by=User.objects.get(id=user_id)
                 )
 
-            task_key = f"{dataset_name}_{model_name}"
             training_tasks[task_key] = {
                 'status': 'completed',
                 'result': {
@@ -474,7 +714,6 @@ def run_training_task(dataset_name, model_name, experiment_id, user_id):
                     created_by=User.objects.get(id=user_id)
                 )
 
-            task_key = f"{dataset_name}_{model_name}"
             training_tasks[task_key] = {
                 'status': 'completed',
                 'result': {
@@ -488,37 +727,25 @@ def run_training_task(dataset_name, model_name, experiment_id, user_id):
             print(f"========== 任务 {dataset_name}_{model_name} 完成 ==========")
             return
 
-        # 设置环境变量，告诉params.py使用哪个数据集
-        os.environ['CD_DATASET'] = dataset_name
-        print(f"设置环境变量 CD_DATASET={dataset_name}")
+        # 每个任务使用独立配置；不修改进程工作目录、环境变量或模块缓存。
+        from types import SimpleNamespace
+        from .diagnosis.CMD_survey.dataloader import CD_DL
 
-        # 构建数据集路径
-        base_path = os.path.join(settings.BASE_DIR, 'learning', 'diagnosis', 'CMD_survey')
-        data_path = os.path.join(base_path, 'data', dataset_name)
-        print(f"数据路径: {data_path}")
-
-        # 读取config.txt获取学生数、习题数、知识点数
-        config_path = os.path.join(data_path, 'config.txt')
-        with open(config_path, 'r') as f:
-            f.readline()  # 跳过注释行
-            un, en, kn = f.readline().strip().split(',')
-            un, en, kn = int(un), int(en), int(kn)
-        print(f"数据集信息: 学生数={un}, 习题数={en}, 知识点数={kn}")
-
-        # 切换到 CMD_survey 目录
-        sys.path = [p for p in sys.path if os.path.abspath(p) != os.path.abspath(base_path)]
-        sys.path.insert(0, base_path)
-        os.chdir(base_path)
-        print(f"当前工作目录: {os.getcwd()}")
-
-        # 导入params（现在它会读取环境变量）
-        sys.modules.pop('params', None)
-        sys.modules.pop('dataloader', None)
-        import params
-        print("已导入params模块")
-
-        # 验证params中的路径是否正确
-        print(f"params.dataset = {params.dataset}")
+        input_dataset_name = 'Math1' if model_name == 'NCDM' and dataset_name.casefold() in {'math', 'math1'} else dataset_name
+        if input_dataset_name == 'Math1' and model_name == 'NCDM':
+            from .prepare_math1_hiercdf import prepare_math1_hiercdf
+            prepare_math1_hiercdf()
+        data_path = Path(settings.BASE_DIR) / 'learning' / 'diagnosis' / 'CMD_survey' / 'data' / input_dataset_name
+        with (data_path / 'config.txt').open(encoding='utf-8') as config_file:
+            config_file.readline()
+            un, en, kn = map(int, config_file.readline().strip().split(','))
+        training_config = SimpleNamespace(
+            src=data_path / 'train.json',
+            tgt=data_path / 'val.json',
+            kn=kn,
+            batch_size=128,
+            lr=0.002,
+        )
 
         # 导入对应的模型模块
         model_module_map = {
@@ -532,7 +759,7 @@ def run_training_task(dataset_name, model_name, experiment_id, user_id):
             raise Exception(f'未知模型: {model_name}')
 
         print(f"导入模型模块: model.{module_name}")
-        model_module = importlib.import_module(f'model.{module_name}')
+        model_module = importlib.import_module(f'learning.diagnosis.CMD_survey.model.{module_name}')
 
         # 创建模型实例
         print(f"创建{model_name}模型实例...")
@@ -548,8 +775,7 @@ def run_training_task(dataset_name, model_name, experiment_id, user_id):
 
         # 加载数据
         print("加载数据...")
-        import dataloader
-        src, tgt = dataloader.CD_DL()
+        src, tgt = CD_DL(training_config)
         print("数据加载完成")
 
         # 将ID从1-based转换为0-based
@@ -585,7 +811,7 @@ def run_training_task(dataset_name, model_name, experiment_id, user_id):
         if hasattr(cdm, 'train_with_curves'):
             # 如果模型支持返回曲线数据
             result, training_curves = cdm.train_with_curves(
-                train_data=src, test_data=tgt, epoch=10, device=device, lr=params.lr
+                train_data=src, test_data=tgt, epoch=10, device=device, lr=training_config.lr
             )
         elif hasattr(cdm, 'train_one_epoch'):
             # 否则手动记录每轮数据
@@ -602,7 +828,7 @@ def run_training_task(dataset_name, model_name, experiment_id, user_id):
 
                 # 训练一轮（需要根据你的模型接口调整）
                 # 这里假设模型有 train_one_epoch 方法
-                cdm.train_one_epoch(train_data=src, device=device, lr=params.lr)
+                cdm.train_one_epoch(train_data=src, device=device, lr=training_config.lr)
                 epoch_acc, epoch_auc, epoch_rmse = evaluate_model(cdm, tgt, device)
                 # 记录数据
                 training_curves['acc'].append(epoch_acc)
@@ -659,7 +885,6 @@ def run_training_task(dataset_name, model_name, experiment_id, user_id):
             print("数据库保存完成")
 
         # 更新任务状态 - 包含 training_curves
-        task_key = f"{dataset_name}_{model_name}"
         training_tasks[task_key] = {
             'status': 'completed',
             'result': {
@@ -677,7 +902,6 @@ def run_training_task(dataset_name, model_name, experiment_id, user_id):
         import traceback
         traceback.print_exc()
 
-        task_key = f"{dataset_name}_{model_name}"
         training_tasks[task_key] = {
             'status': 'failed',
             'error': str(e)
@@ -727,15 +951,19 @@ def researcher_run_comparison(request):
                 created_by=request.user
             )
 
+        # 每次点击使用新的运行 ID，防止重复运行读到上一轮的状态或结果。
+        run_id = uuid.uuid4().hex
+        tasks = []
         # 为每个模型启动训练任务
         for model in models:
             # 启动后台线程训练
-            task_key = f"{dataset.name}_{model.name}"
-            training_tasks[task_key] = {'status': 'training'}
+            task_key = f"{run_id}:{model.id}"
+            training_tasks[task_key] = {'status': 'queued'}
+            tasks.append({'id': task_key, 'model': model.name})
 
             thread = threading.Thread(
                 target=run_training_task,
-                args=(dataset.name, model.name, experiment.batch_id if experiment else None, request.user.id)
+                args=(dataset.name, model.name, experiment.batch_id if experiment else None, request.user.id, task_key)
             )
             thread.start()
 
@@ -743,7 +971,7 @@ def researcher_run_comparison(request):
             'success': True,
             'message': '训练任务已启动',
             'experiment_id': experiment.batch_id if experiment else None,
-            'tasks': [f"{dataset.name}_{model.name}" for model in models]
+            'tasks': tasks
         })
 
     except json.JSONDecodeError:
@@ -758,5 +986,8 @@ def check_training_status(request):
 
     task_key = request.GET.get('task')
     if task_key in training_tasks:
-        return JsonResponse(training_tasks[task_key])
+        task = training_tasks[task_key]
+        if task.get('status') == 'training' and 'log_dir' in task:
+            return JsonResponse({'status': 'training', **_hiercdf_progress(task)})
+        return JsonResponse(task)
     return JsonResponse({'status': 'not_found'})

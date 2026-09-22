@@ -1,0 +1,43 @@
+2026-09-22-14_50_32 (0 s used) Before HierCDF train.
+hparams = {
+  n_user: 4209,
+  n_item: 15,
+  n_know: 11,
+  max_exercise_id: 15,
+  hidden_dim: 1,
+  lr: 0.01,
+  epoch: 5,
+  batch_size: 64,
+  logger_mode: both,
+  loss_factor: 1.0,
+  batch_show: 200,
+  device: cpu,
+  Hier_log_path: D:\Project\Learning platform\Github\Education_system\learning\diagnosis\CMD_survey\model\HierCDF\logs\Math1
+}
+2026-09-22-14_50_40 (8 s used) HierCDF:epoch = 1, batch = 199, loss = 5.271850131981973
+2026-09-22-14_50_46 (14 s used) HierCDF:epoch = 1, batch = 399, loss = 0.7827554415261823
+2026-09-22-14_50_52 (20 s used) HierCDF:epoch = 1, batch = 599, loss = 0.6311712532885199
+2026-09-22-14_50_58 (26 s used) HierCDF:epoch = 1, train_f1 = 0.6589451176051319
+2026-09-22-14_50_59 (27 s used) HierCDF:valid acc = 0.6682505741664687
+2026-09-22-14_50_59 (27 s used) HierCDF:valid f1  = 0.740217054263566
+2026-09-22-14_50_59 (27 s used) HierCDF:valid auc = 0.7163153334110505
+2026-09-22-14_50_59 (27 s used) HierCDF:valid mse = 0.21549375901988793
+
+2026-09-22-14_51_05 (33 s used) HierCDF:epoch = 2, batch = 199, loss = 0.6222504489354486
+2026-09-22-14_51_11 (39 s used) HierCDF:epoch = 2, batch = 399, loss = 0.6193911984506265
+2026-09-22-14_51_16 (44 s used) HierCDF:epoch = 2, batch = 599, loss = 0.6181085150786463
+2026-09-22-14_51_22 (50 s used) HierCDF:epoch = 2, train_f1 = 0.6724281301971965
+2026-09-22-14_51_23 (51 s used) HierCDF:valid acc = 0.6688841371663895
+2026-09-22-14_51_23 (51 s used) HierCDF:valid f1  = 0.7261054700294792
+2026-09-22-14_51_23 (51 s used) HierCDF:valid auc = 0.7153896403401742
+2026-09-22-14_51_23 (51 s used) HierCDF:valid mse = 0.21398535703661697
+
+2026-09-22-14_51_29 (57 s used) HierCDF:epoch = 3, batch = 199, loss = 0.6156391910766326
+2026-09-22-14_51_34 (62 s used) HierCDF:epoch = 3, batch = 399, loss = 0.6116925969391418
+2026-09-22-14_51_41 (69 s used) HierCDF:epoch = 3, batch = 599, loss = 0.6098315276095589
+2026-09-22-14_51_46 (74 s used) HierCDF:epoch = 3, train_f1 = 0.6727251128534094
+2026-09-22-14_51_47 (75 s used) HierCDF:valid acc = 0.6670626435416172
+2026-09-22-14_51_47 (75 s used) HierCDF:valid f1  = 0.7155230748409798
+2026-09-22-14_51_47 (75 s used) HierCDF:valid auc = 0.7179040570874529
+2026-09-22-14_51_47 (75 s used) HierCDF:valid mse = 0.21355773043691453
+

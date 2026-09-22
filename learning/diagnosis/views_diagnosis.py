@@ -29,9 +29,10 @@ def diagnosis(request):
         teacher=teacher
     ).select_related('subject')
 
-    # 获取可用模型
+    # 教师端学生诊断目前只开放 NCDM。
     available_models = DiagnosisModel.objects.filter(
-        is_active=True
+        is_active=True,
+        name='NCDM',
     )
 
     context = {
@@ -64,9 +65,9 @@ def run_diagnosis(request):
 
         # 检查模型是否存在
         try:
-            diagnosis_model = DiagnosisModel.objects.get(id=model_id, is_active=True)
+            diagnosis_model = DiagnosisModel.objects.get(id=model_id, is_active=True, name='NCDM')
         except DiagnosisModel.DoesNotExist:
-            return JsonResponse({'status': 'error', 'message': '诊断模型不存在或已禁用'}, status=404)
+            return JsonResponse({'status': 'error', 'message': '教师端学生诊断目前仅支持 NCDM 模型'}, status=400)
 
         model_name = diagnosis_model.name
 

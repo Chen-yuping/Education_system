@@ -159,6 +159,9 @@ urlpatterns = [
     path('researcher/diagnosis-models/', views_researcher.researcher_diagnosis_models, name='researcher_diagnosis_models'),
 
     path('researcher/performance-comparison/', views_researcher.researcher_performance_comparison,name='researcher_performance_comparison'),
+    path('researcher/algorithm-comparison/', views_researcher.researcher_algorithm_comparison, name='researcher_algorithm_comparison'),
+    path('researcher/api/algorithm-comparison/', views_researcher.researcher_algorithm_comparison_data, name='researcher_algorithm_comparison_data'),
+    path('researcher/api/algorithm-comparison/status/', views_researcher.researcher_algorithm_comparison_status, name='researcher_algorithm_comparison_status'),
     path('researcher/run-comparison/', views_researcher.researcher_run_comparison, name='researcher_run_comparison'),
     path('researcher/check-status/', views_researcher.check_training_status, name='check_training_status'),
 ]
