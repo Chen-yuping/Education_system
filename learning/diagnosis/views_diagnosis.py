@@ -29,10 +29,10 @@ def diagnosis(request):
         teacher=teacher
     ).select_related('subject')
 
-    # 教师端学生诊断目前只开放 NCDM。
+    # 教师端开放无需关系的 NCDM 和使用先修关系的 HierCDF。
     available_models = DiagnosisModel.objects.filter(
         is_active=True,
-        name='NCDM',
+        name__in=('NCDM', 'HierCDF'),
     )
 
     context = {
@@ -65,35 +65,44 @@ def run_diagnosis(request):
 
         # 检查模型是否存在
         try:
-            diagnosis_model = DiagnosisModel.objects.get(id=model_id, is_active=True, name='NCDM')
+            diagnosis_model = DiagnosisModel.objects.get(
+                id=model_id, is_active=True, name__in=('NCDM', 'HierCDF')
+            )
         except DiagnosisModel.DoesNotExist:
-            return JsonResponse({'status': 'error', 'message': '教师端学生诊断目前仅支持 NCDM 模型'}, status=400)
+            return JsonResponse({'status': 'error', 'message': '教师端学生诊断目前仅支持 NCDM 和 HierCDF 模型'}, status=400)
 
         model_name = diagnosis_model.name
 
-        from .dual_relation_ncdm import MODEL_NAMES as IRD_NCDM_MODEL_NAMES
-        is_ird_ncdm_model = model_name in IRD_NCDM_MODEL_NAMES
-        # 从数据库导出训练数据到本地
-        try:
-            export_result = export_training_data(subject_id)
-            print(f"数据导出成功: {export_result}")
-        except Exception as e:
-            print(f"数据导出失败: {str(e)}")
-            return JsonResponse({'status': 'error', 'message': f'数据导出失败: {str(e)}'}, status=500)
-
-        # 数据导出成功，就执行模型训练
-        if export_result['success']:
+        if model_name == 'HierCDF':
             try:
-                run_training(subject_id, model_name)
+                from .cdf_bridge import run_cdf_diagnosis_pipeline
+                diagnosis_data = run_cdf_diagnosis_pipeline(
+                    subject_id=int(subject_id),
+                    model_id=int(model_id),
+                    model_name=model_name,
+                    save_to_db=True,
+                )
             except Exception as e:
                 return JsonResponse({'status': 'error', 'message': f'训练失败: {str(e)}'}, status=500)
-
-        # 3. 推理获取诊断数据
-        if is_ird_ncdm_model:
-            from .dual_relation_ncdm.platform import infer_and_get_diagnosis_data
+            if diagnosis_data.get('error'):
+                return JsonResponse({'status': 'error', 'message': diagnosis_data['error']}, status=500)
         else:
+            # NCDM 沿用当前的数据导出、训练和推理流程。
+            try:
+                export_result = export_training_data(subject_id)
+                print(f"数据导出成功: {export_result}")
+            except Exception as e:
+                print(f"数据导出失败: {str(e)}")
+                return JsonResponse({'status': 'error', 'message': f'数据导出失败: {str(e)}'}, status=500)
+
+            if export_result['success']:
+                try:
+                    run_training(subject_id, model_name)
+                except Exception as e:
+                    return JsonResponse({'status': 'error', 'message': f'训练失败: {str(e)}'}, status=500)
+
             from .inference_and_save import infer_and_get_diagnosis_data
-        diagnosis_data = infer_and_get_diagnosis_data(subject_id, model_id, model_name)
+            diagnosis_data = infer_and_get_diagnosis_data(subject_id, model_id, model_name)
 
         if diagnosis_data is None:
             return JsonResponse({'status': 'error', 'message': '推理失败'}, status=500)

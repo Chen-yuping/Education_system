@@ -1479,11 +1479,22 @@ class _TrainableCDFDiagnosisService:
         dataset_context = context["dataset_context"]
         hparams = context["hparams"]
 
+        # The original HierCDF implementation creates some tensors directly
+        # on CPU and uses double precision. Keeping this model on CPU avoids
+        # Adam receiving a mixture of CPU/CUDA state tensors on GPU servers.
+        if self.model_name == "HierCDF":
+            hparams["device"] = "cpu"
+
         _set_random_seed(42)
         context["checkpoint_dir"].mkdir(parents=True, exist_ok=True)
         context["log_base_dir"].mkdir(parents=True, exist_ok=True)
 
         model = self._build_model(context)
+        if self.model_name == "HierCDF":
+            model = model.double().cpu()
+            parameter_layout = {(parameter.device.type, parameter.dtype) for parameter in model.parameters()}
+            if parameter_layout != {("cpu", torch.float64)}:
+                raise RuntimeError(f"HierCDF 参数精度或设备不一致: {parameter_layout}")
         train_result = model.train(
             hparams=hparams,
             train_data=dataset_context["train_df"],
@@ -1879,7 +1890,17 @@ def train_cdf_model(subject_id: int, model_name: str, force_graph_refresh: bool 
             "containment": (containment_bundle or {}).get("relations", []),
         }
 
-    result = service.run_diagnosis(**kwargs)
+    previous_dtype = torch.get_default_dtype()
+    try:
+        # HierCDF's loader creates floating tensors with the process default
+        # dtype, so its parameters and batches must both use float64.
+        if model_name == "HierCDF":
+            from learning.researcher_cdf_compat import ensure_pandas_append
+            ensure_pandas_append()
+            torch.set_default_dtype(torch.float64)
+        result = service.run_diagnosis(**kwargs)
+    finally:
+        torch.set_default_dtype(previous_dtype)
     result = _normalize_cdf_result(
         subject_id=subject_id,
         model_name=model_name,

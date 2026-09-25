@@ -1,0 +1,24 @@
+2026-09-25-15_01_39 (0 s used) Before HierCDF train.
+hparams = {
+  n_user: 39,
+  n_item: 1029,
+  n_know: 172,
+  hidden_dim: 1,
+  lr: 0.005,
+  mixed_lr: 0.001,
+  weight_decay: 1e-05,
+  epoch: 30,
+  batch_size: 512,
+  logger_mode: file,
+  loss_factor: 0.001,
+  device: cuda:0,
+  batch_show: 10,
+  train_ratio: 0.8,
+  itf_type: irt,
+  max_exercise_id: 1029,
+  base_log_path: D:\Project\Learning platform\Github\Education_system\learning\diagnosis\cdflogs\subject_697821\HierCDF\5f8e43eba546135d393fc13fe8a715cd,
+  Con_log_path: D:\Project\Learning platform\Github\Education_system\learning\diagnosis\cdflogs\subject_697821\HierCDF\5f8e43eba546135d393fc13fe8a715cd,
+  Hier_log_path: D:\Project\Learning platform\Github\Education_system\learning\diagnosis\cdflogs\subject_697821\HierCDF\5f8e43eba546135d393fc13fe8a715cd,
+  Mixed_log_path: D:\Project\Learning platform\Github\Education_system\learning\diagnosis\cdflogs\subject_697821\HierCDF\5f8e43eba546135d393fc13fe8a715cd,
+  model_name: D:\Project\Learning platform\Github\Education_system\learning\diagnosis\checkpoints\subject_697821\HierCDF\5f8e43eba546135d393fc13fe8a715cd\model.pt
+}

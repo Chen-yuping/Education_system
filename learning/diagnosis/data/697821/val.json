@@ -1,14 +1,6 @@
 [
   {
     "user_id": 38,
-    "exer_id": 102,
-    "score": 0,
-    "knowledge_code": [
-      140
-    ]
-  },
-  {
-    "user_id": 38,
     "exer_id": 103,
     "score": 1,
     "knowledge_code": [
@@ -181,6 +173,14 @@
     "score": 0,
     "knowledge_code": [
       167
+    ]
+  },
+  {
+    "user_id": 38,
+    "exer_id": 105,
+    "score": 0,
+    "knowledge_code": [
+      131
     ]
   },
   {

@@ -1,0 +1,209 @@
+2026-09-25-15_08_52 (0 s used) Before HierCDF train.
+hparams = {
+  n_user: 39,
+  n_item: 1029,
+  n_know: 172,
+  hidden_dim: 1,
+  lr: 0.005,
+  mixed_lr: 0.001,
+  weight_decay: 1e-05,
+  epoch: 30,
+  batch_size: 512,
+  logger_mode: file,
+  loss_factor: 0.001,
+  device: cpu,
+  batch_show: 10,
+  train_ratio: 0.8,
+  itf_type: irt,
+  max_exercise_id: 1029,
+  base_log_path: D:\Project\Learning platform\Github\Education_system\learning\diagnosis\cdflogs\subject_697821\HierCDF\5f8e43eba546135d393fc13fe8a715cd,
+  Con_log_path: D:\Project\Learning platform\Github\Education_system\learning\diagnosis\cdflogs\subject_697821\HierCDF\5f8e43eba546135d393fc13fe8a715cd,
+  Hier_log_path: D:\Project\Learning platform\Github\Education_system\learning\diagnosis\cdflogs\subject_697821\HierCDF\5f8e43eba546135d393fc13fe8a715cd,
+  Mixed_log_path: D:\Project\Learning platform\Github\Education_system\learning\diagnosis\cdflogs\subject_697821\HierCDF\5f8e43eba546135d393fc13fe8a715cd,
+  model_name: D:\Project\Learning platform\Github\Education_system\learning\diagnosis\checkpoints\subject_697821\HierCDF\5f8e43eba546135d393fc13fe8a715cd\model.pt
+}
+2026-09-25-15_08_52 (0 s used) HierCDF:epoch = 1, train_f1 = 0.38880706921944036
+2026-09-25-15_08_52 (0 s used) HierCDF:valid acc = 0.4648648648648649
+2026-09-25-15_08_52 (0 s used) HierCDF:valid f1  = 0.0
+2026-09-25-15_08_52 (0 s used) HierCDF:valid auc = 0.5212003758515387
+2026-09-25-15_08_52 (0 s used) HierCDF:valid mse = 0.26215628085276216
+
+2026-09-25-15_08_53 (1 s used) HierCDF:epoch = 2, train_f1 = 0.38880706921944036
+2026-09-25-15_08_53 (1 s used) HierCDF:valid acc = 0.4648648648648649
+2026-09-25-15_08_53 (1 s used) HierCDF:valid f1  = 0.0
+2026-09-25-15_08_53 (1 s used) HierCDF:valid auc = 0.5558491895701199
+2026-09-25-15_08_53 (1 s used) HierCDF:valid mse = 0.26081742774744404
+
+2026-09-25-15_08_53 (1 s used) HierCDF:epoch = 3, train_f1 = 0.38880706921944036
+2026-09-25-15_08_53 (1 s used) HierCDF:valid acc = 0.4648648648648649
+2026-09-25-15_08_53 (1 s used) HierCDF:valid f1  = 0.0
+2026-09-25-15_08_53 (1 s used) HierCDF:valid auc = 0.5806319003993423
+2026-09-25-15_08_53 (1 s used) HierCDF:valid mse = 0.2595561208921997
+
+2026-09-25-15_08_53 (1 s used) HierCDF:epoch = 4, train_f1 = 0.38880706921944036
+2026-09-25-15_08_53 (1 s used) HierCDF:valid acc = 0.4648648648648649
+2026-09-25-15_08_53 (1 s used) HierCDF:valid f1  = 0.0
+2026-09-25-15_08_53 (1 s used) HierCDF:valid auc = 0.5936692506459949
+2026-09-25-15_08_53 (1 s used) HierCDF:valid mse = 0.258363162408879
+
+2026-09-25-15_08_53 (1 s used) HierCDF:epoch = 5, train_f1 = 0.38880706921944036
+2026-09-25-15_08_53 (1 s used) HierCDF:valid acc = 0.4648648648648649
+2026-09-25-15_08_53 (1 s used) HierCDF:valid f1  = 0.0
+2026-09-25-15_08_53 (1 s used) HierCDF:valid auc = 0.6087033121916843
+2026-09-25-15_08_53 (1 s used) HierCDF:valid mse = 0.25724011832623955
+
+2026-09-25-15_08_53 (1 s used) HierCDF:epoch = 6, train_f1 = 0.38880706921944036
+2026-09-25-15_08_53 (1 s used) HierCDF:valid acc = 0.4648648648648649
+2026-09-25-15_08_53 (1 s used) HierCDF:valid f1  = 0.0
+2026-09-25-15_08_53 (1 s used) HierCDF:valid auc = 0.61892177589852
+2026-09-25-15_08_53 (1 s used) HierCDF:valid mse = 0.25617965443643875
+
+2026-09-25-15_08_54 (2 s used) HierCDF:epoch = 7, train_f1 = 0.38880706921944036
+2026-09-25-15_08_54 (2 s used) HierCDF:valid acc = 0.4648648648648649
+2026-09-25-15_08_54 (2 s used) HierCDF:valid f1  = 0.0
+2026-09-25-15_08_54 (2 s used) HierCDF:valid auc = 0.62984496124031
+2026-09-25-15_08_54 (2 s used) HierCDF:valid mse = 0.2551806926280441
+
+2026-09-25-15_08_54 (2 s used) HierCDF:epoch = 8, train_f1 = 0.38880706921944036
+2026-09-25-15_08_54 (2 s used) HierCDF:valid acc = 0.4648648648648649
+2026-09-25-15_08_54 (2 s used) HierCDF:valid f1  = 0.0
+2026-09-25-15_08_54 (2 s used) HierCDF:valid auc = 0.6346605590791637
+2026-09-25-15_08_54 (2 s used) HierCDF:valid mse = 0.2542403850449669
+
+2026-09-25-15_08_54 (2 s used) HierCDF:epoch = 9, train_f1 = 0.38880706921944036
+2026-09-25-15_08_54 (2 s used) HierCDF:valid acc = 0.4648648648648649
+2026-09-25-15_08_54 (2 s used) HierCDF:valid f1  = 0.0
+2026-09-25-15_08_54 (2 s used) HierCDF:valid auc = 0.6374794456189805
+2026-09-25-15_08_54 (2 s used) HierCDF:valid mse = 0.2533560711986621
+
+2026-09-25-15_08_54 (2 s used) HierCDF:epoch = 10, train_f1 = 0.38880706921944036
+2026-09-25-15_08_54 (2 s used) HierCDF:valid acc = 0.4648648648648649
+2026-09-25-15_08_54 (2 s used) HierCDF:valid f1  = 0.0
+2026-09-25-15_08_54 (2 s used) HierCDF:valid auc = 0.636892177589852
+2026-09-25-15_08_54 (2 s used) HierCDF:valid mse = 0.25252038508958824
+
+2026-09-25-15_08_54 (2 s used) HierCDF:epoch = 11, train_f1 = 0.38880706921944036
+2026-09-25-15_08_54 (2 s used) HierCDF:valid acc = 0.4648648648648649
+2026-09-25-15_08_54 (2 s used) HierCDF:valid f1  = 0.0
+2026-09-25-15_08_54 (2 s used) HierCDF:valid auc = 0.6383016208597604
+2026-09-25-15_08_54 (2 s used) HierCDF:valid mse = 0.2517424913666189
+
+2026-09-25-15_08_55 (3 s used) HierCDF:epoch = 12, train_f1 = 0.3961708394698085
+2026-09-25-15_08_55 (3 s used) HierCDF:valid acc = 0.4648648648648649
+2026-09-25-15_08_55 (3 s used) HierCDF:valid f1  = 0.0
+2026-09-25-15_08_55 (3 s used) HierCDF:valid auc = 0.6400634249471459
+2026-09-25-15_08_55 (3 s used) HierCDF:valid mse = 0.2510133514725842
+
+2026-09-25-15_08_55 (3 s used) HierCDF:epoch = 13, train_f1 = 0.40795287187039764
+2026-09-25-15_08_55 (3 s used) HierCDF:valid acc = 0.4648648648648649
+2026-09-25-15_08_55 (3 s used) HierCDF:valid f1  = 0.019801980198019806
+2026-09-25-15_08_55 (3 s used) HierCDF:valid auc = 0.6401808785529716
+2026-09-25-15_08_55 (3 s used) HierCDF:valid mse = 0.25032687276768506
+
+2026-09-25-15_08_55 (3 s used) HierCDF:epoch = 14, train_f1 = 0.40942562592047127
+2026-09-25-15_08_55 (3 s used) HierCDF:valid acc = 0.4648648648648649
+2026-09-25-15_08_55 (3 s used) HierCDF:valid f1  = 0.019801980198019806
+2026-09-25-15_08_55 (3 s used) HierCDF:valid auc = 0.6397110641296688
+2026-09-25-15_08_55 (3 s used) HierCDF:valid mse = 0.249679934281927
+
+2026-09-25-15_08_55 (3 s used) HierCDF:epoch = 15, train_f1 = 0.42857142857142855
+2026-09-25-15_08_55 (3 s used) HierCDF:valid acc = 0.4648648648648649
+2026-09-25-15_08_55 (3 s used) HierCDF:valid f1  = 0.03883495145631068
+2026-09-25-15_08_55 (3 s used) HierCDF:valid auc = 0.6411205073995772
+2026-09-25-15_08_55 (3 s used) HierCDF:valid mse = 0.24907131418626197
+
+2026-09-25-15_08_55 (3 s used) HierCDF:epoch = 16, train_f1 = 0.4491899852724595
+2026-09-25-15_08_55 (3 s used) HierCDF:valid acc = 0.4864864864864865
+2026-09-25-15_08_55 (3 s used) HierCDF:valid f1  = 0.1592920353982301
+2026-09-25-15_08_55 (3 s used) HierCDF:valid auc = 0.6417077754287057
+2026-09-25-15_08_55 (3 s used) HierCDF:valid mse = 0.2484992045296524
+
+2026-09-25-15_08_55 (3 s used) HierCDF:epoch = 17, train_f1 = 0.4639175257731959
+2026-09-25-15_08_56 (4 s used) HierCDF:valid acc = 0.4918918918918919
+2026-09-25-15_08_56 (4 s used) HierCDF:valid f1  = 0.22950819672131148
+2026-09-25-15_08_56 (4 s used) HierCDF:valid auc = 0.6417077754287056
+2026-09-25-15_08_56 (4 s used) HierCDF:valid mse = 0.2479707666793377
+
+2026-09-25-15_08_56 (4 s used) HierCDF:epoch = 18, train_f1 = 0.4801178203240059
+2026-09-25-15_08_56 (4 s used) HierCDF:valid acc = 0.5027027027027027
+2026-09-25-15_08_56 (4 s used) HierCDF:valid f1  = 0.29230769230769227
+2026-09-25-15_08_56 (4 s used) HierCDF:valid auc = 0.6440568475452196
+2026-09-25-15_08_56 (4 s used) HierCDF:valid mse = 0.24747819122603934
+
+2026-09-25-15_08_56 (4 s used) HierCDF:epoch = 19, train_f1 = 0.5110456553755522
+2026-09-25-15_08_56 (4 s used) HierCDF:valid acc = 0.5243243243243243
+2026-09-25-15_08_56 (4 s used) HierCDF:valid f1  = 0.37142857142857144
+2026-09-25-15_08_56 (4 s used) HierCDF:valid auc = 0.6448790227859996
+2026-09-25-15_08_56 (4 s used) HierCDF:valid mse = 0.24701176761783764
+
+2026-09-25-15_08_56 (4 s used) HierCDF:epoch = 20, train_f1 = 0.5537555228276878
+2026-09-25-15_08_56 (4 s used) HierCDF:valid acc = 0.5135135135135135
+2026-09-25-15_08_56 (4 s used) HierCDF:valid f1  = 0.3835616438356164
+2026-09-25-15_08_56 (4 s used) HierCDF:valid auc = 0.6453488372093024
+2026-09-25-15_08_56 (4 s used) HierCDF:valid mse = 0.2465717182649407
+
+2026-09-25-15_08_56 (4 s used) HierCDF:epoch = 21, train_f1 = 0.5846833578792342
+2026-09-25-15_08_56 (4 s used) HierCDF:valid acc = 0.5243243243243243
+2026-09-25-15_08_56 (4 s used) HierCDF:valid f1  = 0.41333333333333333
+2026-09-25-15_08_56 (4 s used) HierCDF:valid auc = 0.6473455485083393
+2026-09-25-15_08_56 (4 s used) HierCDF:valid mse = 0.24615666585525126
+
+2026-09-25-15_08_56 (4 s used) HierCDF:epoch = 22, train_f1 = 0.6067746686303387
+2026-09-25-15_08_56 (4 s used) HierCDF:valid acc = 0.5567567567567567
+2026-09-25-15_08_56 (4 s used) HierCDF:valid f1  = 0.48749999999999993
+2026-09-25-15_08_56 (4 s used) HierCDF:valid auc = 0.6473455485083393
+2026-09-25-15_08_56 (4 s used) HierCDF:valid mse = 0.2457637096204617
+
+2026-09-25-15_08_57 (5 s used) HierCDF:epoch = 23, train_f1 = 0.6347569955817378
+2026-09-25-15_08_57 (5 s used) HierCDF:valid acc = 0.5837837837837838
+2026-09-25-15_08_57 (5 s used) HierCDF:valid f1  = 0.5333333333333333
+2026-09-25-15_08_57 (5 s used) HierCDF:valid auc = 0.647815362931642
+2026-09-25-15_08_57 (5 s used) HierCDF:valid mse = 0.24538847194981078
+
+2026-09-25-15_08_57 (5 s used) HierCDF:epoch = 24, train_f1 = 0.6553755522827688
+2026-09-25-15_08_57 (5 s used) HierCDF:valid acc = 0.5837837837837838
+2026-09-25-15_08_57 (5 s used) HierCDF:valid f1  = 0.5333333333333333
+2026-09-25-15_08_57 (5 s used) HierCDF:valid auc = 0.6480502701432934
+2026-09-25-15_08_57 (5 s used) HierCDF:valid mse = 0.24503030170128598
+
+2026-09-25-15_08_57 (5 s used) HierCDF:epoch = 25, train_f1 = 0.6656848306332842
+2026-09-25-15_08_57 (5 s used) HierCDF:valid acc = 0.5837837837837838
+2026-09-25-15_08_57 (5 s used) HierCDF:valid f1  = 0.5333333333333333
+2026-09-25-15_08_57 (5 s used) HierCDF:valid auc = 0.6492248062015503
+2026-09-25-15_08_57 (5 s used) HierCDF:valid mse = 0.2446956250123173
+
+2026-09-25-15_08_57 (5 s used) HierCDF:epoch = 26, train_f1 = 0.6863033873343152
+2026-09-25-15_08_57 (5 s used) HierCDF:valid acc = 0.6162162162162163
+2026-09-25-15_08_57 (5 s used) HierCDF:valid f1  = 0.5942857142857143
+2026-09-25-15_08_57 (5 s used) HierCDF:valid auc = 0.6500469814423302
+2026-09-25-15_08_57 (5 s used) HierCDF:valid mse = 0.24437497765402025
+
+2026-09-25-15_08_57 (5 s used) HierCDF:epoch = 27, train_f1 = 0.7054491899852725
+2026-09-25-15_08_57 (5 s used) HierCDF:valid acc = 0.6216216216216216
+2026-09-25-15_08_57 (5 s used) HierCDF:valid f1  = 0.6195652173913043
+2026-09-25-15_08_57 (5 s used) HierCDF:valid auc = 0.6518087855297158
+2026-09-25-15_08_57 (5 s used) HierCDF:valid mse = 0.24406643962894964
+
+2026-09-25-15_08_57 (5 s used) HierCDF:epoch = 28, train_f1 = 0.7083946980854198
+2026-09-25-15_08_57 (5 s used) HierCDF:valid acc = 0.6216216216216216
+2026-09-25-15_08_57 (5 s used) HierCDF:valid f1  = 0.6236559139784946
+2026-09-25-15_08_57 (5 s used) HierCDF:valid auc = 0.6527484143763214
+2026-09-25-15_08_57 (5 s used) HierCDF:valid mse = 0.2437687102817931
+
+2026-09-25-15_08_58 (6 s used) HierCDF:epoch = 29, train_f1 = 0.7128129602356407
+2026-09-25-15_08_58 (6 s used) HierCDF:valid acc = 0.6162162162162163
+2026-09-25-15_08_58 (6 s used) HierCDF:valid f1  = 0.6203208556149733
+2026-09-25-15_08_58 (6 s used) HierCDF:valid auc = 0.6535705896171012
+2026-09-25-15_08_58 (6 s used) HierCDF:valid mse = 0.24348051266309648
+
+2026-09-25-15_08_58 (6 s used) HierCDF:epoch = 30, train_f1 = 0.7290132547864506
+2026-09-25-15_08_58 (6 s used) HierCDF:valid acc = 0.6216216216216216
+2026-09-25-15_08_58 (6 s used) HierCDF:valid f1  = 0.6276595744680851
+2026-09-25-15_08_58 (6 s used) HierCDF:valid auc = 0.6542753112520554
+2026-09-25-15_08_58 (6 s used) HierCDF:valid mse = 0.24320028521881495
+
+2026-09-25-15_08_58 (6 s used) HierCDF:valid acc = 0.6216216216216216
+2026-09-25-15_08_58 (6 s used) HierCDF:valid f1  = 0.6276595744680851
+2026-09-25-15_08_58 (6 s used) HierCDF:valid auc = 0.6542753112520554
+2026-09-25-15_08_58 (6 s used) HierCDF:valid mse = 0.24320028521881495
+

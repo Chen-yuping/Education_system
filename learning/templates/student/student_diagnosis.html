@@ -717,6 +717,30 @@ function renderDiagnosisGraph(data) {
         nodes: { shadow: { enabled: true, size: 4, x: 2, y: 2 } },
     });
     diagnosisNetwork = network;
+    let linkedDrag = null;
+    network.on('dragStart', params => {
+        if (!params.nodes || params.nodes.length !== 1 || !params.pointer?.canvas) {
+            linkedDrag = null;
+            return;
+        }
+        const rootId = String(params.nodes[0]);
+        const linkedIds = network.getConnectedNodes(rootId).map(String);
+        const linkedPositions = network.getPositions(linkedIds);
+        linkedDrag = {
+            rootId,
+            startPointer: { x: params.pointer.canvas.x, y: params.pointer.canvas.y },
+            linkedPositions,
+        };
+    });
+    network.on('dragging', params => {
+        if (!linkedDrag || !params.pointer?.canvas || !params.nodes.map(String).includes(linkedDrag.rootId)) return;
+        const dx = params.pointer.canvas.x - linkedDrag.startPointer.x;
+        const dy = params.pointer.canvas.y - linkedDrag.startPointer.y;
+        Object.entries(linkedDrag.linkedPositions).forEach(([nodeId, position]) => {
+            network.moveNode(nodeId, position.x + dx, position.y + dy);
+        });
+    });
+    network.on('dragEnd', () => { linkedDrag = null; });
     network.once('stabilizationIterationsDone', () => {
         if (diagnosisNetwork !== network) return;
         network.setOptions({ physics: { enabled: false } });
