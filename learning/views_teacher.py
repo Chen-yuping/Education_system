@@ -1530,7 +1530,7 @@ def grade_answer(request, log_id):
 def ai_grade_answer(request, log_id):
     """使用AI模型批改答题"""
     try:
-        from .llm_grading import grade_subjective_answer
+        from .ai_scoring.scoring_agent import auto_score_answer
         
         log = get_object_or_404(AnswerLog, id=log_id)
         
@@ -1542,20 +1542,17 @@ def ai_grade_answer(request, log_id):
         if log.exercise.subject_id not in teacher_subjects:
             return JsonResponse({'success': False, 'message': '无权批改此记录'})
         
-        # 调用LLM进行评分
-        grading_result = grade_subjective_answer(
-            exercise_content=log.exercise.content,
-            reference_answer=log.exercise.answer or '',
-            student_answer=log.text_answer or '',
-            exercise_solution=log.exercise.solution or ''
-        )
-        
-        if grading_result.get('error'):
-            return JsonResponse({
-                'success': False,
-                'message': f"AI评分失败: {grading_result['error']}"
-            })
-        
+        result = auto_score_answer(log_id)
+        if not result.get('success'):
+            return JsonResponse({'success': False, 'message': result.get('error', 'DeepSeek 评分失败')})
+        grading_result = {
+            'is_correct': result['final_score'] >= result['full_score'] * 0.6,
+            'score': result['final_score'],
+            'feedback': result['process'],
+            'reasoning': result['process'],
+            'confidence': None,
+        }
+
         return JsonResponse({
             'success': True,
             'grading': {
@@ -1575,12 +1572,12 @@ def ai_grade_answer(request, log_id):
             'message': f'AI评分服务出错: {str(e)}'
         }, status=500)
 
-# 2. 智能体评分（三模型仲裁）
+# 2. DeepSeek 评分
 @login_required
 @user_passes_test(is_teacher)
 @require_POST
 def ai_agent_score(request, log_id):
-    """使用智能体（三模型仲裁）评分，结果写入 is_correct + 返回详细 JSON"""
+    """使用 DeepSeek 评分，结果写入 is_correct + 返回详细 JSON"""
     try:
         from .ai_scoring.scoring_agent import auto_score_answer
 
@@ -1616,8 +1613,7 @@ def ai_agent_score(request, log_id):
                 'final_score': score,
                 'full_score': full,
                 'ds_score': result.get('ds_score'),
-                'km_score': result.get('km_score'),
-                'xf_score': result.get('xf_score'),
+                'provider': 'deepseek',
                 'process': result.get('process', ''),
                 'question': result.get('question', ''),
                 'student_answer': result.get('student_answer', ''),

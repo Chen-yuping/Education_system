@@ -1,4 +1,5 @@
 from django.shortcuts import render
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from learning.models import *
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -19,10 +20,20 @@ def home(request):
     # 获取热门科目和课程
     popular_subjects = Subject.objects.all()[:6]
     featured_exercises = Exercise.objects.filter()[:4]
+    user_counts = get_user_model().objects.aggregate(
+        student_count=Count('pk', filter=Q(user_type='student')),
+        teacher_count=Count('pk', filter=Q(user_type='teacher')),
+    )
 
     context = {
         'popular_subjects': popular_subjects,
         'featured_exercises': featured_exercises,
+        'course_count': Subject.objects.count(),
+        'exercise_count': Exercise.objects.count(),
+        'student_count': user_counts['student_count'],
+        'teacher_count': user_counts['teacher_count'],
+        'dataset_count': Dataset.objects.count(),
+        'diagnosis_model_count': DiagnosisModel.objects.filter(is_active=True).count(),
     }
     return render(request, 'home.html', context)
 

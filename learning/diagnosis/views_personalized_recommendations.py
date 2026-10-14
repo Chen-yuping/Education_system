@@ -5,6 +5,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.db.models import Q, Count
 import random
+import re
 from ..models import *
 
 
@@ -43,29 +44,28 @@ def personalized_recommendations(request, subject_id=None):
     # 5. 获取推荐题目（10个）
     recommended_exercises = get_10_recommended_exercises(request.user, current_subject)
 
-    # 6. 获取该科目的所有知识点及其掌握程度，只显示掌握程度低的（< 60%）
-    # 先获取该科目的所有知识点
+    # 6. 区分已有诊断的知识点与未学习知识点，不将缺失诊断当作零掌握度
     all_knowledge_points = KnowledgePoint.objects.filter(subject=current_subject)
-    
-    # 获取学生对这些知识点的诊断结果，只保留掌握程度 < 60% 的（与图谱中的红色节点一致）
+    diagnoses = StudentDiagnosis.objects.filter(
+        student=request.user,
+        knowledge_point__subject=current_subject,
+        diagnosis_model_id=3,  # 与学生诊断图谱保持一致
+    )
+    diagnosis_by_kp = {diagnosis.knowledge_point_id: diagnosis for diagnosis in diagnoses}
     knowledge_points_with_mastery = []
+    unlearned_knowledge_points = []
     for kp in all_knowledge_points:
-        # 只获取 diagnosis_model=3 的数据，与学生诊断图谱保持一致
-        diagnosis = StudentDiagnosis.objects.filter(
-            student=request.user,
-            knowledge_point=kp,
-            diagnosis_model_id=3  # 只获取 diagnosis_model=3 的数据
-        ).first()
-        
-        mastery_level = diagnosis.mastery_level if diagnosis else 0.0
-        
-        # 只添加掌握程度 < 60% 的知识点（与图谱中的红色节点一致）
-        if mastery_level < 0.6:
-            knowledge_points_with_mastery.append({
-                'knowledge_point': kp,
-                'mastery_level': mastery_level,
-                'mastery_pct': round(mastery_level * 100, 1)  # 改为浮点数显示，更精确
-            })
+        diagnosis = diagnosis_by_kp.get(kp.id)
+        if diagnosis is None:
+            unlearned_knowledge_points.append(kp)
+            continue
+
+        mastery_level = diagnosis.mastery_level
+        knowledge_points_with_mastery.append({
+            'knowledge_point': kp,
+            'mastery_level': mastery_level,
+            'mastery_pct': round(mastery_level * 100, 1),
+        })
     
     # 按掌握程度排序（低到高）
     knowledge_points_with_mastery.sort(key=lambda x: x['mastery_level'])
@@ -81,6 +81,7 @@ def personalized_recommendations(request, subject_id=None):
         'subject': current_subject,  # 添加这个以保持与其他页面一致
         'exercises': recommended_exercises,
         'knowledge_points': knowledge_points_with_mastery,
+        'unlearned_knowledge_points': unlearned_knowledge_points,
         'title': '个性化推荐习题',
         'exercise_count': len(recommended_exercises),
     }
@@ -107,6 +108,8 @@ def get_10_recommended_exercises(student, subject):
         answered_exercise_ids=answered_exercise_ids,
         limit=5
     )
+    for exercise in weak_exercises:
+        exercise.recommendation_label = '薄弱知识巩固 / 先修基础补强'
     exercises.extend(weak_exercises)
 
     # 3. 获取未做过的题目补足到10个
@@ -116,7 +119,8 @@ def get_10_recommended_exercises(student, subject):
             subject=subject,
             answered_exercise_ids=answered_exercise_ids,
             exclude_ids=[e.id for e in exercises],
-            limit=new_limit
+            limit=new_limit,
+            student=student,
         )
         exercises.extend(new_exercises)
 
@@ -129,6 +133,8 @@ def get_10_recommended_exercises(student, subject):
             exclude_ids=[e.id for e in exercises],
             limit=remaining_limit
         )
+        for exercise in wrong_exercises:
+            exercise.recommendation_label = '历史错题复习'
         exercises.extend(wrong_exercises)
 
     return exercises[:10]
@@ -290,10 +296,11 @@ def check_prerequisite_mastery(student, knowledge_point, subject, mastery_thresh
             diagnosis_model_id=3
         ).first()
         
-        mastery_level = diagnosis.mastery_level if diagnosis else 0.0
+        # 缺少诊断表示尚未学习/评估，不伪造 0% 掌握度；仍需先补充基础。
+        mastery_level = diagnosis.mastery_level if diagnosis else None
         prerequisite_mastery[prereq_id] = mastery_level
         
-        if mastery_level < mastery_threshold:
+        if mastery_level is None or mastery_level < mastery_threshold:
             unmastered_prerequisites.append(prereq_id)
     
     return {
@@ -524,21 +531,73 @@ def get_weak_knowledge_exercises(student, subject, answered_exercise_ids, limit=
     return exercises[:limit]
 
 
-def get_new_exercises(subject, answered_exercise_ids, exclude_ids=None, limit=5):
+def _problemsets_sort_key(exercise):
+    """按习题集数字自然升序排列，无数字的习题集放在最后。"""
+    problemsets = (exercise.problemsets or '').strip()
+    numbers = tuple(int(value) for value in re.findall(r'\d+', problemsets))
+    return (not bool(numbers), numbers, problemsets.casefold())
+
+
+def _target_problemsets(course_exercises, answered_exercise_ids):
+    """已答题取最大习题集；无答题记录取课程最小习题集。"""
+    answered_ids = set(answered_exercise_ids)
+    answered = [exercise for exercise in course_exercises if exercise.id in answered_ids]
+    candidates = answered or course_exercises
+    if not candidates:
+        return None
+    # 有有效章节编号时，不让缺失或非数字编号被误判为最大章节。
+    numbered = [exercise for exercise in candidates if not _problemsets_sort_key(exercise)[0]]
+    candidates = numbered or candidates
+    choose = max if answered else min
+    return choose(candidates, key=_problemsets_sort_key).problemsets
+
+
+def get_new_exercises(subject, answered_exercise_ids, exclude_ids=None, limit=5, student=None):
     """
-    获取未做过的题目
+    在学生当前习题集内随机推荐未学习知识点新题，再补充同习题集未做题。
     """
     exclude_ids = exclude_ids or []
+    answered_exercise_ids = set(answered_exercise_ids)
+    course_exercises = list(Exercise.objects.filter(subject=subject).only('id', 'problemsets'))
+    target_problemsets = _target_problemsets(course_exercises, answered_exercise_ids)
+    if target_problemsets is None:
+        return []
 
     exercises = Exercise.objects.filter(
-        subject=subject
+        subject=subject,
+        problemsets=target_problemsets,
     ).exclude(
         id__in=answered_exercise_ids
     ).exclude(
         id__in=exclude_ids
-    ).order_by('?')[:limit]  # 随机取
+    )
 
-    return exercises
+    selected = []
+    if student is not None:
+        diagnosed_ids = StudentDiagnosis.objects.filter(
+            student=student,
+            knowledge_point__subject=subject,
+            diagnosis_model_id=3,
+        ).values_list('knowledge_point_id', flat=True)
+        unlearned_ids = KnowledgePoint.objects.filter(subject=subject).exclude(
+            id__in=diagnosed_ids,
+        ).values_list('id', flat=True)
+        candidates = list(exercises.filter(
+            qmatrix__knowledge_point_id__in=unlearned_ids,
+        ).distinct())
+        selected = random.sample(candidates, min(limit, len(candidates)))
+        for exercise in selected:
+            exercise.recommendation_label = '未学习知识点练习'
+
+    if len(selected) < limit:
+        supplemental = list(exercises.exclude(
+            id__in=[exercise.id for exercise in selected],
+        ).order_by('?')[:limit - len(selected)])
+        for exercise in supplemental:
+            exercise.recommendation_label = '新题巩固'
+        selected.extend(supplemental)
+
+    return selected
 
 
 def get_wrong_exercises(student, subject, exclude_ids=None, limit=5):

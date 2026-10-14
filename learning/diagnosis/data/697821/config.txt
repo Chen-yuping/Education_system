@@ -1,2 +1,2 @@
 # Number of Students, Number of Exercises, Number of Knowledge Concepts
-39, 1029, 172
+3119, 1029, 172

@@ -192,7 +192,7 @@
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
                 <span id="aiGradeBtns">
                     <button type="button" class="btn btn-warning" onclick="requestAgentScore()">
-                        <i class="fas fa-robot me-1"></i>智能体评分
+                        <i class="fas fa-robot me-1"></i>DeepSeek 评分
                     </button>
                 </span>
                 <span id="manualGradeBtns">
@@ -325,8 +325,7 @@ function renderGradeContent(log, cachedScore) {
             final_score: cachedScore.final_score,
             full_score: cachedScore.full_score,
             ds_score: cachedScore.ds_score,
-            km_score: cachedScore.km_score,
-            xf_score: cachedScore.xf_score,
+            provider: cachedScore.provider,
             process: cachedScore.process,
         };
         displayAgentGradingResult(grading, resultDiv);
@@ -460,7 +459,7 @@ let lastAIScore = null;
 function confirmScore() {
     if (!currentLogId) return;
     if (lastAIScore === null) {
-        alert('请先点击智能体评分，或使用“修改分数”手动输入分值。');
+        alert('请先点击DeepSeek 评分，或使用“修改分数”手动输入分值。');
         return;
     }
     submitManualScore(lastAIScore);
@@ -502,12 +501,12 @@ function submitManualScore(score) {
     });
 }
 
-// ===================== 智能体三模型评分 =====================
+// ===================== DeepSeek 评分 =====================
 function requestAgentScore() {
     if (!currentLogId) return;
 
     const resultDiv = document.getElementById('aiGradingResult');
-    resultDiv.innerHTML = `<div class="alert alert-info mt-4"><div class="d-flex align-items-center"><div class="spinner-border spinner-border-sm me-2" role="status"></div><span>智能体正在评分（DeepSeek + Kimi + 讯飞三模型仲裁），请稍候...</span></div></div>`;
+    resultDiv.innerHTML = `<div class="alert alert-info mt-4"><div class="d-flex align-items-center"><div class="spinner-border spinner-border-sm me-2" role="status"></div><span>DeepSeek 正在评分，请稍候...</span></div></div>`;
     resultDiv.style.display = 'block';
 
     fetch(`/learning/teacher/api/answer/${currentLogId}/ai-agent-score/`, {
@@ -523,7 +522,7 @@ function requestAgentScore() {
         }
     })
     .catch(error => {
-        resultDiv.innerHTML = `<div class="alert alert-danger mt-4"><i class="fas fa-times-circle me-2"></i>智能体评分请求失败，请重试</div>`;
+        resultDiv.innerHTML = `<div class="alert alert-danger mt-4"><i class="fas fa-times-circle me-2"></i>DeepSeek 评分请求失败，请重试</div>`;
     });
 }
 
@@ -544,24 +543,17 @@ function displayAgentGradingResult(g, resultDiv) {
         verdictBadge = '<span class="badge bg-danger">判定：错误</span>';
     }
 
-    const scores = [g.ds_score, g.km_score, g.xf_score].filter(s => s !== null && s !== undefined);
-    const maxDiff = scores.length >= 2 ? (Math.max(...scores) - Math.min(...scores)).toFixed(1) : 'N/A';
-
     const isManual = g.manual === true;
-    const hasAIScores = g.ds_score !== null && g.ds_score !== undefined
-                     || g.km_score !== null && g.km_score !== undefined
-                     || g.xf_score !== null && g.xf_score !== undefined;
+    const hasAIScores = g.ds_score !== null && g.ds_score !== undefined;
     const modelRow = (isManual && !hasAIScores) ? '' : `
         <div class="row mb-3">
-            <div class="col-md-3 text-center"><div class="border rounded p-2 bg-white"><small class="text-muted">DeepSeek</small><h5 class="mb-0 text-primary">${fmtScore(g.ds_score)}</h5></div></div>
-            <div class="col-md-3 text-center"><div class="border rounded p-2 bg-white"><small class="text-muted">Kimi</small><h5 class="mb-0 text-info">${fmtScore(g.km_score)}</h5></div></div>
-            <div class="col-md-3 text-center"><div class="border rounded p-2 bg-white"><small class="text-muted">讯飞星火</small><h5 class="mb-0 text-secondary">${fmtScore(g.xf_score)}</h5></div></div>
-            <div class="col-md-3 text-center"><div class="border rounded p-2 bg-white"><small class="text-muted">最终得分</small><h5 class="mb-0 text-warning">${finalScore} / ${fullScore}</h5></div></div>
+            <div class="col-md-6 text-center"><div class="border rounded p-2 bg-white"><small class="text-muted">DeepSeek</small><h5 class="mb-0 text-primary">${fmtScore(g.ds_score)}</h5></div></div>
+            <div class="col-md-6 text-center"><div class="border rounded p-2 bg-white"><small class="text-muted">最终得分</small><h5 class="mb-0 text-warning">${finalScore} / ${fullScore}</h5></div></div>
         </div>`;
 
     resultDiv.innerHTML = `
         <div class="alert ${isManual ? 'alert-success' : 'alert-warning'} mt-4">
-            <h6 class="alert-heading"><i class="fas ${isManual ? 'fa-user-check' : 'fa-robot'} me-2"></i>${isManual ? '手动评分结果' : '智能体评分结果（三模型仲裁）'}</h6>
+            <h6 class="alert-heading"><i class="fas ${isManual ? 'fa-user-check' : 'fa-robot'} me-2"></i>${isManual ? '手动评分结果' : (g.provider === 'deepseek' ? 'DeepSeek 评分结果' : '历史评分结果')}</h6>
             <hr>
             ${modelRow}
             <div class="mb-3"><strong>得分率：</strong> ${rate}% ${verdictBadge}</div>
@@ -572,7 +564,7 @@ function displayAgentGradingResult(g, resultDiv) {
 
 // ===================== 批量一键批改 =====================
 function batchAIScore() {
-    if (!confirm('确认对当前科目所有待批改主观题执行智能体三模型评分？\n\n此操作将调用 DeepSeek + Kimi + 讯飞三模型，耗时较长。')) return;
+    if (!confirm('确认对当前科目所有待批改主观题执行DeepSeek 评分？\n\n此操作仅调用 DeepSeek，耗时取决于待批改数量。')) return;
 
     const progressDiv = document.getElementById('batchProgress');
     progressDiv.style.display = 'block';

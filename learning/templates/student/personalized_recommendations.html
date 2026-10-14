@@ -1,4 +1,5 @@
 {% extends 'student/learning_base.html' %}
+{% load dict_extras %}
 
 {% block title %}{{ title }}{% endblock %}
 
@@ -61,9 +62,9 @@
 
     .weak-point-item {
         padding: 10px 15px;
-        border-left: 3px solid #dc3545;
+        border-left: 3px solid #dee2e6;
         margin-bottom: 10px;
-        background: #fff5f5;
+        background: #f8f9fa;
         border-radius: 5px;
     }
 
@@ -228,32 +229,28 @@
                                     <span class="exercise-number">{{ forloop.counter }}</span>
                                     <div class="exercise-info flex-grow-1">
                                         <div class="exercise-title mb-2">{{ exercise.content }}</div>
+                                        {% if exercise.question_type == '1' or exercise.question_type == '2' or exercise.question_type == '3' or exercise.question_type == '6' or exercise.question_type == 'single' or exercise.question_type == 'multiple' or exercise.question_type == 'vote' or exercise.question_type == 'judgment' %}
                                         {% if exercise.choices.all %}
                                         <div class="exercise-choices">
                                             {% for choice in exercise.choices.all %}
                                             <div style="padding: 8px 12px; background: #f8f9fa; border-radius: 4px; margin-bottom: 6px; font-size: 0.9rem;">
-                                                {% if exercise.question_type == '1' or exercise.question_type == '2' or exercise.question_type == '3' or exercise.question_type == '5' or exercise.question_type == 'single' or exercise.question_type == 'multiple' or exercise.question_type == 'judgment' %}
                                                     {% if forloop.counter == 1 %}A.{% elif forloop.counter == 2 %}B.{% elif forloop.counter == 3 %}C.{% elif forloop.counter == 4 %}D.{% elif forloop.counter == 5 %}E.{% elif forloop.counter == 6 %}F.{% endif %}
-                                                {% endif %}
-                                                {{ choice.content }}
+                                                {{ choice.content|strip_choice_label }}
                                             </div>
                                             {% endfor %}
                                         </div>
                                         {% endif %}
+                                        {% endif %}
                                         <div class="exercise-meta mt-2">
                                             {% if exercise.question_type == '1' or exercise.question_type == 'single' %}单选题
                                             {% elif exercise.question_type == '2' or exercise.question_type == 'multiple' %}多选题
-                                            {% elif exercise.question_type == '3' or exercise.question_type == 'fill' %}填空题
-                                            {% elif exercise.question_type == '4' or exercise.question_type == 'subjective' %}主观题
-                                            {% else %}判断题{% endif %}
+                                            {% elif exercise.question_type == '3' or exercise.question_type == 'vote' %}投票题
+                                            {% elif exercise.question_type == '4' or exercise.question_type == 'fill' %}填空题
+                                            {% elif exercise.question_type == '5' or exercise.question_type == 'subjective' %}简答题
+                                            {% elif exercise.question_type == '6' or exercise.question_type == 'judgment' %}判断题
+                                            {% else %}未知题型{% endif %}
                                             
-                                            {% with weak_knowledge_count=exercise.qmatrix_set.count %}
-                                            {% if weak_knowledge_count > 0 %}
-                                            • <span class="badge-recommend" style="display: inline-block; margin-left: 8px;">薄弱知识点相关</span>
-                                            {% else %}
-                                            • <span class="badge-new" style="display: inline-block; margin-left: 8px;">新习题</span>
-                                            {% endif %}
-                                            {% endwith %}
+                                            • <span class="badge bg-secondary ms-2">{{ exercise.recommendation_label }}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -278,9 +275,9 @@
         </div>
     </div>
 
-    <!-- 右侧：薄弱知识点分析 -->
+    <!-- 右侧：知识点学习情况 -->
     <div class="col-lg-4">
-        <!-- 薄弱知识点卡片 -->
+        <!-- 已有诊断的知识点 -->
         <div class="card mb-4">
             <div class="card-header bg-danger text-white">
                 <h5 class="mb-0">
@@ -309,9 +306,34 @@
                     </div>
                 {% else %}
                 <div class="text-center py-4">
-                    <i class="fas fa-check-circle fa-2x text-success mb-3"></i>
-                    <p class="text-muted mb-0">暂无知识点数据</p>
+                    <i class="fas fa-info-circle fa-2x text-muted mb-3"></i>
+                    <p class="text-muted mb-0">暂无知识点诊断结果</p>
                 </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- 没有诊断记录的知识点不显示为 0% -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-book me-2"></i>未学习知识点
+                    <span class="badge bg-light text-dark ms-2">{{ unlearned_knowledge_points|length }}</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if unlearned_knowledge_points %}
+                <p class="text-muted small">以下知识点暂无诊断结果，完成学习与诊断后可查看掌握情况。</p>
+                <div class="weak-points-scroll">
+                    {% for kp in unlearned_knowledge_points %}
+                    <div class="weak-point-item d-flex justify-content-between align-items-center">
+                        <strong>{{ kp.name }}</strong>
+                        <span class="badge bg-secondary ms-2">未学习</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-muted text-center mb-0">暂无未学习知识点</p>
                 {% endif %}
             </div>
         </div>
@@ -325,11 +347,11 @@
                 <ul class="list-unstyled mb-0">
                     <li class="mb-2">
                         <small><i class="fas fa-dot-circle text-danger me-2"></i>
-                        优先推荐<strong>薄弱知识点</strong>相关习题</small>
+                        优先推荐有诊断的<strong>薄弱知识点及先修基础</strong>相关习题（最多5题）</small>
                     </li>
                     <li class="mb-2">
                         <small><i class="fas fa-dot-circle text-success me-2"></i>
-                        其次推荐<strong>未做过</strong>的新习题</small>
+                        其次在已做题的最大习题集中推荐<strong>未学习知识点</strong>相关新题；未做过题时从课程最小习题集开始，不足时补充同习题集的其他未做题</small>
                     </li>
                     <li>
                         <small><i class="fas fa-dot-circle text-warning me-2"></i>

@@ -37,7 +37,7 @@
     }
     .tooltip-fusion h6 { margin: 0 0 6px 0; color: #ffcc00; font-weight: bold; }
     .tooltip-fusion p { margin: 2px 0; }
-    .cross-badge { display:inline-block; background:#10b981; color:#fff; font-size:11px; padding:1px 7px; border-radius:10px; margin-left:6px; }
+    .cross-badge { display:inline-block; background:#f97316; color:#fff; font-size:11px; padding:1px 7px; border-radius:10px; margin-left:6px; }
 
     .score-ring {
         width: 130px; height: 130px; border-radius: 50%;
@@ -151,9 +151,9 @@
         <span class="d-flex align-items-center"><span style="width:24px;height:3px;background:#8b5cf6;display:inline-block;margin-right:4px;"></span>层级</span>
         <span class="d-flex align-items-center"><span style="width:24px;height:3px;background:#f59e0b;display:inline-block;margin-right:4px;"></span>先修</span>
         <span class="d-flex align-items-center"><span style="width:24px;height:3px;background:#10b981;display:inline-block;margin-right:4px;"></span>相似</span>
-        <span class="d-flex align-items-center ms-2"><span style="width:14px;height:14px;border-radius:50%;background:#10b981;display:inline-block;margin-right:4px;"></span>跨学科节点</span>
         <span class="ms-auto small text-muted"><i class="fas fa-mouse-pointer me-1"></i>悬停查看详情 · 拖拽 · 滚轮缩放</span>
     </div>
+    <div id="fusionNodeLegend" class="d-flex align-items-center flex-wrap mt-2" style="gap:14px;" aria-label="知识点颜色图例"></div>
 </div></div>
 
 <!-- 人工审核：融合新增的跨学科关系 -->
@@ -313,19 +313,54 @@ function renderFusionStats(data) {
     document.getElementById('fusionStats').style.display = 'flex';
 }
 
+const fusionSubjectColors = new Map();
+const fusionSubjectPalette = ['#4e73df', '#10b981', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b', '#84cc16', '#a855f7'];
+
+function subjectNodeColor(subject) {
+    if (!subject) return '#94a3b8';
+    if (!fusionSubjectColors.has(subject)) {
+        const index = fusionSubjectColors.size;
+        // 扩展色相避开橙色区域，橙色专用于融合节点。
+        fusionSubjectColors.set(subject, fusionSubjectPalette[index] || `hsl(${80 + ((index * 137.508) % 260)}, 65%, 48%)`);
+    }
+    return fusionSubjectColors.get(subject);
+}
+
 function renderFusionGraph(data) {
     const container = document.getElementById('fusionChart');
     const relTypeColors = {'层级':'#8b5cf6','先修':'#f59e0b','相似':'#10b981'};
+    const subjects = [...new Set(data.nodes.flatMap(n => n.subjects || []))].sort();
+    subjects.forEach(subjectNodeColor);
+    const legend = document.getElementById('fusionNodeLegend');
+    legend.replaceChildren();
+    const legendTitle = document.createElement('span');
+    legendTitle.className = 'small text-muted';
+    legendTitle.textContent = '知识点：';
+    legend.appendChild(legendTitle);
+    const entries = subjects.map(subject => [subject, subjectNodeColor(subject)]);
+    entries.push(['融合知识点', '#f97316']);
+    if (data.nodes.some(n => !(n.subjects || []).length)) entries.push(['未知学科', '#94a3b8']);
+    entries.forEach(([label, color]) => {
+        const item = document.createElement('span');
+        item.className = 'd-flex align-items-center';
+        const dot = document.createElement('span');
+        dot.style.cssText = `width:14px;height:14px;border-radius:50%;background:${color};display:inline-block;margin-right:4px;`;
+        item.append(dot, document.createTextNode(label));
+        legend.appendChild(item);
+    });
 
     const nodes = new vis.DataSet(data.nodes.map(n => {
         const isCross = n.cross_subject;
+        const isMerged = isCross || (n.merged_count || 1) > 1 || (n.subjects || []).length > 1;
+        const background = isMerged ? '#f97316' : subjectNodeColor((n.subjects || [])[0]);
+        const border = isMerged ? '#c2410c' : background;
         return {
             id: n.id, label: n.name, shape: 'dot',
             size: isCross ? 30 : (20 + Math.min((n.merged_count || 1) - 1, 6) * 3),
             font: { color:'#1a2332', size:12, face:'sans-serif', strokeWidth:3, strokeColor:'#fff', align:'center' },
-            color: isCross
-                ? { background:'#10b981', border:'#0f9d6f', highlight:{ background:'#ff5722', border:'#e64a19' } }
-                : { background:'#4e73df', border:'#2e59d9', highlight:{ background:'#ff5722', border:'#e64a19' } },
+            color: { background, border,
+                highlight: { background, border:'#1e293b' },
+                hover: { background, border:'#1e293b' } },
             borderWidth: 2,
         };
     }));
